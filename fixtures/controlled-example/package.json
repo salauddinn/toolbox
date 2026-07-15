@@ -1,0 +1,25 @@
+{
+  "name": "toolbox-controlled-example",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Bundled Legacy Application: Orders, Payments, Users with supported Orders↔Payments cycle",
+  "main": "app.js",
+  "scripts": {
+    "start": "node app.js",
+    "test": "jest --runInBand"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "mongoose": "^8.16.1"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0",
+    "supertest": "^7.1.1"
+  },
+  "jest": {
+    "testEnvironment": "node",
+    "testMatch": [
+      "**/tests/**/*.test.js"
+    ]
+  }
+}

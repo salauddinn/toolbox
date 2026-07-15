@@ -1,0 +1,31 @@
+{
+  "description": "Synthetic archive entries for Safety Screening path-risk tests. Not a real tar; consumed by fixture loaders.",
+  "entries": [
+    {
+      "path": "../escape.js",
+      "content": "module.exports = {};",
+      "expectedRejection": "SAFETY_PATH_TRAVERSAL"
+    },
+    {
+      "path": "/absolute/evil.js",
+      "content": "module.exports = {};",
+      "expectedRejection": "SAFETY_PATH_TRAVERSAL"
+    },
+    {
+      "path": "nested\\windows.js",
+      "content": "module.exports = {};",
+      "expectedRejection": "PATH_BACKSLASH"
+    },
+    {
+      "path": "ok.js",
+      "content": "module.exports = {};",
+      "symlink": true,
+      "expectedRejection": "SAFETY_SYMLINK"
+    },
+    {
+      "path": ".env",
+      "content": "SECRET=do-not-read",
+      "expectedRejection": "SAFETY_SENSITIVE_FILE"
+    }
+  ]
+}

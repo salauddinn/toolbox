@@ -1,0 +1,55 @@
+{
+  "description": "Fixture AI responses that fail Static Validation twice for rollback testing. Attempt 1 is invalid; attempt 2 (repair) is also invalid.",
+  "stageKind": "behavior_capture",
+  "attempts": [
+    {
+      "attempt": 1,
+      "operations": [
+        {
+          "type": "update",
+          "path": "package.json",
+          "content": "{ \"name\": \"mutated-manifest\" }"
+        },
+        {
+          "type": "create",
+          "path": "../outside-repo.js",
+          "content": "module.exports = {};"
+        },
+        {
+          "type": "update",
+          "path": "routes/orders.js",
+          "content": "this is not valid javascript {{{"
+        }
+      ],
+      "expectedValidationFailures": [
+        "disallowed_manifest_change",
+        "path_outside_repository_root",
+        "javascript_parse_error"
+      ]
+    },
+    {
+      "attempt": 2,
+      "operations": [
+        {
+          "type": "create",
+          "path": "tests/generated-orders.test.js",
+          "content": "describe('broken', () => { not valid"
+        },
+        {
+          "type": "delete",
+          "path": "app.js"
+        },
+        {
+          "type": "update",
+          "path": "package-lock.json",
+          "content": "{}"
+        }
+      ],
+      "expectedValidationFailures": [
+        "javascript_parse_error",
+        "disallowed_delete_outside_envelope",
+        "disallowed_lockfile_change"
+      ]
+    }
+  ]
+}

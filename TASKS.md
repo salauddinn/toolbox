@@ -6,35 +6,35 @@ Tasks are ordered by dependency. Complete P0 tasks before any P1 work.
 
 ### 1. Scaffold the application
 
-- [ ] Create the Next.js TypeScript application.
-- [ ] Add Tailwind CSS and the base responsive shell.
-- [ ] Add formatting, linting and unit-test commands.
-- [ ] Add server environment validation for `AI_BASE_URL`, `AI_API_KEY`, `AI_MODEL` and optional `GITHUB_TOKEN`.
-- [ ] Confirm secrets cannot enter the client bundle.
+- [x] Create the Next.js TypeScript application.
+- [x] Add Tailwind CSS and the base responsive shell.
+- [x] Add formatting, linting and unit-test commands.
+- [x] Add server environment validation for `AI_BASE_URL`, `AI_API_KEY`, `AI_MODEL` and optional `GITHUB_TOKEN`.
+- [x] Confirm secrets cannot enter the client bundle.
 
 Done when the application builds, tests and runs with a placeholder start screen.
 
 ### 2. Define core contracts
 
-- [ ] Define `RepositoryFile`, source snapshot and normalized path types.
-- [ ] Define eligibility and Safety Screening result types.
-- [ ] Define analysis, evidence, finding, graph and route/model types.
-- [ ] Define Domain Candidate ranking and Transformation Readiness types.
-- [ ] Define `StagePlan`, `FileOperation`, `ChangeSet` and `ValidationReport` types.
-- [ ] Define per-stage create/update/delete path envelopes, mutable AST regions and protected-region fingerprints as part of `StagePlan`.
-- [ ] Model the run as a discriminated state machine so authorization, acceptance, rejection, repair and rollback transitions cannot be skipped.
-- [ ] Define the `CodebaseAnalyzer` interface and `ExpressAnalyzer` shell.
+- [x] Define `RepositoryFile`, source snapshot and normalized path types.
+- [x] Define eligibility and Safety Screening result types.
+- [x] Define analysis, evidence, finding, graph and route/model types.
+- [x] Define Domain Candidate ranking and Transformation Readiness types.
+- [x] Define `StagePlan`, `FileOperation`, `ChangeSet` and `ValidationReport` types.
+- [x] Define per-stage create/update/delete path envelopes, mutable AST regions and protected-region fingerprints as part of `StagePlan`.
+- [x] Model the run as a discriminated state machine so authorization, acceptance, rejection, repair and rollback transitions cannot be skipped.
+- [x] Define the `CodebaseAnalyzer` interface and `ExpressAnalyzer` shell.
 
 Done when invalid states such as a ready candidate with failed readiness rules cannot be represented accidentally.
 
 ### 3. Build the controlled example and test fixtures
 
-- [ ] Add a small CommonJS Express/Mongoose application with Orders, Payments and Users.
-- [ ] Keep Orders business and Mongoose logic inside legacy route handlers.
-- [ ] Include a supported Orders↔Payments circular dependency to trigger the conditional stage.
-- [ ] Add a CommonJS Jest/Supertest harness, `npm test` command and stable route-level tests for the example.
-- [ ] Add fixture repositories for unsupported ESM, missing Mongoose, path risk and no-ready-candidate cases.
-- [ ] Add a fixture AI response that fails validation twice for rollback testing.
+- [x] Add a small CommonJS Express/Mongoose application with Orders, Payments and Users.
+- [x] Keep Orders business and Mongoose logic inside legacy route handlers.
+- [x] Include a supported Orders↔Payments circular dependency to trigger the conditional stage.
+- [x] Add a CommonJS Jest/Supertest harness, `npm test` command and stable route-level tests for the example.
+- [x] Add fixture repositories for unsupported ESM, missing Mongoose, path risk and no-ready-candidate cases.
+- [x] Add a fixture AI response that fails validation twice for rollback testing.
 
 Done when fixtures deterministically exercise success, rejection, readiness failure, conditional stage and rollback paths.
 
