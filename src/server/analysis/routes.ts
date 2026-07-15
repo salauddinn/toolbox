@@ -145,6 +145,36 @@ export function extractRoutes(files: readonly RepositoryFile[]): RouteExtraction
               file: file.path,
               line,
             });
+          } else if (
+            second &&
+            second.type === "MemberExpression" &&
+            second.object.type === "Identifier" &&
+            !second.computed &&
+            second.property.type === "Identifier"
+          ) {
+            // app.use('/x', ordersModule.router)
+            mounts.push({
+              prefix,
+              routerBinding: second.object.name,
+              file: file.path,
+              line,
+            });
+          } else if (
+            second &&
+            second.type === "MemberExpression" &&
+            second.object.type === "CallExpression" &&
+            second.object.callee.type === "Identifier" &&
+            second.object.callee.name === "require" &&
+            second.object.arguments[0]?.type === "StringLiteral"
+          ) {
+            // app.use('/x', require('./mod').router) — resolve later via synthetic binding
+            const request = (second.object.arguments[0] as StringLiteral).value;
+            mounts.push({
+              prefix,
+              routerBinding: `__require__:${request}`,
+              file: file.path,
+              line,
+            });
           }
           // Also treat app.use('/x', handler) as a route when more handler-like
           if (args.length >= 2 && second && second.type !== "Identifier") {
@@ -192,12 +222,24 @@ export function applyMountPrefixes(
   mounts: RouteExtraction["mounts"],
   requireMap: Map<string, string>,
 ): RouteEvidence[] {
-  // requireMap: localBinding in entry -> resolved file path
+  // requireMap: localBinding in entry -> resolved file path (module index or router file)
   const prefixByFile = new Map<string, string>();
   for (const mount of mounts) {
-    const resolved = requireMap.get(mount.routerBinding);
+    let resolved = requireMap.get(mount.routerBinding);
+    if (!resolved && mount.routerBinding.startsWith("__require__:")) {
+      resolved = requireMap.get(mount.routerBinding);
+    }
     if (resolved) {
       prefixByFile.set(resolved, mount.prefix);
+      // Domain Module public index re-exports routes — also attribute prefix to sibling *.routes.js
+      if (resolved.endsWith("/index.js") || resolved.endsWith("\\index.js")) {
+        const dir = resolved.replace(/\/index\.js$/, "");
+        for (const route of routes) {
+          if (route.file.startsWith(`${dir}/`) && route.file.endsWith(".routes.js")) {
+            prefixByFile.set(route.file, mount.prefix);
+          }
+        }
+      }
     }
   }
 
@@ -205,6 +247,10 @@ export function applyMountPrefixes(
     if (route.mountPrefix) return route;
     const prefix = prefixByFile.get(route.file);
     if (!prefix) return route;
+    // Avoid double-prefix if path already starts with mount
+    if (route.path === prefix || route.path.startsWith(`${prefix}/`) || route.path.startsWith(prefix)) {
+      return { ...route, mountPrefix: prefix };
+    }
     const joined =
       prefix.endsWith("/") || route.path.startsWith("/")
         ? `${prefix.replace(/\/$/, "")}${route.path.startsWith("/") ? route.path : `/${route.path}`}`
@@ -227,6 +273,7 @@ export function collectNamedRequires(
       const id = path.node.id;
       const init = path.node.init;
       if (id.type !== "Identifier" || !init) return;
+      // const x = require('./mod')
       if (
         init.type === "CallExpression" &&
         init.callee.type === "Identifier" &&
@@ -235,7 +282,36 @@ export function collectNamedRequires(
       ) {
         const request = (init.arguments[0] as StringLiteral).value;
         const resolved = resolve(file.path, request);
-        if (resolved) map.set(id.name, resolved);
+        if (resolved) {
+          map.set(id.name, resolved);
+          map.set(`__require__:${request}`, resolved);
+        }
+        return;
+      }
+      // const x = require('./mod').router
+      if (
+        init.type === "MemberExpression" &&
+        init.object.type === "CallExpression" &&
+        init.object.callee.type === "Identifier" &&
+        init.object.callee.name === "require" &&
+        init.object.arguments[0]?.type === "StringLiteral"
+      ) {
+        const request = (init.object.arguments[0] as StringLiteral).value;
+        const resolved = resolve(file.path, request);
+        if (resolved) {
+          map.set(id.name, resolved);
+          map.set(`__require__:${request}`, resolved);
+        }
+        return;
+      }
+      // const router = mod.router where mod already resolved
+      if (
+        init.type === "MemberExpression" &&
+        init.object.type === "Identifier" &&
+        !init.computed
+      ) {
+        const from = map.get(init.object.name);
+        if (from) map.set(id.name, from);
       }
     },
   });

@@ -134,6 +134,7 @@ function restoreAwaitingAuthorization(
     createdAt: run.createdAt,
     lastActiveAt: new Date().toISOString(),
     snapshot: run.snapshot,
+    initialSnapshot: run.initialSnapshot,
     analysis: run.analysis,
     selectedCandidate: run.selectedCandidate,
     sequence: run.sequence,

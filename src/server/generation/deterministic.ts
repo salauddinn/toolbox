@@ -4,6 +4,7 @@ import type { AnalysisResult } from "@/core/analysis";
 import type { RepositoryFile } from "@/core/repository";
 import type { StagePlan } from "@/core/stages";
 import { assertNormalizedPath } from "@/core/paths";
+import { matchPathPattern } from "@/server/validation/envelope";
 
 function domainSlug(candidate: DomainCandidate): string {
   return (
@@ -25,6 +26,18 @@ function testRoot(files: readonly RepositoryFile[]): string {
  * Deterministic Change Set generator for fixtures / offline demos.
  * Used when TOOLBOX_DETERMINISTIC_GENERATION=1 or AI is unavailable in tests.
  */
+function filterOpsToEnvelope(ops: FileOperation[], stage: StagePlan): FileOperation[] {
+  return ops.filter((op) => {
+    const patterns =
+      op.type === "create"
+        ? stage.pathEnvelope.create
+        : op.type === "update"
+          ? stage.pathEnvelope.update
+          : stage.pathEnvelope.delete;
+    return patterns.some((p) => matchPathPattern(p, op.path));
+  });
+}
+
 export function generateDeterministicOperations(input: {
   stage: StagePlan;
   candidate: DomainCandidate;
@@ -36,6 +49,28 @@ export function generateDeterministicOperations(input: {
   const modelName = input.candidate.primaryModel?.modelName ?? input.candidate.name;
   const collection = input.candidate.primaryModel?.collectionName ?? `${slug.replace(/-/g, "")}s`;
 
+  const raw = generateDeterministicOperationsUnfiltered(
+    input,
+    slug,
+    moduleRoot,
+    modelName,
+    collection,
+  );
+  return filterOpsToEnvelope(raw, input.stage);
+}
+
+function generateDeterministicOperationsUnfiltered(
+  input: {
+    stage: StagePlan;
+    candidate: DomainCandidate;
+    analysis: AnalysisResult;
+    files: readonly RepositoryFile[];
+  },
+  slug: string,
+  moduleRoot: string,
+  modelName: string,
+  collection: string,
+): FileOperation[] {
   switch (input.stage.kind) {
     case "behavior_capture": {
       const root = testRoot(input.files);
@@ -237,24 +272,26 @@ module.exports = {
 
       const entry = input.files.find((f) => f.path === input.analysis.entryPath);
       const entryContent = entry?.content ?? "";
+      const binding = `${slug.replace(/-/g, "_")}Module`;
       let updatedEntry = entryContent;
-      const legacyRequire = /require\(["']\.\/routes\/orders["']\)/;
-      if (legacyRequire.test(updatedEntry)) {
-        updatedEntry = updatedEntry.replace(legacyRequire, `require("./${moduleRoot}").router`);
-      } else if (!updatedEntry.includes(moduleRoot)) {
-        // mount helper: replace orders router require path variants
-        updatedEntry = updatedEntry.replace(
-          /require\(["']\.\/routes\/orders["']\)/g,
-          `require("./src/modules/${slug}").router`,
-        );
-        if (updatedEntry === entryContent) {
-          updatedEntry =
-            `const ${slug.replace(/-/g, "_")}Module = require("./src/modules/${slug}");\n` +
-            entryContent.replace(
-              /app\.use\(\s*["']\/orders["']\s*,\s*ordersRouter\s*\)/,
-              `app.use("/orders", ${slug.replace(/-/g, "_")}Module.router)`,
-            );
+      // Prefer a named module require so mount prefix resolution can map binding → public index.
+      if (/require\(["']\.\/routes\/orders["']\)/.test(updatedEntry)) {
+        updatedEntry = updatedEntry
+          .replace(
+            /const\s+ordersRouter\s*=\s*require\(["']\.\/routes\/orders["']\);?/,
+            `const ${binding} = require("./${moduleRoot}");\nconst ordersRouter = ${binding}.router;`,
+          )
+          .replace(/require\(["']\.\/routes\/orders["']\)/g, `${binding}.router`);
+        if (!updatedEntry.includes(`require("./${moduleRoot}")`)) {
+          updatedEntry = `const ${binding} = require("./${moduleRoot}");\n` + updatedEntry;
         }
+      } else if (!updatedEntry.includes(moduleRoot)) {
+        updatedEntry =
+          `const ${binding} = require("./${moduleRoot}");\n` +
+          entryContent.replace(
+            /app\.use\(\s*["']\/orders["']\s*,\s*\w+\s*\)/,
+            `app.use("/orders", ${binding}.router)`,
+          );
       }
 
       const ops: FileOperation[] = [
@@ -347,67 +384,106 @@ module.exports = {
 
     case "integration_cleanup": {
       const ops: FileOperation[] = [];
-      const legacyRoutes = assertNormalizedPath("routes/orders.js");
-      const legacyModel = assertNormalizedPath("models/Order.js");
-      // Only delete if module index exists (superseded)
-      if (input.files.some((f) => f.path === `${moduleRoot}/index.js`)) {
-        // Rewire any remaining requires of legacy orders routes
-        for (const file of input.files) {
-          if (!file.path.endsWith(".js")) continue;
-          if (file.path === legacyRoutes) continue;
-          if (file.path.startsWith(`${moduleRoot}/`)) continue;
-          if (
-            /require\(["']\.\/routes\/orders["']\)|require\(["']\.\.\/routes\/orders["']\)/.test(
+      const indexPath = assertNormalizedPath(`${moduleRoot}/index.js`);
+      const hasModule = input.files.some((f) => f.path === indexPath);
+      if (!hasModule) {
+        return [];
+      }
+
+      // Only rewire files that still require a selected-domain legacy path.
+      const legacyNeedles = input.candidate.files.map((f) => f as string);
+      for (const file of input.files) {
+        if (!file.path.endsWith(".js")) continue;
+        if (file.path.startsWith(`${moduleRoot}/`)) continue;
+        const touchesLegacy = legacyNeedles.some((legacy) => {
+          const base = legacy.replace(/\.js$/, "");
+          return (
+            file.content.includes(`'${legacy}'`) ||
+            file.content.includes(`"${legacy}"`) ||
+            file.content.includes(`'./${legacy}'`) ||
+            file.content.includes(`"./${legacy}"`) ||
+            file.content.includes(`'../${legacy}'`) ||
+            file.content.includes(`"../${legacy}"`) ||
+            new RegExp(`require\\(['"](?:\\.\\.?/)*${base.replace(/\//g, "\\/")}['"]\\)`).test(
               file.content,
             )
-          ) {
-            const updated = file.content
-              .replace(/require\(["']\.\/routes\/orders["']\)/g, `require("./src/modules/${slug}")`)
-              .replace(
-                /require\(["']\.\.\/routes\/orders["']\)/g,
-                `require("../src/modules/${slug}")`,
-              );
-            if (updated !== file.content) {
-              ops.push({
-                type: "update",
-                path: assertNormalizedPath(file.path),
-                content: updated,
-              });
-            }
-          }
-        }
-        // Delete superseded legacy domain files if nothing else critical
-        if (input.files.some((f) => f.path === legacyRoutes)) {
-          ops.push({ type: "delete", path: legacyRoutes });
-        }
-        if (input.files.some((f) => f.path === legacyModel)) {
-          // keep model if module has its own model — delete legacy only when unreferenced after rewires
-          const stillRef = input.files.some(
-            (f) =>
-              f.path !== legacyModel &&
-              f.path.endsWith(".js") &&
-              !ops.some((o) => o.type === "update" && o.path === f.path) &&
-              /models\/Order|require\(["'].*Order["']\)/.test(f.content) &&
-              f.path !== `${moduleRoot}/${slug}.model.js`,
           );
-          // After deleting routes/orders, model may only be used by deleted file
-          if (!stillRef || true) {
-            // Safer: do not delete model if payments still needs nothing from Order
-            void stillRef;
+        });
+        if (!touchesLegacy) continue;
+
+        let updated = file.content;
+        for (const legacy of legacyNeedles) {
+          if (legacy.endsWith(".js") && /routes\//.test(legacy)) {
+            const rel = legacy.replace(/^routes\//, "");
+            updated = updated
+              .replace(
+                new RegExp(`require\\(["']\\./routes/${rel.replace(/\.js$/, "")}["']\\)`, "g"),
+                `require("./${moduleRoot}")`,
+              )
+              .replace(
+                new RegExp(`require\\(["']\\.\\./routes/${rel.replace(/\.js$/, "")}["']\\)`, "g"),
+                `require("../${moduleRoot}")`,
+              );
           }
+          if (legacy.endsWith(".js") && /models\//.test(legacy)) {
+            const rel = legacy.replace(/^models\//, "").replace(/\.js$/, "");
+            updated = updated
+              .replace(
+                new RegExp(`require\\(["']\\./models/${rel}["']\\)`, "g"),
+                `require("./${moduleRoot}").model`,
+              )
+              .replace(
+                new RegExp(`require\\(["']\\.\\./models/${rel}["']\\)`, "g"),
+                `require("../${moduleRoot}").model`,
+              );
+          }
+        }
+        if (updated !== file.content) {
+          ops.push({
+            type: "update",
+            path: assertNormalizedPath(file.path),
+            content: updated,
+          });
         }
       }
-      return ops.length > 0
-        ? ops
-        : [
-            {
-              type: "update",
-              path: assertNormalizedPath(`${moduleRoot}/index.js`),
-              content:
-                (input.files.find((f) => f.path === `${moduleRoot}/index.js`)?.content ??
-                  "module.exports = {};\n") + "\n// integration cleanup marker\n",
-            },
-          ];
+
+      // Delete only selected-domain legacy files with no remaining require references
+      // in the post-update snapshot (excluding the file itself and module internals).
+      const deleted = new Set<string>();
+      const contentAfter = (path: string, original: string): string => {
+        const upd = ops.find((o) => o.type === "update" && o.path === path);
+        return upd && upd.type === "update" ? upd.content : original;
+      };
+
+      for (const legacy of input.candidate.files) {
+        if (legacy.startsWith(`${moduleRoot}/`)) continue;
+        if (legacy === input.analysis.entryPath) continue;
+        const stillReferenced = input.files.some((f) => {
+          if (f.path === legacy) return false;
+          if (deleted.has(f.path)) return false;
+          if (f.path.startsWith(`${moduleRoot}/`)) return false;
+          const body = contentAfter(f.path, f.content);
+          const base = legacy.split("/").pop()?.replace(/\.js$/, "") ?? legacy;
+          return (
+            body.includes(legacy) || new RegExp(`require\\(['"][^'"]*${base}['"]\\)`).test(body)
+          );
+        });
+        if (!stillReferenced) {
+          ops.push({ type: "delete", path: assertNormalizedPath(legacy) });
+          deleted.add(legacy);
+        }
+      }
+
+      if (ops.length === 0) {
+        const index = input.files.find((f) => f.path === indexPath);
+        ops.push({
+          type: "update",
+          path: indexPath,
+          content:
+            (index?.content ?? "module.exports = {};\n") + "\n// integration cleanup: no-op\n",
+        });
+      }
+      return ops;
     }
 
     default:

@@ -612,10 +612,24 @@ export function AssessmentApp() {
                 </p>
               ) : null}
               {run.phase === "completed" ? (
-                <p className="rounded-lg border border-accent/40 bg-accent/10 p-3 text-sm">
-                  Modernization Sequence completed with {run.acceptedChangeSetCount} accepted Change
-                  Set(s). Download artifact lands in Phase 5.
-                </p>
+                <div className="space-y-3 rounded-lg border border-accent/40 bg-accent/10 p-3 text-sm">
+                  <p>
+                    Modernization Sequence completed with {run.acceptedChangeSetCount} accepted
+                    Change Set(s).
+                  </p>
+                  {run.downloadAvailable && run.downloadPath ? (
+                    <a
+                      href={run.downloadPath}
+                      className="inline-flex h-10 items-center justify-center rounded-lg bg-accent px-4 text-sm font-medium text-accent-foreground"
+                    >
+                      Download result ZIP
+                    </a>
+                  ) : null}
+                  <p className="text-xs text-muted">
+                    ZIP contains repository/ (accepted snapshot only) and
+                    toolbox-validation-report.json. External generated tests: not executed.
+                  </p>
+                </div>
               ) : null}
               {run.sequence?.pendingConditional ? (
                 <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm">

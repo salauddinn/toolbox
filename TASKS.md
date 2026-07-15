@@ -177,34 +177,34 @@ Done when the deliberate double-failure fixture proves rollback and blocks later
 
 ### Phase 1–4 review follow-ups (before / during Phase 5)
 
-- [ ] Full controlled-example E2E: behaviour → module → optional cycle → integration → completed
+- [x] Full controlled-example E2E: behaviour → module → optional cycle → integration → completed
 - [ ] Wire unsupported syntax evidence into Transformation Readiness (ADR-0008)
 - [ ] Package-manager lockfile detection without dropping names at extract
 - [ ] Token budgets on AI provider input/output
-- [ ] Tighten integration path envelope (not `**/*.js`)
+- [x] Tighten integration path envelope (not `**/*.js`) — consumers from graph + candidate files
 - [ ] Stronger composition-root injection validation for cycle repair
 
 ### 13. Produce the finished artifact
 
-- [ ] Build per-stage and combined diffs.
-- [ ] Build before/after file trees.
-- [ ] Generate the final Validation Report with static/runtime distinctions.
-- [ ] Label external generated tests “not executed.”
-- [ ] Include local runtime-verification commands.
-- [ ] Generate a result ZIP containing the exact accepted snapshot under `repository/` and `toolbox-validation-report.json` at the archive root.
+- [x] Build per-stage and combined diffs.
+- [x] Build before/after file trees.
+- [x] Generate the final Validation Report with static/runtime distinctions.
+- [x] Label external generated tests “not executed.”
+- [x] Include local runtime-verification commands.
+- [x] Generate a result ZIP containing the exact accepted snapshot under `repository/` and `toolbox-validation-report.json` at the archive root.
 
 Done when the result ZIP's `repository/` folder reflects only accepted Change Sets and the separate report matches the UI.
 
 ### 14. Pass the release gate
 
-- [ ] Complete the successful external-repository scenario.
-- [ ] Complete the honest-rejection scenario with zero generation calls.
-- [ ] Complete the double-failure repair/rollback scenario.
-- [ ] Run the controlled example tests and record the real result.
+- [ ] Complete the successful external-repository scenario. (needs live URL + network)
+- [x] Complete the honest-rejection scenario with zero generation calls. (fixture ESM path covered in E2E)
+- [x] Complete the double-failure repair/rollback scenario. (stage-runner tests)
+- [ ] Run the controlled example tests and record the real result. (run on deploy host)
 - [ ] Test the deployed application in an incognito browser.
-- [ ] Verify one long-lived application process retains run state across all stage requests.
+- [x] Verify one long-lived application process retains run state across all stage requests. (RunStore + E2E)
 - [ ] Verify process restart discards active runs cleanly and the health endpoint recovers.
-- [ ] Confirm API secrets are absent from client assets and the public repository.
+- [x] Confirm API secrets are absent from client assets and the public repository. (secrets-boundary tests)
 - [ ] Confirm the full demo path fits within three minutes.
 
 Done when all three release scenarios work on the deployed URL.

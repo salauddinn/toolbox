@@ -261,6 +261,20 @@ export function toPublicRunView(state: RunState) {
         selectedCandidate: publicCandidate(state.selectedCandidate),
         sequence: publicSequence(state.sequence),
         acceptedChangeSetCount: state.acceptedChangeSets.length,
+        downloadAvailable: true,
+        downloadPath: `/api/runs/${state.runId}/download`,
+        validationReports: state.validationReports.map((r) => ({
+          stageId: r.stageId,
+          changeSetId: r.changeSetId,
+          finalOutcome: r.finalOutcome,
+          externalTestsLabel: r.externalTestsLabel,
+          attempts: r.attempts.map((a) => ({
+            attempt: a.attempt,
+            passed: a.passed,
+            checkCount: a.checks.length,
+            failedCheckIds: a.checks.filter((c) => c.outcome === "failed").map((c) => c.id),
+          })),
+        })),
       };
     default: {
       const _exhaustive: never = state;

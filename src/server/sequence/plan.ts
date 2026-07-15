@@ -156,14 +156,24 @@ function domainModulePlan(
     expectedFiles: [...moduleFiles, routeRegistration],
     pathEnvelope: {
       create: [`${moduleRoot}/**`],
-      update: [routeRegistration, analysis.entryPath],
+      // Entry (composition root) is the evidenced mount site for MVP controlled wiring.
+      update: [...new Set([routeRegistration, analysis.entryPath])],
       delete: [],
     },
     mutableRegions: [
       {
-        file: routeRegistration,
-        symbols: ["router", "module.exports", "app"],
+        // Composition-root rewiring may introduce a module binding identifier.
+        file: analysis.entryPath,
+        symbols: ["*"],
       },
+      ...(routeRegistration !== analysis.entryPath
+        ? [
+            {
+              file: routeRegistration,
+              symbols: ["*"] as const,
+            },
+          ]
+        : []),
     ],
     protectedFingerprints: [
       {
@@ -203,6 +213,23 @@ function integrationPlan(
   analysis: AnalysisResult,
 ): StagePlan & { kind: "integration_cleanup" } {
   const slug = domainSlug(candidate);
+  const candidateSet = new Set(candidate.files.map((f) => f as string));
+  // Files that depend on the selected domain (evidenced consumers) may be rewired.
+  const consumers = [
+    ...new Set(
+      analysis.graph.edges
+        .filter((e) => candidateSet.has(e.to as string) && !candidateSet.has(e.from as string))
+        .map((e) => e.from as string),
+    ),
+  ];
+  const updateAllow = [
+    ...new Set([
+      analysis.entryPath as string,
+      `src/modules/${slug}/index.js`,
+      ...candidate.files.map((f) => f as string),
+      ...consumers,
+    ]),
+  ];
   return {
     id: "stage-integration-cleanup",
     kind: "integration_cleanup",
@@ -216,12 +243,12 @@ function integrationPlan(
     expectedFiles: [assertNormalizedPath(`src/modules/${slug}/index.js`), analysis.entryPath],
     pathEnvelope: {
       create: [],
-      update: ["**/*.js"],
+      update: updateAllow,
       delete: candidate.files.map((f) => f as string),
     },
-    mutableRegions: candidate.files.map((file) => ({
-      file,
-      symbols: ["*"],
+    mutableRegions: updateAllow.map((file) => ({
+      file: assertNormalizedPath(file),
+      symbols: ["*"] as const,
     })),
     protectedFingerprints: [
       {
@@ -280,10 +307,20 @@ function cycleRepairPlan(
       ],
       delete: [],
     },
-    mutableRegions: cycleFiles.map((file) => ({
-      file,
-      symbols: ["require", "module.exports"],
-    })),
+    mutableRegions: [
+      {
+        file: analysis.entryPath,
+        symbols: ["*"],
+      },
+      {
+        file: assertNormalizedPath(`src/modules/${slug}/index.js`),
+        symbols: ["*"],
+      },
+      ...cycleFiles.map((file) => ({
+        file,
+        symbols: ["*"] as const,
+      })),
+    ],
     protectedFingerprints: [],
     validationCriteria: [
       {

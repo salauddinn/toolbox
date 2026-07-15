@@ -42,9 +42,10 @@ export function extractRouteTable(
       )
     : new Map<string, string>();
   const routes = applyMountPrefixes(extraction.routes, extraction.mounts, requireMap);
+  // applyMountPrefixes already joins mount into path; do not prefix again.
   return routes.map((r) => ({
     method: r.method,
-    path: `${r.mountPrefix ?? ""}${r.path}`.replace(/\/+/g, "/") || "/",
+    path: r.path.replace(/\/+/g, "/") || "/",
   }));
 }
 
@@ -60,7 +61,8 @@ export function extractSchemaTable(files: readonly RepositoryFile[]): SchemaFing
 export function analysisRouteFingerprints(analysis: AnalysisResult): RouteFingerprint[] {
   return analysis.routes.map((r) => ({
     method: r.method,
-    path: `${r.mountPrefix ?? ""}${r.path}`.replace(/\/+/g, "/") || "/",
+    // path already includes mount when produced by ExpressAnalyzer
+    path: r.path.replace(/\/+/g, "/") || "/",
   }));
 }
 

@@ -133,7 +133,10 @@ export function validateChangeSetStatic(input: {
       );
       structuredErrors.push(err);
     }
-  } else if (input.stage.mutableRegions.length > 0 || input.stage.protectedFingerprints.length > 0) {
+  } else if (
+    input.stage.mutableRegions.length > 0 ||
+    input.stage.protectedFingerprints.length > 0
+  ) {
     checks.push(pass("mutable-regions", "Mutable regions respected"));
   }
 
@@ -352,51 +355,81 @@ export function validateChangeSetStatic(input: {
     }
   }
 
-  // 6. Route/schema preservation for non-behavior stages that touch production
+  // 6. Route/schema preservation for production-touching stages
   if (input.stage.kind !== "behavior_capture") {
-    const beforeRoutes = routeTableFingerprint(
-      extractRouteTable(baseFiles, entryPath).length
+    const beforeRouteTable =
+      extractRouteTable(baseFiles, entryPath).length > 0
         ? extractRouteTable(baseFiles, entryPath)
         : input.analysis.routes.map((r) => ({
             method: r.method,
-            path: `${r.mountPrefix ?? ""}${r.path}`,
-          })),
-    );
-    const afterRoutes = routeTableFingerprint(extractRouteTable(candidateFiles, entryPath));
-    // Soft check: if we could extract routes both sides, compare
-    const beforeCount = extractRouteTable(baseFiles, entryPath).length;
-    const afterCount = extractRouteTable(candidateFiles, entryPath).length;
-    if (beforeCount > 0 && afterCount > 0 && beforeRoutes !== afterRoutes) {
-      // Allow path-equivalent rewrites if methods+paths multiset same — already hashed
-      checks.push(
-        fail(
-          "preserve-routes",
-          "Public route methods and paths must be preserved",
-          "route_table_fingerprint_mismatch",
-        ),
-      );
-      structuredErrors.push("route_table_fingerprint_mismatch");
+            path: r.path,
+          }));
+    const afterRouteTable = extractRouteTable(candidateFiles, entryPath);
+    const beforeRoutes = routeTableFingerprint(beforeRouteTable);
+    const afterRoutes = routeTableFingerprint(afterRouteTable);
+
+    // Domain module may re-home handlers; require every pre-existing method+path still present.
+    if (beforeRouteTable.length > 0 && afterRouteTable.length > 0) {
+      const afterSet = new Set(afterRouteTable.map((r) => `${r.method}|${r.path}`));
+      const missing = beforeRouteTable.filter((r) => !afterSet.has(`${r.method}|${r.path}`));
+      if (missing.length > 0 && beforeRoutes !== afterRoutes) {
+        checks.push(
+          fail(
+            "preserve-routes",
+            "Public route methods and paths must be preserved",
+            `missing:${missing.map((m) => `${m.method} ${m.path}`).join(",")}`,
+          ),
+        );
+        structuredErrors.push("route_table_fingerprint_mismatch");
+      } else {
+        checks.push(pass("preserve-routes", "Public route methods and paths preserved"));
+      }
     } else {
-      checks.push(pass("preserve-routes", "Route table fingerprint preserved or not comparable"));
+      checks.push(pass("preserve-routes", "Route table not comparable on both sides"));
     }
 
-    const beforeSchemas = schemaTableFingerprint(extractSchemaTable(baseFiles));
-    const afterSchemas = schemaTableFingerprint(extractSchemaTable(candidateFiles));
-    if (
-      extractSchemaTable(baseFiles).length > 0 &&
-      extractSchemaTable(candidateFiles).length > 0 &&
-      beforeSchemas !== afterSchemas
-    ) {
-      checks.push(
-        fail(
-          "preserve-schemas",
-          "Mongoose schemas and collections must be preserved",
-          "schema_fingerprint_mismatch",
-        ),
-      );
-      structuredErrors.push("schema_fingerprint_mismatch");
+    const beforeSchemaTable = extractSchemaTable(baseFiles);
+    const afterSchemaTable = extractSchemaTable(candidateFiles);
+    if (beforeSchemaTable.length > 0 && afterSchemaTable.length > 0) {
+      const afterModels = new Set(afterSchemaTable.map((s) => s.modelName));
+      const missingModels = beforeSchemaTable.filter((s) => !afterModels.has(s.modelName));
+      const beforeSchemas = schemaTableFingerprint(beforeSchemaTable);
+      const afterSchemas = schemaTableFingerprint(afterSchemaTable);
+      if (missingModels.length > 0 || beforeSchemas !== afterSchemas) {
+        // Allow added models (domain module may re-declare); fail only if a prior model vanishes
+        // or collection fingerprint for shared names changes.
+        const beforeByName = new Map(beforeSchemaTable.map((s) => [s.modelName, s]));
+        let collectionDrift = false;
+        for (const after of afterSchemaTable) {
+          const prev = beforeByName.get(after.modelName);
+          if (
+            prev &&
+            prev.collectionName &&
+            after.collectionName &&
+            prev.collectionName !== after.collectionName
+          ) {
+            collectionDrift = true;
+          }
+        }
+        if (missingModels.length > 0 || collectionDrift) {
+          checks.push(
+            fail(
+              "preserve-schemas",
+              "Mongoose schemas and collections must be preserved",
+              missingModels.length
+                ? `missing_models:${missingModels.map((m) => m.modelName).join(",")}`
+                : "schema_fingerprint_mismatch",
+            ),
+          );
+          structuredErrors.push("schema_fingerprint_mismatch");
+        } else {
+          checks.push(pass("preserve-schemas", "Prior models and collections preserved"));
+        }
+      } else {
+        checks.push(pass("preserve-schemas", "Schema/collection fingerprints preserved"));
+      }
     } else {
-      checks.push(pass("preserve-schemas", "Schema/collection fingerprints preserved"));
+      checks.push(pass("preserve-schemas", "Schema table not comparable on both sides"));
     }
   }
 

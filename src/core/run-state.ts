@@ -42,7 +42,10 @@ type RunBase = {
 };
 
 type SelectedContext = {
+  /** Current accepted repository snapshot (evolves only on Change Acceptance). */
   snapshot: SourceSnapshot;
+  /** Snapshot at sequence start — used for combined before/after artifact trees. */
+  initialSnapshot: SourceSnapshot;
   analysis: AnalysisResult;
   selectedCandidate: DomainCandidate;
   sequence: ModernizationSequencePlan;
@@ -138,6 +141,7 @@ export type RunState =
   | (RunBase & {
       phase: "completed";
       snapshot: SourceSnapshot;
+      initialSnapshot: SourceSnapshot;
       selectedCandidate: DomainCandidate;
       sequence: ModernizationSequencePlan;
       acceptedChangeSets: readonly ChangeSet[];
@@ -343,6 +347,7 @@ export function planSequence(
       ...baseOf(state),
       phase: "awaiting_authorization",
       snapshot: state.snapshot,
+      initialSnapshot: state.snapshot,
       analysis: state.analysis,
       selectedCandidate: state.selectedCandidate,
       sequence,
@@ -368,6 +373,7 @@ export function authorizeGeneration(state: RunState): TransitionResult {
       ...baseOf(state),
       phase: "generating",
       snapshot: state.snapshot,
+      initialSnapshot: state.initialSnapshot,
       analysis: state.analysis,
       selectedCandidate: state.selectedCandidate,
       sequence: state.sequence,
@@ -393,6 +399,7 @@ export function beginValidation(
       ...baseOf(state),
       phase: "validating",
       snapshot: state.snapshot,
+      initialSnapshot: state.initialSnapshot,
       analysis: state.analysis,
       selectedCandidate: state.selectedCandidate,
       sequence: state.sequence,
@@ -422,6 +429,7 @@ export function markValidated(
       ...baseOf(state),
       phase: "awaiting_acceptance",
       snapshot: state.snapshot,
+      initialSnapshot: state.initialSnapshot,
       analysis: state.analysis,
       selectedCandidate: state.selectedCandidate,
       sequence: state.sequence,
@@ -456,6 +464,7 @@ export function beginRepair(
       ...baseOf(state),
       phase: "repairing",
       snapshot: state.snapshot,
+      initialSnapshot: state.initialSnapshot,
       analysis: state.analysis,
       selectedCandidate: state.selectedCandidate,
       sequence: state.sequence,
@@ -482,6 +491,7 @@ export function rollbackStage(
       ...baseOf(state),
       phase: "stage_failed_rolled_back",
       snapshot: state.snapshot,
+      initialSnapshot: state.initialSnapshot,
       analysis: state.analysis,
       selectedCandidate: state.selectedCandidate,
       sequence: state.sequence,
@@ -517,6 +527,7 @@ export function acceptChangeSet(state: RunState): TransitionResult {
         ...baseOf(state),
         phase: "completed",
         snapshot: state.candidateSnapshot,
+        initialSnapshot: state.initialSnapshot,
         selectedCandidate: state.selectedCandidate,
         sequence: state.sequence,
         acceptedChangeSets,
@@ -531,6 +542,7 @@ export function acceptChangeSet(state: RunState): TransitionResult {
       ...baseOf(state),
       phase: "awaiting_authorization",
       snapshot: state.candidateSnapshot,
+      initialSnapshot: state.initialSnapshot,
       analysis: state.analysis,
       selectedCandidate: state.selectedCandidate,
       sequence: state.sequence,
