@@ -138,40 +138,40 @@ Done when every ready candidate starts with three deterministic required Stage P
 
 ### 11. Generate and apply project-dependent Change Sets
 
-- [ ] Generate characterization tests using only the existing Jest/Supertest harness without claiming external execution.
-- [ ] Allow behaviour capture to create one new test under the existing test root without changing existing tests or production files.
-- [ ] Generate the standard Domain Module shape with one public `index.js`.
-- [ ] Switch the selected HTTP route registration to the new public module entry while retaining legacy files needed by later stages.
-- [ ] Limit Domain Module creation to new module files and the evidenced route-registration update; allow no deletion.
-- [ ] Expose supported read-only model access through the module's public facade.
-- [ ] Generate circular-dependency repair through a public module factory and composition-root injection, then verify the cycle disappears.
-- [ ] Limit cycle repair to updates of evidenced cycle files, the public module entry and recognized composition root; allow no creation or deletion.
-- [ ] Generate integration/cleanup that rewires remaining supported consumers, removes superseded legacy code and preserves routes, methods, schemas and collections.
-- [ ] Delete only selected-domain legacy files proven superseded and unreferenced in the current snapshot.
-- [ ] Apply valid file operations only to a candidate snapshot.
-- [ ] Present the validated candidate-snapshot diff before promotion to the current snapshot.
-- [ ] Require Change Acceptance to create the next valid snapshot.
-- [ ] Keep the current snapshot and stop if the developer rejects.
+- [x] Generate characterization tests using only the existing Jest/Supertest harness without claiming external execution.
+- [x] Allow behaviour capture to create one new test under the existing test root without changing existing tests or production files.
+- [x] Generate the standard Domain Module shape with one public `index.js`.
+- [x] Switch the selected HTTP route registration to the new public module entry while retaining legacy files needed by later stages.
+- [x] Limit Domain Module creation to new module files and the evidenced route-registration update; allow no deletion.
+- [x] Expose supported read-only model access through the module's public facade.
+- [x] Generate circular-dependency repair through a public module factory and composition-root injection, then verify the cycle disappears.
+- [x] Limit cycle repair to updates of evidenced cycle files, the public module entry and recognized composition root; allow no creation or deletion.
+- [x] Generate integration/cleanup that rewires remaining supported consumers, removes superseded legacy code and preserves routes, methods, schemas and collections.
+- [x] Delete only selected-domain legacy files proven superseded and unreferenced in the current snapshot.
+- [x] Apply valid file operations only to a candidate snapshot.
+- [x] Present the validated candidate-snapshot diff before promotion to the current snapshot.
+- [x] Require Change Acceptance to create the next valid snapshot.
+- [x] Keep the current snapshot and stop if the developer rejects.
 
 Done when accepted stages operate sequentially on evolving state and rejected output never leaks forward.
 
 ### 12. Implement validation, repair and rollback
 
-- [ ] Parse every changed JavaScript file.
-- [ ] Resolve relative imports and enforce repository-root paths.
-- [ ] Enforce allowed files and the approved Stage Plan scope.
-- [ ] Reject updates that alter protected top-level AST regions outside the stage's evidenced mutable symbols.
-- [ ] Reject manifest, lockfile, license, `.github`, environment and ignored-content changes.
-- [ ] Validate required module files, public entry and dependency direction.
-- [ ] Validate route/method, schema and collection preservation.
-- [ ] Compare deterministic pre/post route-table and schema/collection fingerprints.
-- [ ] Detect stale legacy wiring and internal module imports.
-- [ ] Validate conditional dependency injection at the public factory and composition root.
-- [ ] Validate that supported external readers use the module's public facade.
-- [ ] Make one bounded repair call with structured errors after failure.
-- [ ] Re-run the full validation set after repair.
-- [ ] Roll back and stop after a second failure.
-- [ ] Show both attempts in the Validation Report.
+- [x] Parse every changed JavaScript file.
+- [x] Resolve relative imports and enforce repository-root paths.
+- [x] Enforce allowed files and the approved Stage Plan scope.
+- [x] Reject updates that alter protected top-level AST regions outside the stage's evidenced mutable symbols.
+- [x] Reject manifest, lockfile, license, `.github`, environment and ignored-content changes.
+- [x] Validate required module files, public entry and dependency direction.
+- [x] Validate route/method, schema and collection preservation.
+- [x] Compare deterministic pre/post route-table and schema/collection fingerprints.
+- [x] Detect stale legacy wiring and internal module imports.
+- [x] Validate conditional dependency injection at the public factory and composition root.
+- [x] Validate that supported external readers use the module's public facade.
+- [x] Make one bounded repair call with structured errors after failure.
+- [x] Re-run the full validation set after repair.
+- [x] Roll back and stop after a second failure.
+- [x] Show both attempts in the Validation Report.
 
 Done when the deliberate double-failure fixture proves rollback and blocks later stages.
 

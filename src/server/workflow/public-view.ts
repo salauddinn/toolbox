@@ -206,7 +206,6 @@ export function toPublicRunView(state: RunState) {
     case "awaiting_authorization":
     case "generating":
     case "validating":
-    case "awaiting_acceptance":
     case "repairing":
     case "stage_failed_rolled_back":
       return {
@@ -217,6 +216,32 @@ export function toPublicRunView(state: RunState) {
         stageIndex: state.stageIndex,
         currentStage: publicStage(state.currentStage),
         acceptedChangeSetCount: state.acceptedChangeSets.length,
+        validationReport:
+          state.phase === "stage_failed_rolled_back" ? state.validationReport : undefined,
+      };
+    case "awaiting_acceptance":
+      return {
+        ...base,
+        sourceLabel: state.snapshot.sourceLabel,
+        selectedCandidate: publicCandidate(state.selectedCandidate),
+        sequence: publicSequence(state.sequence),
+        stageIndex: state.stageIndex,
+        currentStage: publicStage(state.currentStage),
+        acceptedChangeSetCount: state.acceptedChangeSets.length,
+        changeSet: {
+          id: state.changeSet.id,
+          stageId: state.changeSet.stageId,
+          stageKind: state.changeSet.stageKind,
+          status: state.changeSet.status,
+          attempt: state.changeSet.attempt,
+          operations: state.changeSet.operations.map((op) =>
+            op.type === "delete"
+              ? { type: op.type, path: op.path }
+              : { type: op.type, path: op.path, bytes: Buffer.byteLength(op.content, "utf8") },
+          ),
+        },
+        validationReport: state.validationReport,
+        candidateFileCount: state.candidateSnapshot.files.size,
       };
     case "sequence_stopped":
       return {
@@ -227,6 +252,7 @@ export function toPublicRunView(state: RunState) {
           ? publicCandidate(state.selectedCandidate)
           : undefined,
         acceptedChangeSetCount: state.acceptedChangeSets.length,
+        validationReport: state.validationReport,
       };
     case "completed":
       return {

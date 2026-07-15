@@ -215,6 +215,71 @@ export function AssessmentApp() {
     }
   }, [run, pickedCandidateId, intent]);
 
+  const authorizeStage = useCallback(async () => {
+    if (!run) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const result = await postJson(`/api/runs/${run.runId}/authorize`, {});
+      const data = result.data as {
+        ok?: boolean;
+        run?: RunView;
+        message?: string;
+        code?: string;
+        diff?: unknown;
+        validationReport?: unknown;
+      };
+      if (!result.ok || !data.ok || !data.run) {
+        if (data.run) setRun(data.run);
+        setError(data.message ?? data.code ?? `Request failed (${result.status})`);
+        return;
+      }
+      setRun(data.run);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(false);
+    }
+  }, [run]);
+
+  const acceptStage = useCallback(async () => {
+    if (!run) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const result = await postJson(`/api/runs/${run.runId}/accept`, {});
+      const data = result.data as { ok?: boolean; run?: RunView; message?: string; code?: string };
+      if (!result.ok || !data.ok || !data.run) {
+        setError(data.message ?? data.code ?? `Request failed (${result.status})`);
+        return;
+      }
+      setRun(data.run);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(false);
+    }
+  }, [run]);
+
+  const rejectStage = useCallback(async () => {
+    if (!run) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const result = await postJson(`/api/runs/${run.runId}/reject`, {});
+      const data = result.data as { ok?: boolean; run?: RunView; message?: string; code?: string };
+      if (!result.ok || !data.ok || !data.run) {
+        setError(data.message ?? data.code ?? `Request failed (${result.status})`);
+        return;
+      }
+      setRun(data.run);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(false);
+    }
+  }, [run]);
+
   const graph: GraphPayload | null = useMemo(() => {
     if (!run?.analysis?.graph) return null;
     return run.analysis.graph as GraphPayload;
@@ -510,12 +575,27 @@ export function AssessmentApp() {
           {run.phase === "awaiting_authorization" ||
           run.phase === "generating" ||
           run.phase === "validating" ||
-          run.phase === "awaiting_acceptance" ? (
+          run.phase === "awaiting_acceptance" ||
+          run.phase === "sequence_stopped" ||
+          run.phase === "completed" ||
+          run.phase === "stage_failed_rolled_back" ? (
             <div className="space-y-4">
               <p className="text-sm">
                 Selected domain:{" "}
                 <strong>{run.selectedCandidate?.name ?? run.currentStage?.title}</strong>
               </p>
+              {run.phase === "sequence_stopped" ? (
+                <p className="rounded-lg border border-red-500/40 bg-red-500/10 p-3 text-sm">
+                  Sequence stopped ({run.reason}). Current snapshot was kept; rejected or
+                  rolled-back output did not leak forward.
+                </p>
+              ) : null}
+              {run.phase === "completed" ? (
+                <p className="rounded-lg border border-accent/40 bg-accent/10 p-3 text-sm">
+                  Modernization Sequence completed with {run.acceptedChangeSetCount} accepted Change
+                  Set(s). Download artifact lands in Phase 5.
+                </p>
+              ) : null}
               {run.sequence?.pendingConditional ? (
                 <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm">
                   Pending conditional stage: {run.sequence.pendingConditional.reason}. Final
@@ -558,9 +638,87 @@ export function AssessmentApp() {
                   </li>
                 ))}
               </ol>
+
+              {run.phase === "awaiting_authorization" ? (
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => void authorizeStage()}
+                  className="inline-flex h-11 items-center justify-center rounded-lg bg-accent px-5 text-sm font-medium text-accent-foreground disabled:opacity-50"
+                >
+                  Authorize generation for this stage
+                </button>
+              ) : null}
+
+              {run.phase === "awaiting_acceptance" ? (
+                <div className="space-y-3 rounded-lg border border-border p-4">
+                  <p className="text-sm font-medium">
+                    Validated Change Set — review before acceptance
+                  </p>
+                  <p className="text-xs text-muted">
+                    Attempt {run.changeSet?.attempt} · {run.changeSet?.operations?.length ?? 0}{" "}
+                    operations · candidate files {run.candidateFileCount}
+                  </p>
+                  {run.validationReport?.externalTestsLabel === "not_executed" ? (
+                    <p className="text-xs text-amber-700 dark:text-amber-300">
+                      External generated tests: not executed
+                    </p>
+                  ) : null}
+                  <ul className="max-h-40 overflow-auto font-mono text-xs text-muted">
+                    {(run.changeSet?.operations ?? []).map(
+                      (op: { type: string; path: string; bytes?: number }, i: number) => (
+                        <li key={`${op.type}-${op.path}-${i}`}>
+                          {op.type} {op.path}
+                          {op.bytes != null ? ` (${op.bytes} B)` : ""}
+                        </li>
+                      ),
+                    )}
+                  </ul>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => void acceptStage()}
+                      className="inline-flex h-10 items-center justify-center rounded-lg bg-accent px-4 text-sm font-medium text-accent-foreground disabled:opacity-50"
+                    >
+                      Accept Change Set
+                    </button>
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => void rejectStage()}
+                      className="inline-flex h-10 items-center justify-center rounded-lg border border-border px-4 text-sm font-medium disabled:opacity-50"
+                    >
+                      Reject and stop
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+
+              {run.validationReport ? (
+                <div className="rounded-lg border border-border p-3 text-xs">
+                  <p className="font-medium">Validation Report</p>
+                  <p className="text-muted">final: {run.validationReport.finalOutcome}</p>
+                  <ul className="mt-2 space-y-1">
+                    {(run.validationReport.attempts ?? []).map(
+                      (a: {
+                        attempt: number;
+                        passed: boolean;
+                        checks: { id: string; outcome: string; detail?: string }[];
+                      }) => (
+                        <li key={a.attempt}>
+                          Attempt {a.attempt}: {a.passed ? "passed" : "failed"} (
+                          {a.checks?.filter((c) => c.outcome === "failed").length ?? 0} failures)
+                        </li>
+                      ),
+                    )}
+                  </ul>
+                </div>
+              ) : null}
+
               <p className="text-xs text-muted">
-                Generation requires explicit authorization per stage (Phase 4). AI cannot change
-                stage count, trigger outcome, or purpose.
+                AI cannot change stage count, trigger outcome, or purpose. Only Change Acceptance
+                promotes the candidate snapshot.
               </p>
             </div>
           ) : null}
