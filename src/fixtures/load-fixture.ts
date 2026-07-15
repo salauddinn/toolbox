@@ -14,6 +14,13 @@ const FIXTURES_ROOT = path.join(process.cwd(), "fixtures");
 
 const SKIP_DIR_NAMES = new Set(["node_modules", "coverage", ".git", "dist", "build", ".next"]);
 
+const SKIP_FILE_NAMES = new Set([
+  "package-lock.json",
+  "yarn.lock",
+  "pnpm-lock.yaml",
+  "npm-shrinkwrap.json",
+]);
+
 export type FixtureId =
   | "controlled-example"
   | "unsupported-esm"
@@ -35,6 +42,9 @@ function walkFiles(dir: string, base: string): RepositoryFile[] {
       continue;
     }
     if (!entry.isFile()) {
+      continue;
+    }
+    if (SKIP_FILE_NAMES.has(entry.name)) {
       continue;
     }
     const relative = path.relative(base, full).split(path.sep).join("/");

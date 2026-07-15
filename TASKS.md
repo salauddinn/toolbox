@@ -40,61 +40,61 @@ Done when fixtures deterministically exercise success, rejection, readiness fail
 
 ### 4. Implement public GitHub repository loading
 
-- [ ] Accept and normalize only root `https://github.com/<owner>/<repo>` URLs.
-- [ ] Construct archive/API URLs server-side and allow only documented GitHub redirect hosts.
-- [ ] Verify GitHub repository metadata reports `private: false` before download, including when `GITHUB_TOKEN` is configured.
-- [ ] Fetch one repository archive per run into an in-memory snapshot.
-- [ ] Support optional least-privilege server-side GitHub authentication for public rate capacity without accepting user tokens.
-- [ ] Enforce 10 MB compressed, 1,000-entry and 25 MB extracted defaults before the 150-file/2 MB analysis limits.
-- [ ] Extract in memory; reject absolute, traversal, NUL, backslash-alias, symlink and normalized-path-collision entries, and never write untrusted entries to disk.
-- [ ] Enforce one application root, 150 analyzed files and 2 MB of source.
-- [ ] Ignore dependencies, builds, coverage, generated files, vendored code and binaries.
-- [ ] Add request timeouts and clear GitHub/network errors.
-- [ ] Expire inactive run state after 30 minutes.
+- [x] Accept and normalize only root `https://github.com/<owner>/<repo>` URLs.
+- [x] Construct archive/API URLs server-side and allow only documented GitHub redirect hosts.
+- [x] Verify GitHub repository metadata reports `private: false` before download, including when `GITHUB_TOKEN` is configured.
+- [x] Fetch one repository archive per run into an in-memory snapshot.
+- [x] Support optional least-privilege server-side GitHub authentication for public rate capacity without accepting user tokens.
+- [x] Enforce 10 MB compressed, 1,000-entry and 25 MB extracted defaults before the 150-file/2 MB analysis limits.
+- [x] Extract in memory; reject absolute, traversal, NUL, backslash-alias, symlink and normalized-path-collision entries, and never write untrusted entries to disk.
+- [x] Enforce one application root, 150 analyzed files and 2 MB of source.
+- [x] Ignore dependencies, builds, coverage, generated files, vendored code and binaries.
+- [x] Add request timeouts and clear GitHub/network errors.
+- [x] Expire inactive run state after 30 minutes.
 
 Done when the example and one external public repository load into the same snapshot format.
 
 ### 5. Implement eligibility and Safety Screening
 
-- [ ] Require public GitHub, npm, JavaScript, CommonJS, Express and Mongoose.
-- [ ] Reject ESM, TypeScript, monorepos, missing entry points and missing route/model evidence.
-- [ ] Detect the published conventional syntax profile with stable evidence without conflating repository eligibility with candidate readiness.
-- [ ] Reject path traversal, symlinks and binary/executable analyzed source.
-- [ ] Reject recognized sensitive files, obfuscated/minified source and supported dynamic-code signals.
-- [ ] Reject recognized download-and-execute lifecycle scripts.
-- [ ] Display exact rule evidence and make no AI calls on failure.
-- [ ] Test false-positive-prone rules with explicit fixtures.
+- [x] Require public GitHub, npm, JavaScript, CommonJS, Express and Mongoose.
+- [x] Reject ESM, TypeScript, monorepos, missing entry points and missing route/model evidence.
+- [x] Detect the published conventional syntax profile with stable evidence without conflating repository eligibility with candidate readiness.
+- [x] Reject path traversal, symlinks and binary/executable analyzed source.
+- [x] Reject recognized sensitive files, obfuscated/minified source and supported dynamic-code signals.
+- [x] Reject recognized download-and-execute lifecycle scripts.
+- [x] Display exact rule evidence and make no AI calls on failure.
+- [x] Test false-positive-prone rules with explicit fixtures.
 
 Done when every unsupported or suspicious fixture stops before analysis/AI with a stable reason code.
 
 ### 6. Implement Express/Mongoose static analysis
 
-- [ ] Parse CommonJS JavaScript with Babel.
-- [ ] Resolve relative `require()` edges.
-- [ ] Mark files and cycles reachable from the recognized application entry.
-- [ ] Extract Express entry points, routers, paths, methods, middleware and handlers.
-- [ ] Extract Mongoose schemas, models and read/write calls.
-- [ ] Support only the documented route, mount, handler, model and CRUD shapes; add positive and negative syntax fixtures for each.
-- [ ] Detect direct model access, large handlers, mixed concerns and missing tests.
-- [ ] Detect circular file dependencies and render the complete cycle.
-- [ ] Detect shared-model writes, global mutation and unsupported cross-domain access.
-- [ ] Attach `file`, `line` and bounded snippets to every finding.
+- [x] Parse CommonJS JavaScript with Babel.
+- [x] Resolve relative `require()` edges.
+- [x] Mark files and cycles reachable from the recognized application entry.
+- [x] Extract Express entry points, routers, paths, methods, middleware and handlers.
+- [x] Extract Mongoose schemas, models and read/write calls.
+- [x] Support only the documented route, mount, handler, model and CRUD shapes; add positive and negative syntax fixtures for each.
+- [x] Detect direct model access, large handlers, mixed concerns and missing tests.
+- [x] Detect circular file dependencies and render the complete cycle.
+- [x] Detect shared-model writes, global mutation and unsupported cross-domain access.
+- [x] Attach `file`, `line` and bounded snippets to every finding.
 
 Done when analysis facts are deterministic and snapshot tests cover representative syntax.
 
 ### 7. Rank Domain Candidates and determine readiness
 
-- [ ] Cluster route/model/file evidence into Domain Candidates.
-- [ ] Rank up to three candidates using documented technical signals.
-- [ ] Calculate exclusive Write Ownership and distinguish reads from writes.
-- [ ] Require exactly one writable primary Mongoose model for an MVP-ready candidate.
-- [ ] Fail readiness when the candidate directly accesses another domain's Mongoose model.
-- [ ] Require an existing CommonJS Jest/Supertest harness available through `npm test` without manifest changes.
-- [ ] Fail candidate readiness when required route, mount, handler, model or CRUD evidence uses an unsupported syntax shape.
-- [ ] Evaluate every deterministic Transformation Readiness rule.
-- [ ] Mark findings automatable or developer-decision-required.
-- [ ] Implement the assessment-only path when no candidate is ready.
-- [ ] Ensure AI cannot alter ranking or waive readiness failures.
+- [x] Cluster route/model/file evidence into Domain Candidates.
+- [x] Rank up to three candidates using documented technical signals.
+- [x] Calculate exclusive Write Ownership and distinguish reads from writes.
+- [x] Require exactly one writable primary Mongoose model for an MVP-ready candidate.
+- [x] Fail readiness when the candidate directly accesses another domain's Mongoose model.
+- [x] Require an existing CommonJS Jest/Supertest harness available through `npm test` without manifest changes.
+- [x] Fail candidate readiness when required route, mount, handler, model or CRUD evidence uses an unsupported syntax shape.
+- [x] Evaluate every deterministic Transformation Readiness rule.
+- [x] Mark findings automatable or developer-decision-required.
+- [x] Implement the assessment-only path when no candidate is ready.
+- [x] Ensure AI cannot alter ranking or waive readiness failures.
 
 Done when candidate order and readiness results are reproducible from the same snapshot.
 
