@@ -1,6 +1,7 @@
 import { randomBytes } from "node:crypto";
 import type { RunId, RunState } from "@/core/run-state";
 import { createRun, expireRun } from "@/core/run-state";
+import { globalRateLimiter } from "@/server/ai/rate-limit";
 
 /** Inactive runs expire after 30 minutes (ADR-0014). */
 export const RUN_TTL_MS = 30 * 60 * 1000;
@@ -72,7 +73,8 @@ export class RunStore {
   }
 
   private isExpired(state: RunState): boolean {
-    if (state.phase === "expired" || state.phase === "completed") {
+    // Terminal completed/stopped runs still TTL so capacity and memory free up.
+    if (state.phase === "expired") {
       return false;
     }
     const last = Date.parse(state.lastActiveAt);
@@ -84,17 +86,26 @@ export class RunStore {
 
   private evictExpired(): void {
     for (const [id, state] of this.runs) {
-      if (state.phase === "completed") {
-        continue;
-      }
       if (this.isExpired(state)) {
-        const expired = expireRun(state);
-        if (expired.ok) {
-          this.runs.set(id, expired.state);
+        globalRateLimiter.release(state.clientKeyHash);
+        if (state.phase !== "completed" && state.phase !== "sequence_stopped") {
+          const expired = expireRun(state);
+          if (expired.ok) {
+            this.runs.set(id, expired.state);
+          }
         }
         this.runs.delete(id);
       }
     }
+  }
+
+  /** Touch activity timestamp for long-lived multi-stage sessions. */
+  touch(runId: RunId): RunState | undefined {
+    const state = this.get(runId);
+    if (!state) return undefined;
+    const next = { ...state, lastActiveAt: new Date(this.now()).toISOString() } as RunState;
+    this.runs.set(runId, next);
+    return next;
   }
 }
 

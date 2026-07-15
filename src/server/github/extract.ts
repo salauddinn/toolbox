@@ -140,7 +140,11 @@ export async function extractTarGzInMemory(
   });
 
   try {
-    await pipeline(Readable.from(compressed), createGunzip(), extract);
+    await pipeline(
+      Readable.from(compressed),
+      createGunzip({ maxOutputLength: limits.maxExtractedBytes }),
+      extract,
+    );
   } catch (err) {
     return {
       ok: false,

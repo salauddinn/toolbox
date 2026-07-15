@@ -35,21 +35,22 @@ export type AssessSuccess = {
 
 export type AssessResult = AssessSuccess | AssessError;
 
+/** Free the active rate-limit slot for terminal or assessment-only outcomes. */
+export function releaseRunCapacity(clientKeyHash: string): void {
+  globalRateLimiter.release(clientKeyHash);
+}
+
 function releaseIfTerminal(clientKeyHash: string, phase: RunState["phase"]): void {
-  const terminal = new Set([
-    "eligibility_failed",
-    "safety_failed",
-    "assessed",
-    "not_ready",
-    "completed",
-    "sequence_stopped",
-    "expired",
-  ]);
-  // Keep rate-limit "active" slot through selection/sequence; release only on hard failures of load.
-  if (phase === "eligibility_failed" || phase === "safety_failed" || phase === "expired") {
-    globalRateLimiter.release(clientKeyHash);
+  // assessment-only and hard failures free capacity immediately (no sequence).
+  // assessed keeps the slot until sequence completes/stops so concurrent runs stay capped.
+  if (
+    phase === "eligibility_failed" ||
+    phase === "safety_failed" ||
+    phase === "not_ready" ||
+    phase === "expired"
+  ) {
+    releaseRunCapacity(clientKeyHash);
   }
-  void terminal;
 }
 
 /**

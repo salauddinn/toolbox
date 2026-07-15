@@ -13,6 +13,7 @@ import {
   routeTableFingerprint,
   schemaTableFingerprint,
 } from "./fingerprints";
+import { validateMutableRegions } from "./mutable-regions";
 
 export type StaticValidationResult = {
   passed: boolean;
@@ -115,6 +116,25 @@ export function validateChangeSetStatic(input: {
   }
   if (envelopeOk && !checks.some((c) => c.id === "path-envelope" && c.outcome === "failed")) {
     checks.push(pass("path-envelope", "All operations within path envelope"));
+  }
+
+  // 2b. Mutable AST regions / protected fingerprints (Task 12)
+  const mutable = validateMutableRegions({
+    operations: input.operations,
+    baseSnapshot: input.baseSnapshot,
+    candidateSnapshot: input.candidateSnapshot,
+    mutableRegions: input.stage.mutableRegions,
+    protectedFingerprints: input.stage.protectedFingerprints,
+  });
+  if (!mutable.ok) {
+    for (const err of mutable.errors) {
+      checks.push(
+        fail("mutable-regions", "Protected top-level AST region altered outside Stage Plan", err),
+      );
+      structuredErrors.push(err);
+    }
+  } else if (input.stage.mutableRegions.length > 0 || input.stage.protectedFingerprints.length > 0) {
+    checks.push(pass("mutable-regions", "Mutable regions respected"));
   }
 
   // 3. Parse every changed JS file in candidate

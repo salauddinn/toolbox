@@ -144,6 +144,12 @@ export function AssessmentApp() {
   const [selectedEvidenceFile, setSelectedEvidenceFile] = useState<string | null>(null);
   const [intent, setIntent] = useState("");
   const [pickedCandidateId, setPickedCandidateId] = useState<string | null>(null);
+  const [pendingDiff, setPendingDiff] = useState<{
+    created: number;
+    updated: number;
+    deleted: number;
+    files: { path: string; kind: string; beforePreview?: string; afterPreview?: string }[];
+  } | null>(null);
 
   const startFixture = useCallback(async () => {
     setBusy(true);
@@ -161,6 +167,7 @@ export function AssessmentApp() {
         return;
       }
       setRun(data.run);
+      setPendingDiff(null);
       setPickedCandidateId(data.run.ranking?.safestTechnicalCandidateId ?? null);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -173,6 +180,7 @@ export function AssessmentApp() {
     setBusy(true);
     setError(null);
     setSelectedEvidenceFile(null);
+    setPendingDiff(null);
     try {
       const result = await postJson("/api/runs", {
         source: "github",
@@ -226,7 +234,17 @@ export function AssessmentApp() {
         run?: RunView;
         message?: string;
         code?: string;
-        diff?: unknown;
+        diff?: {
+          created: number;
+          updated: number;
+          deleted: number;
+          files: {
+            path: string;
+            kind: string;
+            beforePreview?: string;
+            afterPreview?: string;
+          }[];
+        };
         validationReport?: unknown;
       };
       if (!result.ok || !data.ok || !data.run) {
@@ -235,6 +253,7 @@ export function AssessmentApp() {
         return;
       }
       setRun(data.run);
+      setPendingDiff(data.diff ?? null);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -254,6 +273,7 @@ export function AssessmentApp() {
         return;
       }
       setRun(data.run);
+      setPendingDiff(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -273,6 +293,7 @@ export function AssessmentApp() {
         return;
       }
       setRun(data.run);
+      setPendingDiff(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -336,7 +357,7 @@ export function AssessmentApp() {
               onClick={() => void startGithub()}
               className="inline-flex h-11 shrink-0 items-center justify-center rounded-lg border border-border px-5 text-sm font-medium text-foreground disabled:opacity-50"
             >
-              Analyze
+              Start assessment
             </button>
           </div>
         </div>
@@ -487,7 +508,7 @@ export function AssessmentApp() {
                             ) : null}
                           </h4>
                           <p className="text-xs text-muted">
-                            score {c.technicalScore.toFixed(2)} · confidence{" "}
+                            technical score {c.technicalScore.toFixed(2)} · evidence strength{" "}
                             {c.confidence.toFixed(2)} · {readiness?.ready ? "ready" : "not ready"}
                           </p>
                         </div>
@@ -663,6 +684,36 @@ export function AssessmentApp() {
                     <p className="text-xs text-amber-700 dark:text-amber-300">
                       External generated tests: not executed
                     </p>
+                  ) : null}
+                  {pendingDiff ? (
+                    <div className="space-y-2">
+                      <p className="text-xs font-medium">
+                        Candidate snapshot diff (+{pendingDiff.created} ~{pendingDiff.updated} −
+                        {pendingDiff.deleted})
+                      </p>
+                      <ul className="max-h-56 space-y-2 overflow-auto text-xs">
+                        {pendingDiff.files.map((f) => (
+                          <li
+                            key={`${f.kind}-${f.path}`}
+                            className="rounded border border-border p-2"
+                          >
+                            <p className="font-mono">
+                              {f.kind} {f.path}
+                            </p>
+                            {f.beforePreview ? (
+                              <pre className="mt-1 max-h-24 overflow-auto bg-background p-1 text-[10px] text-muted">
+                                − {f.beforePreview}
+                              </pre>
+                            ) : null}
+                            {f.afterPreview ? (
+                              <pre className="mt-1 max-h-24 overflow-auto bg-background p-1 text-[10px] text-muted">
+                                + {f.afterPreview}
+                              </pre>
+                            ) : null}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
                   ) : null}
                   <ul className="max-h-40 overflow-auto font-mono text-xs text-muted">
                     {(run.changeSet?.operations ?? []).map(

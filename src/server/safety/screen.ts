@@ -171,10 +171,10 @@ export function screenRepositorySafety(snapshot: SourceSnapshot): SafetyScreenin
         rejection("SAFETY_SENSITIVE_FILE", `Recognized sensitive file path: ${file.path}`, [
           evidenceFor(
             "SAFETY_SENSITIVE_FILE",
-            "Sensitive file",
+            "Sensitive file path rejected; content redacted",
             file.path,
             1,
-            file.content.slice(0, 40),
+            "[redacted]",
           ),
         ]),
       );

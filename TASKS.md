@@ -146,8 +146,8 @@ Done when every ready candidate starts with three deterministic required Stage P
 - [x] Expose supported read-only model access through the module's public facade.
 - [x] Generate circular-dependency repair through a public module factory and composition-root injection, then verify the cycle disappears.
 - [x] Limit cycle repair to updates of evidenced cycle files, the public module entry and recognized composition root; allow no creation or deletion.
-- [x] Generate integration/cleanup that rewires remaining supported consumers, removes superseded legacy code and preserves routes, methods, schemas and collections.
-- [x] Delete only selected-domain legacy files proven superseded and unreferenced in the current snapshot.
+- [~] Generate integration/cleanup that rewires remaining supported consumers, removes superseded legacy code and preserves routes, methods, schemas and collections. (deterministic path is fixture-shaped; graph unreferenced-proof still shallow)
+- [~] Delete only selected-domain legacy files proven superseded and unreferenced in the current snapshot. (partial)
 - [x] Apply valid file operations only to a candidate snapshot.
 - [x] Present the validated candidate-snapshot diff before promotion to the current snapshot.
 - [x] Require Change Acceptance to create the next valid snapshot.
@@ -160,13 +160,13 @@ Done when accepted stages operate sequentially on evolving state and rejected ou
 - [x] Parse every changed JavaScript file.
 - [x] Resolve relative imports and enforce repository-root paths.
 - [x] Enforce allowed files and the approved Stage Plan scope.
-- [x] Reject updates that alter protected top-level AST regions outside the stage's evidenced mutable symbols.
+- [x] Reject updates that alter protected top-level AST regions outside the stage's evidenced mutable symbols. (top-level binding check; not full AST region hashing)
 - [x] Reject manifest, lockfile, license, `.github`, environment and ignored-content changes.
-- [x] Validate required module files, public entry and dependency direction.
+- [x] Validate required module files, public entry and dependency direction. (direction heuristic)
 - [x] Validate route/method, schema and collection preservation.
 - [x] Compare deterministic pre/post route-table and schema/collection fingerprints.
 - [x] Detect stale legacy wiring and internal module imports.
-- [x] Validate conditional dependency injection at the public factory and composition root.
+- [x] Validate conditional dependency injection at the public factory and composition root. (factory export heuristic)
 - [x] Validate that supported external readers use the module's public facade.
 - [x] Make one bounded repair call with structured errors after failure.
 - [x] Re-run the full validation set after repair.
@@ -174,6 +174,15 @@ Done when accepted stages operate sequentially on evolving state and rejected ou
 - [x] Show both attempts in the Validation Report.
 
 Done when the deliberate double-failure fixture proves rollback and blocks later stages.
+
+### Phase 1–4 review follow-ups (before / during Phase 5)
+
+- [ ] Full controlled-example E2E: behaviour → module → optional cycle → integration → completed
+- [ ] Wire unsupported syntax evidence into Transformation Readiness (ADR-0008)
+- [ ] Package-manager lockfile detection without dropping names at extract
+- [ ] Token budgets on AI provider input/output
+- [ ] Tighten integration path envelope (not `**/*.js`)
+- [ ] Stronger composition-root injection validation for cycle repair
 
 ### 13. Produce the finished artifact
 

@@ -12,18 +12,19 @@ type Params = { params: Promise<{ runId: string }> };
 export async function GET(request: Request, { params }: Params) {
   const { runId } = await params;
   const clientKeyHash = clientKeyFromRequest(request.headers);
-  const run = globalRunStore.get(runId as RunId);
-  if (!run) {
+  const existing = globalRunStore.get(runId as RunId);
+  if (!existing) {
     return NextResponse.json(
       { ok: false, code: "RUN_NOT_FOUND", message: "Run not found or expired" },
       { status: 404 },
     );
   }
-  if (run.clientKeyHash !== clientKeyHash) {
+  if (existing.clientKeyHash !== clientKeyHash) {
     return NextResponse.json(
       { ok: false, code: "RUN_FORBIDDEN", message: "Run is bound to another client" },
       { status: 403 },
     );
   }
+  const run = globalRunStore.touch(runId as RunId) ?? existing;
   return NextResponse.json({ ok: true, run: toPublicRunView(run) });
 }

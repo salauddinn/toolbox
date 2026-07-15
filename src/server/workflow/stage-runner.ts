@@ -22,6 +22,7 @@ import { diffSnapshots, operationsSummary } from "@/server/snapshot/diff";
 import { globalRunStore, type RunStore } from "@/server/run-store";
 import { resolveConditionalStage } from "@/server/sequence/plan";
 import { validateChangeSetStatic } from "@/server/validation/static";
+import { releaseRunCapacity } from "@/server/workflow/assess";
 
 function changeSetId(): string {
   return `cs_${randomBytes(8).toString("hex")}`;
@@ -433,6 +434,7 @@ async function handleValidationFailure(input: {
     return { ok: true, run: rolled.state, validationReport: finalReport };
   }
   store.set(stopped.state);
+  releaseRunCapacity(stopped.state.clientKeyHash);
   return { ok: true, run: stopped.state, validationReport: finalReport };
 }
 
@@ -482,6 +484,9 @@ export function acceptCurrentChangeSet(input: {
     };
   }
   store.set(accepted.state);
+  if (accepted.state.phase === "completed") {
+    releaseRunCapacity(accepted.state.clientKeyHash);
+  }
   return { ok: true, run: accepted.state };
 }
 
@@ -514,6 +519,7 @@ export function rejectCurrentChangeSet(input: {
     };
   }
   store.set(rejected.state);
+  releaseRunCapacity(rejected.state.clientKeyHash);
   return { ok: true, run: rejected.state };
 }
 
