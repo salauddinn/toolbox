@@ -100,39 +100,39 @@ Done when candidate order and readiness results are reproducible from the same s
 
 ### 8. Build the assessment experience
 
-- [ ] Build URL entry, supported-contract and Safety Screening screens.
-- [ ] Build the Modernization Assessment summary.
-- [ ] Build a basic dependency graph with evidence navigation.
-- [ ] Show up to three candidates, readiness, confidence and conflicting evidence.
-- [ ] Show the safest technical candidate without implying business priority.
-- [ ] Add developer selection/confirmation.
+- [x] Build URL entry, supported-contract and Safety Screening screens.
+- [x] Build the Modernization Assessment summary.
+- [x] Build a basic dependency graph with evidence navigation.
+- [x] Show up to three candidates, readiness, confidence and conflicting evidence.
+- [x] Show the safest technical candidate without implying business priority.
+- [x] Add developer selection/confirmation.
 
 Done when a developer can trace every candidate claim to source evidence.
 
 ### 9. Implement the fixed AI provider adapter
 
-- [ ] Implement one server-only OpenAI-compatible provider call.
-- [ ] Delimit repository content as untrusted data.
-- [ ] Give the model no tools, shell, network or environment access.
-- [ ] Validate structured `FileOperation` JSON before use.
-- [ ] Enforce input/output token plus 20-operation, 128 KiB/file and 512 KiB total-change defaults per stage.
-- [ ] Rate-limit to three analysis starts/client/hour, one active run/client and five active runs/process by default.
-- [ ] Derive the client key from the deployment's trusted source-IP signal, hash it in memory and use a coarse global fallback when that signal is unavailable.
-- [ ] Bind run state to an unguessable server-issued token and enforce JSON plus same-origin checks on state-changing endpoints.
-- [ ] Retry one transient network/rate-limit/provider failure once.
-- [ ] Preserve run state and allow manual stage retry after a second transport failure.
-- [ ] Add deterministic provider mocks for tests.
+- [x] Implement one server-only OpenAI-compatible provider call.
+- [x] Delimit repository content as untrusted data.
+- [x] Give the model no tools, shell, network or environment access.
+- [x] Validate structured `FileOperation` JSON before use.
+- [x] Enforce input/output token plus 20-operation, 128 KiB/file and 512 KiB total-change defaults per stage.
+- [x] Rate-limit to three analysis starts/client/hour, one active run/client and five active runs/process by default.
+- [x] Derive the client key from the deployment's trusted source-IP signal, hash it in memory and use a coarse global fallback when that signal is unavailable.
+- [x] Bind run state to an unguessable server-issued token and enforce JSON plus same-origin checks on state-changing endpoints.
+- [x] Retry one transient network/rate-limit/provider failure once.
+- [x] Preserve run state and allow manual stage retry after a second transport failure.
+- [x] Add deterministic provider mocks for tests.
 
 Done when malformed, injected and transient-failure responses cannot mutate the snapshot.
 
 ### 10. Build the Modernization Sequence planner
 
-- [ ] Create required Stage Plans for behaviour capture, Domain Module creation and integration/cleanup.
-- [ ] Show a pending conditional marker when initial evidence finds a supported cycle.
-- [ ] Recalculate the entry-reachable graph after Domain Module acceptance and create the conditional Stage Plan only if that cycle remains reachable.
-- [ ] Show stage purpose, evidence, expected files and validation criteria.
-- [ ] Require generation authorization for every stage.
-- [ ] Prevent AI from changing stage count, trigger outcome or purpose.
+- [x] Create required Stage Plans for behaviour capture, Domain Module creation and integration/cleanup.
+- [x] Show a pending conditional marker when initial evidence finds a supported cycle.
+- [x] Recalculate the entry-reachable graph after Domain Module acceptance and create the conditional Stage Plan only if that cycle remains reachable.
+- [x] Show stage purpose, evidence, expected files and validation criteria.
+- [x] Require generation authorization for every stage.
+- [x] Prevent AI from changing stage count, trigger outcome or purpose.
 
 Done when every ready candidate starts with three deterministic required Stage Plans and any pending conditional marker resolves from the accepted post-module snapshot, producing a final total of three or four.
 

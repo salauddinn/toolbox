@@ -1,0 +1,571 @@
+"use client";
+
+import { useCallback, useMemo, useState } from "react";
+import { DependencyGraph, type GraphPayload } from "./dependency-graph";
+
+const SUPPORTED_CONTRACT = [
+  "Public GitHub repository that passes Safety Screening",
+  "Single-root npm project with package.json",
+  "JavaScript CommonJS (no type: module)",
+  "Express.js and Mongoose declared dependencies",
+  "Recognizable entry (app.js, server.js, or index.js)",
+  "At least one route and one Mongoose model",
+  "Existing CommonJS Jest/Supertest harness via npm test for transformation",
+  "At most 150 analyzed source files and 2 MB analyzed source",
+] as const;
+
+type Evidence = {
+  ruleId: string;
+  message: string;
+  severity: string;
+  file: string;
+  line: number;
+  snippet: string;
+};
+
+type PublicCandidate = {
+  id: string;
+  name: string;
+  technicalScore: number;
+  confidence: number;
+  routes: readonly {
+    method: string;
+    path: string;
+    file: string;
+    line: number;
+    mountPrefix?: string;
+  }[];
+  primaryModel?: {
+    modelName: string;
+    collectionName?: string;
+    file: string;
+    line: number;
+  };
+  files: readonly string[];
+  signals: readonly Evidence[];
+  conflictingEvidence: readonly Evidence[];
+};
+
+type PublicReadiness = {
+  ready: boolean;
+  candidateId: string;
+  rules: readonly {
+    ruleId: string;
+    passed: boolean;
+    summary: string;
+    evidence: readonly Evidence[];
+  }[];
+  failedRules?: readonly {
+    ruleId: string;
+    passed: false;
+    summary: string;
+    evidence: readonly Evidence[];
+  }[];
+};
+
+type PublicStage = {
+  id: string;
+  kind: string;
+  title: string;
+  purpose: string;
+  conditional: boolean;
+  evidence: readonly Evidence[];
+  expectedFiles: readonly string[];
+  validationCriteria: readonly {
+    id: string;
+    description: string;
+    kind: string;
+  }[];
+};
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type RunView = Record<string, any> & {
+  runId: string;
+  phase: string;
+};
+
+async function postJson(
+  url: string,
+  body: unknown,
+): Promise<{ ok: boolean; status: number; data: unknown }> {
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+  const data = await response.json().catch(() => ({}));
+  return { ok: response.ok, status: response.status, data };
+}
+
+function EvidenceList({
+  items,
+  onFile,
+}: {
+  items: readonly Evidence[];
+  onFile?: (f: string) => void;
+}) {
+  if (items.length === 0) {
+    return <p className="text-xs text-muted">No evidence attached.</p>;
+  }
+  return (
+    <ul className="space-y-2">
+      {items.map((e, i) => (
+        <li
+          key={`${e.ruleId}-${e.file}-${e.line}-${i}`}
+          className="rounded-md border border-border bg-background p-2 text-xs"
+        >
+          <button
+            type="button"
+            className="font-mono text-accent hover:underline"
+            onClick={() => onFile?.(e.file)}
+          >
+            {e.file}:{e.line}
+          </button>
+          <p className="mt-1 text-foreground">{e.message}</p>
+          {e.snippet ? (
+            <pre className="mt-1 overflow-x-auto rounded bg-surface p-2 text-[11px] text-muted">
+              {e.snippet}
+            </pre>
+          ) : null}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+export function AssessmentApp() {
+  const [url, setUrl] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [run, setRun] = useState<RunView | null>(null);
+  const [selectedEvidenceFile, setSelectedEvidenceFile] = useState<string | null>(null);
+  const [intent, setIntent] = useState("");
+  const [pickedCandidateId, setPickedCandidateId] = useState<string | null>(null);
+
+  const startFixture = useCallback(async () => {
+    setBusy(true);
+    setError(null);
+    setSelectedEvidenceFile(null);
+    try {
+      const result = await postJson("/api/runs", {
+        source: "fixture",
+        fixtureId: "controlled-example",
+      });
+      const data = result.data as { ok?: boolean; run?: RunView; message?: string; code?: string };
+      if (!result.ok || !data.ok || !data.run) {
+        setError(data.message ?? data.code ?? `Request failed (${result.status})`);
+        setRun(null);
+        return;
+      }
+      setRun(data.run);
+      setPickedCandidateId(data.run.ranking?.safestTechnicalCandidateId ?? null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(false);
+    }
+  }, []);
+
+  const startGithub = useCallback(async () => {
+    setBusy(true);
+    setError(null);
+    setSelectedEvidenceFile(null);
+    try {
+      const result = await postJson("/api/runs", {
+        source: "github",
+        url: url.trim(),
+      });
+      const data = result.data as { ok?: boolean; run?: RunView; message?: string; code?: string };
+      if (!result.ok || !data.ok || !data.run) {
+        setError(data.message ?? data.code ?? `Request failed (${result.status})`);
+        setRun(null);
+        return;
+      }
+      setRun(data.run);
+      setPickedCandidateId(data.run.ranking?.safestTechnicalCandidateId ?? null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(false);
+    }
+  }, [url]);
+
+  const confirmSelection = useCallback(async () => {
+    if (!run || !pickedCandidateId) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const result = await postJson(`/api/runs/${run.runId}/select`, {
+        candidateId: pickedCandidateId,
+        modernizationIntent: intent.trim() || undefined,
+      });
+      const data = result.data as { ok?: boolean; run?: RunView; message?: string; code?: string };
+      if (!result.ok || !data.ok || !data.run) {
+        setError(data.message ?? data.code ?? `Request failed (${result.status})`);
+        return;
+      }
+      setRun(data.run);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(false);
+    }
+  }, [run, pickedCandidateId, intent]);
+
+  const graph: GraphPayload | null = useMemo(() => {
+    if (!run?.analysis?.graph) return null;
+    return run.analysis.graph as GraphPayload;
+  }, [run]);
+
+  const candidates: PublicCandidate[] = run?.ranking?.candidates ?? [];
+  const readinessMap: Record<string, PublicReadiness> = run?.readinessByCandidateId ?? {};
+
+  return (
+    <div className="space-y-8">
+      <section className="space-y-3">
+        <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">
+          Modularize one domain safely
+        </h1>
+        <p className="max-w-2xl text-base text-muted sm:text-lg">
+          ToolBox analyzes a supported Legacy Application, ranks technical Domain Candidates with
+          code evidence, and applies three or four approved Change Sets inside the existing
+          deployment boundary. It does not create microservices.
+        </p>
+      </section>
+
+      <section className="rounded-xl border border-border bg-surface p-6 shadow-sm">
+        <h2 className="text-lg font-medium">Start a Modernization Assessment</h2>
+        <p className="mt-1 text-sm text-muted">
+          Eligibility and Safety Screening run before any AI call.
+        </p>
+
+        <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => void startFixture()}
+            className="inline-flex h-11 items-center justify-center rounded-lg bg-accent px-5 text-sm font-medium text-accent-foreground disabled:opacity-60"
+          >
+            Try supported example
+          </button>
+          <div className="flex min-w-0 flex-1 flex-col gap-2 sm:flex-row">
+            <label className="sr-only" htmlFor="github-url">
+              Public GitHub repository URL
+            </label>
+            <input
+              id="github-url"
+              name="github-url"
+              type="url"
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+              disabled={busy}
+              placeholder="https://github.com/owner/repo"
+              className="h-11 w-full rounded-lg border border-border bg-background px-3 text-sm text-foreground placeholder:text-muted disabled:opacity-70"
+            />
+            <button
+              type="button"
+              disabled={busy || url.trim().length === 0}
+              onClick={() => void startGithub()}
+              className="inline-flex h-11 shrink-0 items-center justify-center rounded-lg border border-border px-5 text-sm font-medium text-foreground disabled:opacity-50"
+            >
+              Analyze
+            </button>
+          </div>
+        </div>
+        {error ? (
+          <p className="mt-3 text-sm text-red-600 dark:text-red-400" role="alert">
+            {error}
+          </p>
+        ) : null}
+        {busy ? <p className="mt-3 text-sm text-muted">Working…</p> : null}
+      </section>
+
+      <section className="rounded-xl border border-border bg-surface p-6">
+        <h2 className="text-lg font-medium">Supported repository contract</h2>
+        <ul className="mt-4 list-disc space-y-2 pl-5 text-sm text-muted">
+          {SUPPORTED_CONTRACT.map((item) => (
+            <li key={item}>{item}</li>
+          ))}
+        </ul>
+      </section>
+
+      {run ? (
+        <section className="space-y-6 rounded-xl border border-border bg-surface p-6">
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <h2 className="text-lg font-medium">Modernization Assessment</h2>
+            <p className="font-mono text-xs text-muted">
+              phase={run.phase} · run={run.runId.slice(0, 10)}…
+            </p>
+          </div>
+
+          {run.phase === "eligibility_failed" ? (
+            <div className="space-y-3">
+              <p className="text-sm font-medium text-red-600 dark:text-red-400">
+                Repository is not eligible
+              </p>
+              <ul className="space-y-2 text-sm">
+                {(run.eligibility?.rejections ?? []).map(
+                  (r: { code: string; message: string; evidence?: Evidence[] }, i: number) => (
+                    <li key={`${r.code}-${i}`} className="rounded-md border border-border p-3">
+                      <p className="font-mono text-xs text-muted">{r.code}</p>
+                      <p>{r.message}</p>
+                      {r.evidence ? (
+                        <div className="mt-2">
+                          <EvidenceList items={r.evidence} onFile={setSelectedEvidenceFile} />
+                        </div>
+                      ) : null}
+                    </li>
+                  ),
+                )}
+              </ul>
+            </div>
+          ) : null}
+
+          {run.phase === "safety_failed" ? (
+            <div className="space-y-3">
+              <p className="text-sm font-medium text-red-600 dark:text-red-400">
+                Safety Screening rejected this repository
+              </p>
+              <p className="text-xs text-muted">
+                Passing Safety Screening is not malware certification.
+              </p>
+              <ul className="space-y-2 text-sm">
+                {(run.safety?.rejections ?? []).map(
+                  (r: { code: string; message: string; evidence?: Evidence[] }, i: number) => (
+                    <li key={`${r.code}-${i}`} className="rounded-md border border-border p-3">
+                      <p className="font-mono text-xs text-muted">{r.code}</p>
+                      <p>{r.message}</p>
+                      {r.evidence ? (
+                        <div className="mt-2">
+                          <EvidenceList items={r.evidence} onFile={setSelectedEvidenceFile} />
+                        </div>
+                      ) : null}
+                    </li>
+                  ),
+                )}
+              </ul>
+            </div>
+          ) : null}
+
+          {run.phase === "assessed" || run.phase === "not_ready" ? (
+            <>
+              <div className="grid gap-4 sm:grid-cols-3">
+                <div className="rounded-lg border border-border p-3">
+                  <p className="text-xs text-muted">Source</p>
+                  <p className="truncate text-sm font-medium">{run.sourceLabel}</p>
+                </div>
+                <div className="rounded-lg border border-border p-3">
+                  <p className="text-xs text-muted">Routes / models</p>
+                  <p className="text-sm font-medium">
+                    {run.analysis?.routeCount ?? 0} / {run.analysis?.modelCount ?? 0}
+                  </p>
+                </div>
+                <div className="rounded-lg border border-border p-3">
+                  <p className="text-xs text-muted">Entry</p>
+                  <p className="font-mono text-sm">{run.analysis?.entryPath}</p>
+                </div>
+              </div>
+
+              {run.phase === "not_ready" ? (
+                <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm">
+                  Assessment-only: no Domain Candidate passed Transformation Readiness. Ranking is
+                  technical evidence only — not business priority. AI was not called.
+                </p>
+              ) : (
+                <p className="text-sm text-muted">
+                  Up to three technical Domain Candidates. The highlighted candidate is the safest
+                  technical start; it is not a business priority ranking.
+                </p>
+              )}
+
+              {graph ? (
+                <div className="space-y-2">
+                  <h3 className="text-sm font-medium">Entry-reachable dependency graph</h3>
+                  <p className="text-xs text-muted">
+                    Red animated edges are entry-reachable cycles. Click a node to focus evidence.
+                  </p>
+                  <DependencyGraph graph={graph} onSelectFile={setSelectedEvidenceFile} />
+                </div>
+              ) : null}
+
+              {selectedEvidenceFile ? (
+                <p className="text-xs text-muted">
+                  Focused file:{" "}
+                  <span className="font-mono text-foreground">{selectedEvidenceFile}</span>
+                </p>
+              ) : null}
+
+              <div className="space-y-4">
+                <h3 className="text-sm font-medium">Domain Candidates</h3>
+                {candidates.map((c) => {
+                  const readiness = readinessMap[c.id];
+                  const safest = run.ranking?.safestTechnicalCandidateId === c.id;
+                  const selected = pickedCandidateId === c.id;
+                  return (
+                    <article
+                      key={c.id}
+                      className={`rounded-lg border p-4 ${
+                        safest ? "border-accent" : "border-border"
+                      } ${selected ? "ring-2 ring-accent/40" : ""}`}
+                    >
+                      <div className="flex flex-wrap items-start justify-between gap-2">
+                        <div>
+                          <h4 className="font-medium">
+                            {c.name}{" "}
+                            {safest ? (
+                              <span className="ml-2 text-xs font-normal text-accent">
+                                safest technical candidate
+                              </span>
+                            ) : null}
+                          </h4>
+                          <p className="text-xs text-muted">
+                            score {c.technicalScore.toFixed(2)} · confidence{" "}
+                            {c.confidence.toFixed(2)} · {readiness?.ready ? "ready" : "not ready"}
+                          </p>
+                        </div>
+                        {run.phase === "assessed" && readiness?.ready ? (
+                          <button
+                            type="button"
+                            className="rounded-md border border-border px-3 py-1 text-xs font-medium"
+                            onClick={() => setPickedCandidateId(c.id)}
+                          >
+                            {selected ? "Selected" : "Select"}
+                          </button>
+                        ) : null}
+                      </div>
+
+                      <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                        <div>
+                          <p className="mb-1 text-xs font-medium">Signals</p>
+                          <EvidenceList items={c.signals} onFile={setSelectedEvidenceFile} />
+                        </div>
+                        <div>
+                          <p className="mb-1 text-xs font-medium">Conflicting evidence</p>
+                          <EvidenceList
+                            items={c.conflictingEvidence}
+                            onFile={setSelectedEvidenceFile}
+                          />
+                        </div>
+                      </div>
+
+                      {readiness && !readiness.ready ? (
+                        <div className="mt-3">
+                          <p className="mb-1 text-xs font-medium text-red-600 dark:text-red-400">
+                            Failed readiness rules
+                          </p>
+                          <ul className="space-y-1 text-xs">
+                            {(readiness.failedRules ?? []).map((rule) => (
+                              <li key={rule.ruleId}>
+                                <span className="font-mono">{rule.ruleId}</span>: {rule.summary}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      ) : null}
+
+                      {c.routes.length > 0 ? (
+                        <p className="mt-2 text-xs text-muted">
+                          Routes:{" "}
+                          {c.routes
+                            .slice(0, 6)
+                            .map((r) => `${r.method.toUpperCase()} ${r.mountPrefix ?? ""}${r.path}`)
+                            .join(", ")}
+                        </p>
+                      ) : null}
+                    </article>
+                  );
+                })}
+              </div>
+
+              {run.phase === "assessed" ? (
+                <div className="space-y-3 border-t border-border pt-4">
+                  <label className="block text-sm font-medium" htmlFor="intent">
+                    Modernization Intent (optional)
+                  </label>
+                  <textarea
+                    id="intent"
+                    value={intent}
+                    onChange={(e) => setIntent(e.target.value)}
+                    rows={2}
+                    maxLength={500}
+                    placeholder="Optional constraints for the selected domain (not a free-form AI prompt)"
+                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
+                  />
+                  <button
+                    type="button"
+                    disabled={busy || !pickedCandidateId}
+                    onClick={() => void confirmSelection()}
+                    className="inline-flex h-11 items-center justify-center rounded-lg bg-accent px-5 text-sm font-medium text-accent-foreground disabled:opacity-50"
+                  >
+                    Confirm Domain Candidate
+                  </button>
+                </div>
+              ) : null}
+            </>
+          ) : null}
+
+          {run.phase === "awaiting_authorization" ||
+          run.phase === "generating" ||
+          run.phase === "validating" ||
+          run.phase === "awaiting_acceptance" ? (
+            <div className="space-y-4">
+              <p className="text-sm">
+                Selected domain:{" "}
+                <strong>{run.selectedCandidate?.name ?? run.currentStage?.title}</strong>
+              </p>
+              {run.sequence?.pendingConditional ? (
+                <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm">
+                  Pending conditional stage: {run.sequence.pendingConditional.reason}. Final
+                  insertion is decided only after Domain Module acceptance.
+                </p>
+              ) : null}
+              <ol className="space-y-3">
+                {(run.sequence?.stages as PublicStage[] | undefined)?.map((stage, index) => (
+                  <li
+                    key={stage.id}
+                    className={`rounded-lg border p-4 ${
+                      index === run.stageIndex ? "border-accent" : "border-border"
+                    }`}
+                  >
+                    <p className="text-xs text-muted">
+                      Stage {index + 1}
+                      {stage.conditional ? " · conditional" : ""}
+                      {index === run.stageIndex ? " · current" : ""}
+                    </p>
+                    <h4 className="font-medium">{stage.title}</h4>
+                    <p className="mt-1 text-sm text-muted">{stage.purpose}</p>
+                    <p className="mt-2 text-xs font-medium">Expected files</p>
+                    <ul className="font-mono text-xs text-muted">
+                      {stage.expectedFiles.map((f) => (
+                        <li key={f}>{f}</li>
+                      ))}
+                    </ul>
+                    <p className="mt-2 text-xs font-medium">Validation criteria</p>
+                    <ul className="list-disc pl-5 text-xs text-muted">
+                      {stage.validationCriteria.map((c) => (
+                        <li key={c.id}>
+                          [{c.kind}] {c.description}
+                        </li>
+                      ))}
+                    </ul>
+                    <div className="mt-2">
+                      <p className="mb-1 text-xs font-medium">Evidence</p>
+                      <EvidenceList items={stage.evidence} onFile={setSelectedEvidenceFile} />
+                    </div>
+                  </li>
+                ))}
+              </ol>
+              <p className="text-xs text-muted">
+                Generation requires explicit authorization per stage (Phase 4). AI cannot change
+                stage count, trigger outcome, or purpose.
+              </p>
+            </div>
+          ) : null}
+        </section>
+      ) : null}
+    </div>
+  );
+}
