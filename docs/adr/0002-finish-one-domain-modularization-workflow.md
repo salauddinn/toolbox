@@ -1,6 +1,8 @@
 # Finish one domain modularization workflow
 
-The hackathon MVP will fully support one workflow: identify a Domain Module candidate in a supported legacy Express.js repository and modularize it through exactly three sequential, developer-approved Change Sets. Supporting multiple modernization strategies or whole-application conversion was rejected because it would sacrifice reliability and make the completion boundary impossible to demonstrate within four days.
+Status: superseded by ADR-0003
+
+The hackathon MVP will fully support one workflow: produce an evidence-backed Modernization Recommendation for a Domain Module candidate in a supported legacy Express.js repository, require developer confirmation, and modularize that domain through exactly three sequential, separately approved Change Sets with explicit Validation Reports. This supersedes ADR-0001's single-Change-Set limit. Supporting multiple modernization strategies or whole-application conversion was rejected because it would sacrifice reliability and make the completion boundary impossible to demonstrate within four days.
 
 ## Consequences
 

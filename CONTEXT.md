@@ -13,7 +13,7 @@ An evidence-backed description of a Legacy Application's current condition and m
 _Avoid_: Scan, audit, scorecard
 
 **Modernization Recommendation**:
-ToolBox's proposed modernization direction based on the Modernization Assessment and the developer's stated intent. It remains advisory until confirmed by the developer.
+ToolBox's proposed technical modernization direction based on the Modernization Assessment. It remains advisory, does not establish business priority, and must be confirmed by the developer.
 _Avoid_: AI decision, migration decision
 
 **Modernization Decision**:
@@ -32,6 +32,26 @@ _Avoid_: One-shot conversion, full rewrite
 A cohesive part of a Legacy Application organized around one business responsibility while remaining within the application's existing deployment boundary.
 _Avoid_: Microservice, service
 
+**Domain Candidate**:
+A technically coherent area that ToolBox identifies as eligible to become a Domain Module. Its ranking reflects code evidence, not business importance.
+_Avoid_: Best domain, most important domain
+
+**Blocker**:
+A statically detected obstacle, such as direct cross-domain access or a circular dependency, that prevents a clean Domain Module boundary and triggers the conditional blocker-resolution Change Set. Only a supported evidence rule, never the AI, may introduce it.
+_Avoid_: Code smell, tech debt
+
+**Modernization Intent**:
+Optional developer-provided context describing the desired outcome or constraints for a selected Domain Candidate.
+_Avoid_: AI prompt, business requirement
+
 **Validation Report**:
 A record of the checks actually performed on a Change Set and their outcomes; it makes no claims about checks that were not run.
 _Avoid_: Proof, guarantee, certification
+
+**Static Validation**:
+Validation that examines repository artifacts without installing dependencies or executing application code.
+_Avoid_: Test run, runtime verification
+
+**Runtime Validation**:
+Validation that executes application code or tests in a controlled environment.
+_Avoid_: Static check, inferred behaviour

@@ -1,5 +1,7 @@
 # Make a recommendation, then generate one bounded change
 
+Status: superseded by ADR-0002
+
 ToolBox will produce an evidence-backed Modernization Recommendation rather than assume every Legacy Application should become microservices. The developer must confirm that recommendation before ToolBox generates one reviewable Change Set, and ToolBox will report only the validation checks it actually performed. This balances a tangible product outcome with human ownership of consequential architecture decisions and avoids claiming autonomous modernization.
 
 ## Considered Options

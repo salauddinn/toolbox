@@ -15,7 +15,7 @@ Judging is equally weighted across originality, impact, AI fluency, prototype, d
 
 ## Locked product promise
 
-> ToolBox analyzes a supported legacy Express.js repository, identifies a Domain Module to modernize, explains the recommendation with code evidence, and modularizes that domain through exactly three developer-approved Change Sets.
+> ToolBox analyzes a supported legacy Express.js repository, ranks technically suitable Domain Candidates with code evidence, and modularizes the developer-selected candidate through three or four project-dependent, approved Change Sets.
 
 The final output is a downloadable repository plus a Validation Report that states precisely which checks passed or failed.
 
@@ -78,36 +78,50 @@ The bundled legacy Orders/Users/Payments repository satisfies the same contract 
 1. User enters a public GitHub URL or selects the bundled example.
 2. ToolBox runs eligibility checks without AI.
 3. ToolBox parses the eligible repository and builds code evidence and a dependency graph.
-4. ToolBox recommends one Domain Module candidate and explains why modularization is safer than immediate service extraction.
-5. The developer confirms or rejects the Modernization Recommendation.
-6. ToolBox proposes a three-step Modernization Sequence.
+4. ToolBox ranks up to three Domain Candidates and explains the safest technical candidate without claiming business priority.
+5. The developer selects or confirms a Domain Candidate and may add optional Modernization Intent.
+6. ToolBox proposes a three-or-four-step Modernization Sequence based on static evidence and the selected candidate.
 7. The developer reviews and approves each Change Set separately.
 8. Each approved Change Set is generated against the evolving virtual repository and statically validated before the next begins.
 9. ToolBox presents the final diff, file tree and Validation Report.
 10. The developer downloads the resulting repository ZIP.
 
-## Three required Change Sets
+## Project-dependent Modernization Sequence
 
-### Change Set 1 — protect behaviour
+Three Change Sets are always required. A fourth blocker-resolution Change Set is inserted only when a supported evidence rule triggers it.
 
-- Add characterization tests for the selected domain's existing HTTP routes.
-- Preserve current request paths and response contracts.
+### Required — capture existing behaviour
+
+- Generate characterization tests for the selected domain's existing HTTP routes.
+- Record the current request paths and expected response contracts inferred from available evidence.
+- Label generated tests for external repositories as “not executed.”
 - Do not change production code.
 
-### Change Set 2 — create the Domain Module
+### Conditional — resolve a boundary blocker
+
+Include only when static evidence identifies a supported blocker such as:
+
+- Circular dependency involving the selected domain
+- Shared-model ownership that prevents a clear boundary
+- Global mutable state used by the selected domain
+- Direct cross-domain access that must be isolated first
+
+The evidence rule that triggered this Change Set must be visible. AI cannot add the stage on its own.
+
+### Required — create the Domain Module
 
 - Create a domain folder with explicit route/controller, business and persistence boundaries.
 - Move selected business and database logic out of legacy route handlers.
 - Preserve observable HTTP behaviour.
 
-### Change Set 3 — integrate and clean up
+### Required — integrate and clean up
 
 - Rewire the application to use the new Domain Module.
 - Remove superseded legacy code and imports.
 - Resolve internal relative imports.
 - Produce the final before/after file tree and Validation Report.
 
-The fourth Change Set is not part of the MVP. It can be reconsidered only after every acceptance criterion passes.
+The MVP never produces fewer than three or more than four Change Sets.
 
 ## MVP screens
 
@@ -123,7 +137,7 @@ The fourth Change Set is not part of the MVP. It can be reconsidered only after 
 - Repository/runtime summary
 - Architecture findings
 - Interactive dependency graph
-- Candidate Domain Modules
+- Up to three ranked Domain Candidates
 - Evidence list with clickable `file:line` references
 
 Example:
@@ -139,15 +153,17 @@ Microservices        not justified by available evidence
 
 ### Recommendation
 
-- Recommended Domain Module and confidence
+- Safest technical Domain Candidate and confidence
+- Alternative candidates and conflicting evidence
 - Plain-language benefits and risks
 - “Why not microservices?” explanation
 - Supporting code evidence
-- Confirm/reject control
+- Developer selection/confirmation control
+- Optional Modernization Intent
 
 ### Modernization workspace
 
-- Three-step sequence with current status
+- Three-or-four-step sequence with the evidence-triggered conditional stage clearly marked
 - Approval before each Change Set
 - Files changed and unified diff
 - Per-step Validation Report
@@ -197,16 +213,17 @@ Candidate ranking begins with measurable signals rather than an unrestricted AI 
 - Circular dependencies
 - Existing test coverage
 
-The highest score is not automatically accepted. ToolBox shows confidence, conflicting evidence and the developer confirmation boundary.
+The highest score becomes the safest technical candidate, not the “best” or most important domain. ToolBox shows up to three candidates, confidence and conflicting evidence. The developer selects or confirms the Domain Candidate before generation.
 
 ## AI responsibilities
 
 AI is core but bounded:
 
-1. Explain and challenge the Domain Module recommendation using supplied evidence.
-2. Generate Change Set 1 from the selected domain files and route contracts.
-3. Generate Change Set 2 from the validated result of Change Set 1.
-4. Generate Change Set 3 from the validated result of Change Set 2.
+1. Explain and challenge the Domain Candidate ranking using supplied evidence without claiming business priority.
+2. Generate the behaviour-capture Change Set from selected routes and contracts.
+3. When a blocker rule triggers, generate the blocker-resolution Change Set from the validated current state.
+4. Generate the Domain Module Change Set from the validated current state.
+5. Generate the integration-and-cleanup Change Set from the validated current state.
 
 The provider must return structured file operations rather than an unconstrained prose response:
 
@@ -242,7 +259,7 @@ Target per uncached completed workflow:
 ```text
 Explanation input       <= 8,000 tokens
 Each generation input   <= 15,000 tokens
-AI calls                4 total: 1 explanation + 3 generation
+AI calls                4 or 5: 1 explanation + 3 or 4 generation
 ```
 
 ## Validation contract
@@ -288,19 +305,24 @@ GitHub URL
 eligibility check --reject--> supported-contract explanation
     |
     v
-Babel analysis -> evidence + graph -> Domain Module recommendation
+Babel analysis -> evidence + graph -> ranked Domain Candidates
     |
     v
-developer confirmation
+developer selection + optional Modernization Intent
     |
     v
-Change Set 1 -> validate -> approve
+capture behaviour -> static validation -> approve
     |
     v
-Change Set 2 -> validate -> approve
+blocker detected? --yes--> resolve blocker -> validate -> approve
+    | no                         |
+    +---------------------------+
     |
     v
-Change Set 3 -> validate -> final report + ZIP
+create Domain Module -> validate -> approve
+    |
+    v
+integrate and clean up -> validate -> final report + ZIP
 ```
 
 ## Four-day build plan
@@ -319,20 +341,21 @@ Exit condition: both the example and one external supported repository produce r
 - Implement dependency/cycle analysis and domain clustering.
 - Detect route-to-model coupling and mixed concerns.
 - Build the assessment dashboard, graph and evidence navigation.
-- Rank Domain Module candidates deterministically.
+- Rank up to three Domain Candidates deterministically.
 - Add the grounded AI explanation and confirmation boundary.
 
-Exit condition: the recommendation is credible and traceable without relying on invented AI facts.
+Exit condition: candidate ranking is credible and traceable, and its technical scope is distinguished from business priority.
 
-### Day 3 — three-step modernization workspace
+### Day 3 — project-dependent modernization workspace
 
 - Implement structured AI file operations.
 - Maintain an evolving virtual repository snapshot.
-- Generate, review and approve all three Change Sets.
+- Generate, review and approve the three required Change Sets.
+- Insert and generate the conditional blocker-resolution Change Set when a supported rule triggers.
 - Implement per-step static validation, stopping on failure.
 - Generate the final combined diff, report and ZIP.
 
-Exit condition: one complete external supported repository and the bundled example finish the three-step sequence.
+Exit condition: one external supported repository finishes a valid sequence, and the bundled example finishes the four-step sequence with visible trigger evidence.
 
 ### Day 4 — reliability and submission
 
@@ -357,11 +380,11 @@ Enter a supported repository URL. Show eligibility, the graph and code evidence 
 
 ### 0:55–1:20 — recommendation
 
-Show why Orders should become a Domain Module and why microservices are not yet justified. Confirm the recommendation.
+Show why Orders is the safest technical Domain Candidate, compare an alternative, and explain why microservices are not yet justified. Select Orders.
 
-### 1:20–2:30 — three Change Sets
+### 1:20–2:30 — project-dependent Change Sets
 
-Rapidly show behaviour protection, Domain Module creation, integration and per-step validation.
+Show the detected blocker, then rapidly show behaviour capture, blocker resolution, Domain Module creation, integration and per-step validation.
 
 ### 2:30–3:00 — finished output
 
@@ -372,13 +395,17 @@ Show the before/after tree, final Validation Report and downloadable repository.
 - [ ] The full workflow works for the bundled example and at least one external repository satisfying the documented contract.
 - [ ] Unsupported repositories are rejected before any AI call.
 - [ ] Findings and recommendations link to real files and lines.
-- [ ] Domain ranking is calculated before AI explanation.
-- [ ] The developer confirms the recommendation and separately approves every Change Set.
-- [ ] Exactly three sequential Change Sets use the evolving repository state.
+- [ ] Up to three Domain Candidates are ranked before AI explanation.
+- [ ] The UI never presents technical ranking as business priority.
+- [ ] The developer selects a Domain Candidate and separately approves every Change Set.
+- [ ] Every sequence contains the three required Change Sets and uses the evolving repository state.
+- [ ] The conditional Change Set appears only when a supported static rule triggers it, producing a maximum of four.
 - [ ] Invalid AI output or failed validation stops the sequence visibly.
 - [ ] Changed JavaScript parses and relative imports resolve.
 - [ ] Original public route paths remain registered in the final snapshot.
 - [ ] The final Validation Report distinguishes static checks from runtime tests.
+- [ ] Generated tests for external repositories are visibly labelled “not executed.”
+- [ ] Downloaded results include local runtime-verification commands.
 - [ ] The final repository ZIP downloads successfully.
 - [ ] API keys remain server-side and repository/token limits are enforced.
 - [ ] The deployed URL, public repository and video work without login.
@@ -398,13 +425,13 @@ Show the before/after tree, final Validation Report and downloadable repository.
 - Runtime verification for external repositories
 - Kubernetes, deployment or infrastructure generation
 - Graph databases or multi-agent frameworks
-- A fourth Change Set before the required workflow is complete
+- AI-selected or arbitrary sequence length outside the three-to-four-stage contract
 
 ## Stretch goals
 
 Only after every acceptance criterion passes:
 
-- A fourth Change Set for a clearly justified cleanup
+- Additional supported blocker rules
 - Git-compatible patch download
 - Sandboxed test execution
 - GitHub pull-request creation
@@ -415,4 +442,4 @@ Only after every acceptance criterion passes:
 
 ToolBox is an evidence-backed Express.js domain modularization product, not an automatic microservice converter and not a generic repository chatbot.
 
-> **Supported repository in. One confirmed Domain Module and three validated, reviewable Change Sets out.**
+> **Supported repository in. Ranked technical Domain Candidates; one developer-selected module and three or four evidence-driven Change Sets out.**
