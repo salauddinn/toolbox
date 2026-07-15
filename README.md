@@ -45,22 +45,26 @@ Paste any public root `https://github.com/<owner>/<repo>` URL at runtime. Extern
 
 ### Demo / verification repositories
 
-Not hard-coded in product logic — paste into the UI or loader at runtime.
+These repositories are not hard-coded in product logic: paste a root GitHub URL into the UI or loader at runtime. ToolBox must re-run Eligibility, Safety Screening and Transformation Readiness on every fetch. External code is analyzed statically only; ToolBox never installs or executes it.
 
-**Positive transform (static analysis only — do not install or execute):**
+Use the following order during development and the demo:
 
-```
-https://github.com/JAlexShulha/test-driven-development-unit-integration
-```
+1. **Bundled four-stage success path:** `fixtures/controlled-example`
+   - Primary demo source because it is controlled, tests are safe to run locally, and it deliberately preserves the Orders↔Payments cycle.
 
-CommonJS Express + Mongoose, Todo model, Jest/Supertest. Older Mongoose has a critical advisory.
+2. **External three-stage static transformation:** [JAlexShulha/test-driven-development-unit-integration](https://github.com/JAlexShulha/test-driven-development-unit-integration)
+   - Public single-root CommonJS Express/Mongoose repository.
+   - One Todo model; direct literal routes; route-reachable CRUD writes; Jest and Supertest.
+   - Use only as a static-analysis example. It has no committed lockfile, expects a remote MongoDB credential for integration tests, and a temporary dependency audit reports an old Mongoose critical advisory. Do not install or execute it.
 
-**Honest rejection (Safety Screening / ESM):**
+3. **Transformation Readiness rejection:** [edignot/node-express-mongoDB-mongoose-jest-supertest-nock](https://github.com/edignot/node-express-mongoDB-mongoose-jest-supertest-nock)
+   - Public CommonJS Express/Mongoose repository with one Quote model and Jest/Supertest.
+   - Its routes use chained `router.route()` registration, which is outside ToolBox's current direct literal `router.get/post/...` transformation profile. Show the assessment and the exact readiness blocker; make no generation call.
 
-```
-https://github.com/Anouar-Dhahri/testing-rest-api-nodejs-mongo
-```
+4. **Transformation Readiness rejection:** [tsmx/nodejs-tutorial](https://github.com/tsmx/nodejs-tutorial)
+   - Public CommonJS Express/Mongoose repository with current test tooling and `mongodb-memory-server`.
+   - Its route-wrapper factory (`routes(app)`) and read-only MasterData candidate are outside the bounded generation contract. Show an evidence-backed no-ready-candidate result.
 
-Tracked private-key files + ESM; ToolBox should reject before analysis/AI.
-
-**Bundled success + Orders↔Payments cycle:** `fixtures/controlled-example`
+5. **Eligibility / Safety Screening rejection:** [Anouar-Dhahri/testing-rest-api-nodejs-mongo](https://github.com/Anouar-Dhahri/testing-rest-api-nodejs-mongo)
+   - Tracked private-key material and ESM configuration.
+   - ToolBox must reject before analysis or AI usage and show both reason codes.
