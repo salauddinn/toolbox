@@ -224,14 +224,21 @@ export async function loadGitHubRepository(
     };
   }
 
+  // Tarball download: do not force application/octet-stream (GitHub returns 415).
+  // Keep auth + User-Agent; Accept */* so redirects to codeload succeed.
+  const archiveHeaders: Record<string, string> = {
+    Accept: "*/*",
+    "User-Agent": "ToolBox-MVP",
+  };
+  if (options.githubToken) {
+    archiveHeaders.Authorization = `Bearer ${options.githubToken}`;
+  }
+
   const archive = await followGitHubRedirects(
     githubTarballUrl(parsed.ref),
     {
       method: "GET",
-      headers: {
-        ...authHeaders(options.githubToken),
-        Accept: "application/octet-stream",
-      },
+      headers: archiveHeaders,
     },
     timeoutMs,
     fetchImpl,
