@@ -41,7 +41,7 @@ describe("AI provider adapter", () => {
       'Exact shape: {"operations":[{"type":"create","path":"relative/path.js","content":"full file body"}]}',
     );
     expect(prompt).not.toMatch(/"type":"create"\|"update"\|"delete"/);
-    expect(prompt).toMatch(/Allowed type values.*create.*update.*delete/s);
+    expect(prompt).toMatch(/Allowed type values[\s\S]*create[\s\S]*update[\s\S]*delete/);
   });
 
   it("rejects operations over budget", () => {

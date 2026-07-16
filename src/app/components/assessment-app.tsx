@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useMemo, useState } from "react";
 import { DependencyGraph, type GraphPayload } from "./dependency-graph";
 
@@ -310,81 +311,153 @@ export function AssessmentApp() {
   const readinessMap: Record<string, PublicReadiness> = run?.readinessByCandidateId ?? {};
 
   return (
-    <div className="space-y-8">
-      <section className="space-y-3">
-        <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">
-          Modularize one domain safely
-        </h1>
-        <p className="max-w-2xl text-base text-muted sm:text-lg">
-          ToolBox analyzes a supported Legacy Application, ranks technical Domain Candidates with
-          code evidence, and applies three or four approved Change Sets inside the existing
-          deployment boundary. It does not create microservices.
-        </p>
-      </section>
-
-      <section className="rounded-xl border border-border bg-surface p-6 shadow-sm">
-        <h2 className="text-lg font-medium">Start a Modernization Assessment</h2>
-        <p className="mt-1 text-sm text-muted">
-          Eligibility and Safety Screening run before any AI call.
-        </p>
-
-        <div className="mt-6 flex flex-col gap-3 sm:flex-row">
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => void startFixture()}
-            className="inline-flex h-11 items-center justify-center rounded-lg bg-accent px-5 text-sm font-medium text-accent-foreground disabled:opacity-60"
-          >
-            Try supported example
-          </button>
-          <div className="flex min-w-0 flex-1 flex-col gap-2 sm:flex-row">
-            <label className="sr-only" htmlFor="github-url">
-              Public GitHub repository URL
-            </label>
-            <input
-              id="github-url"
-              name="github-url"
-              type="url"
-              value={url}
-              onChange={(e) => setUrl(e.target.value)}
-              disabled={busy}
-              placeholder="https://github.com/owner/repo"
-              className="h-11 w-full rounded-lg border border-border bg-background px-3 text-sm text-foreground placeholder:text-muted disabled:opacity-70"
-            />
-            <button
-              type="button"
-              disabled={busy || url.trim().length === 0}
-              onClick={() => void startGithub()}
-              className="inline-flex h-11 shrink-0 items-center justify-center rounded-lg border border-border px-5 text-sm font-medium text-foreground disabled:opacity-50"
-            >
-              Start assessment
-            </button>
+    <div className="space-y-4">
+      <section className="tb-panel overflow-hidden">
+        <div className="tb-panel-head">
+          <div className="min-w-0">
+            <p className="tb-mono text-[10px] uppercase tracking-wide text-muted">work console</p>
+            <h1 className="truncate text-[14px] font-semibold text-ink">
+              {run ? "Modernization Assessment" : "Start assessment"}
+            </h1>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            {run ? (
+              <>
+                <span className="tb-chip tb-chip-accent">phase: {run.phase}</span>
+                <span className="tb-chip">run: {run.runId.slice(0, 10)}…</span>
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => {
+                    setRun(null);
+                    setPendingDiff(null);
+                    setError(null);
+                    setSelectedEvidenceFile(null);
+                  }}
+                  className="tb-btn tb-btn-secondary h-8 px-2.5 text-[12px]"
+                >
+                  New
+                </button>
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => void startFixture()}
+                  className="tb-btn tb-btn-primary h-8 px-2.5 text-[12px]"
+                >
+                  Retry example
+                </button>
+              </>
+            ) : (
+              <>
+                <span className="tb-chip">no active run</span>
+                <Link href="/" className="tb-btn tb-btn-ghost h-8 px-2.5 text-[12px]">
+                  Product page
+                </Link>
+              </>
+            )}
           </div>
         </div>
-        {error ? (
-          <p className="mt-3 text-sm text-red-600 dark:text-red-400" role="alert">
-            {error}
-          </p>
-        ) : null}
-        {busy ? <p className="mt-3 text-sm text-muted">Working…</p> : null}
       </section>
 
-      <section className="rounded-xl border border-border bg-surface p-6">
-        <h2 className="text-lg font-medium">Supported repository contract</h2>
-        <ul className="mt-4 list-disc space-y-2 pl-5 text-sm text-muted">
-          {SUPPORTED_CONTRACT.map((item) => (
-            <li key={item}>{item}</li>
+      {!run ? (
+        <section className="tb-panel overflow-hidden">
+          <div className="tb-panel-head">
+            <p className="tb-mono text-[11px] font-medium text-ink">new run</p>
+            <span className="tb-mono text-[10px] text-muted">POST /api/runs</span>
+          </div>
+          <div className="space-y-4 p-5">
+            <p className="max-w-2xl text-[13px] leading-relaxed text-muted">
+              Eligibility and Safety Screening run before any AI call. Use the controlled example
+              for a full local path, or paste a public GitHub root URL.
+            </p>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => void startFixture()}
+                className="tb-btn tb-btn-primary sm:shrink-0"
+              >
+                {busy ? "Running…" : "Try controlled example"}
+              </button>
+              <div className="flex min-w-0 flex-1 gap-2">
+                <label className="sr-only" htmlFor="github-url">
+                  Public GitHub repository URL
+                </label>
+                <input
+                  id="github-url"
+                  name="github-url"
+                  type="url"
+                  value={url}
+                  onChange={(e) => setUrl(e.target.value)}
+                  disabled={busy}
+                  placeholder="https://github.com/owner/repo"
+                  className="tb-input tb-mono"
+                />
+                <button
+                  type="button"
+                  disabled={busy || url.trim().length === 0}
+                  onClick={() => void startGithub()}
+                  className="tb-btn tb-btn-secondary shrink-0"
+                >
+                  Assess
+                </button>
+              </div>
+            </div>
+            {error ? (
+              <p
+                className="rounded border border-danger/25 bg-danger/8 px-2.5 py-2 text-[12px] text-danger"
+                role="alert"
+              >
+                {error}
+              </p>
+            ) : null}
+            {busy ? (
+              <p className="tb-mono text-[11px] text-muted" aria-live="polite">
+                load → safety → eligibility → analyze → rank…
+              </p>
+            ) : null}
+          </div>
+        </section>
+      ) : null}
+
+      {run && error ? (
+        <p
+          className="rounded-md border border-danger/25 bg-danger/8 px-3 py-2.5 text-[13px] text-danger"
+          role="alert"
+        >
+          {error}
+        </p>
+      ) : null}
+      {run && busy ? (
+        <p className="tb-mono text-[11px] text-muted" aria-live="polite">
+          working…
+        </p>
+      ) : null}
+
+      <section className="tb-panel overflow-hidden">
+        <div className="tb-panel-head">
+          <p className="tb-mono text-[11px] font-medium text-ink">supported contract</p>
+        </div>
+        <ul className="grid gap-0 sm:grid-cols-2">
+          {SUPPORTED_CONTRACT.map((item, i) => (
+            <li
+              key={item}
+              className="flex gap-2 border-b border-border px-3.5 py-2 text-[12px] text-muted last:border-b-0 sm:odd:border-r"
+            >
+              <span className="tb-mono text-[10px] text-muted-soft">
+                {String(i + 1).padStart(2, "0")}
+              </span>
+              <span>{item}</span>
+            </li>
           ))}
         </ul>
       </section>
 
       {run ? (
-        <section className="space-y-6 rounded-xl border border-border bg-surface p-6">
+      <section className="tb-panel space-y-6 p-5 sm:p-6">
           <div className="flex flex-wrap items-baseline justify-between gap-2">
-            <h2 className="text-lg font-medium">Modernization Assessment</h2>
-            <p className="font-mono text-xs text-muted">
-              phase={run.phase} · run={run.runId.slice(0, 10)}…
-            </p>
+            <h2 className="text-[15px] font-semibold text-ink">Assessment detail</h2>
+            <p className="tb-mono text-[11px] text-muted">phase={run.phase}</p>
           </div>
 
           {run.phase === "eligibility_failed" ? (
@@ -584,7 +657,7 @@ export function AssessmentApp() {
                     type="button"
                     disabled={busy || !pickedCandidateId}
                     onClick={() => void confirmSelection()}
-                    className="inline-flex h-11 items-center justify-center rounded-lg bg-accent px-5 text-sm font-medium text-accent-foreground disabled:opacity-50"
+                    className="tb-btn tb-btn-primary"
                   >
                     Confirm Domain Candidate
                   </button>
@@ -620,7 +693,7 @@ export function AssessmentApp() {
                   {run.downloadAvailable && run.downloadPath ? (
                     <a
                       href={run.downloadPath}
-                      className="inline-flex h-10 items-center justify-center rounded-lg bg-accent px-4 text-sm font-medium text-accent-foreground"
+                      className="tb-btn tb-btn-primary"
                     >
                       Download result ZIP
                     </a>
@@ -679,7 +752,7 @@ export function AssessmentApp() {
                   type="button"
                   disabled={busy}
                   onClick={() => void authorizeStage()}
-                  className="inline-flex h-11 items-center justify-center rounded-lg bg-accent px-5 text-sm font-medium text-accent-foreground disabled:opacity-50"
+                  className="tb-btn tb-btn-primary"
                 >
                   Authorize generation for this stage
                 </button>
@@ -744,7 +817,7 @@ export function AssessmentApp() {
                       type="button"
                       disabled={busy}
                       onClick={() => void acceptStage()}
-                      className="inline-flex h-10 items-center justify-center rounded-lg bg-accent px-4 text-sm font-medium text-accent-foreground disabled:opacity-50"
+                      className="tb-btn tb-btn-primary"
                     >
                       Accept Change Set
                     </button>
@@ -752,7 +825,7 @@ export function AssessmentApp() {
                       type="button"
                       disabled={busy}
                       onClick={() => void rejectStage()}
-                      className="inline-flex h-10 items-center justify-center rounded-lg border border-border px-4 text-sm font-medium disabled:opacity-50"
+                      className="tb-btn tb-btn-secondary"
                     >
                       Reject and stop
                     </button>
@@ -787,7 +860,7 @@ export function AssessmentApp() {
               </p>
             </div>
           ) : null}
-        </section>
+      </section>
       ) : null}
     </div>
   );

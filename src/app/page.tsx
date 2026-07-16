@@ -1,5 +1,5 @@
-import { AssessmentApp } from "./components/assessment-app";
+import { MarketingLanding } from "./components/marketing-landing";
 
 export default function HomePage() {
-  return <AssessmentApp />;
+  return <MarketingLanding />;
 }
