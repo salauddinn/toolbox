@@ -96,9 +96,7 @@ export class RunStore {
     this.evictExpired();
     return [...this.runs.values()].find(
       (run) =>
-        run.clientKeyHash === clientKeyHash &&
-        holdsRunCapacity(run) &&
-        canExplicitlyEndRun(run),
+        run.clientKeyHash === clientKeyHash && holdsRunCapacity(run) && canExplicitlyEndRun(run),
     );
   }
 

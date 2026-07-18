@@ -47,8 +47,7 @@ export function releaseRunCapacity(clientKeyHash: string): void {
 }
 
 export type EndRunResult =
-  | { ok: true }
-  | { ok: false; code: string; message: string; status: number };
+  { ok: true } | { ok: false; code: string; message: string; status: number };
 
 export function endAssessmentRun(input: {
   runId: RunId;

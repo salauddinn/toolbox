@@ -85,9 +85,7 @@ type RunView = Record<string, any> & {
   phase: string;
 };
 
-type StartBody =
-  | { source: "fixture"; fixtureId: string }
-  | { source: "github"; url: string };
+type StartBody = { source: "fixture"; fixtureId: string } | { source: "github"; url: string };
 
 async function postJson(
   url: string,
@@ -190,11 +188,7 @@ export function AssessmentApp() {
         activeRunId?: string;
       };
       if (!result.ok || !data.ok || !data.run) {
-        if (
-          allowRecovery &&
-          data.code === "RATE_LIMIT_ACTIVE_CLIENT" &&
-          data.activeRunId
-        ) {
+        if (allowRecovery && data.code === "RATE_LIMIT_ACTIVE_CLIENT" && data.activeRunId) {
           setBlockedStart({ body, activeRunId: data.activeRunId });
         } else {
           setBlockedStart(null);
