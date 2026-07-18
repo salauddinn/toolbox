@@ -44,6 +44,7 @@ export type AiProvider = {
 
 const UNTRUSTED_OPEN = "<<<UNTRUSTED_REPOSITORY_DATA>>>";
 const UNTRUSTED_CLOSE = "<<<END_UNTRUSTED_REPOSITORY_DATA>>>";
+const PROVIDER_REQUEST_TIMEOUT_MS = 60_000;
 
 /**
  * Delimit repository content as untrusted data. Never treat it as instructions.
@@ -315,6 +316,7 @@ export class OpenAiCompatibleProvider implements AiProvider {
             "Content-Type": "application/json",
           },
           body: JSON.stringify(body),
+          signal: AbortSignal.timeout(PROVIDER_REQUEST_TIMEOUT_MS),
         });
 
         if (response.status === 429 || response.status >= 500) {
