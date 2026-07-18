@@ -12,5 +12,7 @@ services:
         sync: false
       - key: AI_MODEL
         sync: false
+      - key: TOOLBOX_SESSION_SECRET
+        generateValue: true
       - key: TOOLBOX_DETERMINISTIC_GENERATION
         value: "0"

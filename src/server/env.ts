@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { validateAiBaseUrl } from "@/server/ai/provider-url";
 
 /**
  * Server-only environment contract.
@@ -6,10 +7,21 @@ import { z } from "zod";
  * Never import from Client Components or code that can reach the browser bundle.
  */
 const serverEnvSchema = z.object({
-  AI_BASE_URL: z.string().url(),
+  AI_BASE_URL: z
+    .string()
+    .url()
+    .superRefine((value, ctx) => {
+      const checked = validateAiBaseUrl(value, {
+        allowHttpLocalhost: process.env.NODE_ENV !== "production",
+      });
+      if (!checked.ok) {
+        ctx.addIssue({ code: "custom", message: checked.message });
+      }
+    }),
   AI_API_KEY: z.string().min(1),
   AI_MODEL: z.string().min(1),
   GITHUB_TOKEN: z.string().min(1).optional(),
+  TOOLBOX_SESSION_SECRET: z.string().min(16).optional(),
   NODE_ENV: z.enum(["development", "test", "production"]).optional(),
 });
 
@@ -28,6 +40,7 @@ function readRawEnv(source: EnvSource = process.env): EnvSource {
     AI_API_KEY: source.AI_API_KEY,
     AI_MODEL: source.AI_MODEL,
     GITHUB_TOKEN: source.GITHUB_TOKEN || undefined,
+    TOOLBOX_SESSION_SECRET: source.TOOLBOX_SESSION_SECRET || undefined,
     NODE_ENV: source.NODE_ENV,
   };
 }
@@ -73,4 +86,8 @@ export function resetServerEnvCache(): void {
 }
 
 /** Names of secrets that must never appear in client assets. */
-export const SECRET_ENV_KEYS = ["AI_API_KEY", "GITHUB_TOKEN"] as const;
+export const SECRET_ENV_KEYS = [
+  "AI_API_KEY",
+  "GITHUB_TOKEN",
+  "TOOLBOX_SESSION_SECRET",
+] as const;

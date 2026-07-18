@@ -19,6 +19,7 @@ import { generateDeterministicOperations } from "@/server/generation/determinist
 import { buildStageInstructions, buildUntrustedBlock } from "@/server/generation/prompts";
 import { applyOperationsToSnapshot } from "@/server/snapshot/apply";
 import { diffSnapshots, operationsSummary } from "@/server/snapshot/diff";
+import { globalRateLimiter } from "@/server/ai/rate-limit";
 import { globalRunStore, type RunStore } from "@/server/run-store";
 import { resolveConditionalStage } from "@/server/sequence/plan";
 import { validateChangeSetStatic } from "@/server/validation/static";
@@ -165,6 +166,18 @@ export async function authorizeAndGenerate(
       code: "INVALID_PHASE",
       message: `Cannot authorize from phase ${run.phase}`,
       status: 409,
+      run,
+    };
+  }
+
+  // Cap AI spend: authorize/generate calls per client per hour.
+  const authorizeLimit = globalRateLimiter.tryAuthorize(input.clientKeyHash);
+  if (!authorizeLimit.ok) {
+    return {
+      ok: false,
+      code: authorizeLimit.code,
+      message: authorizeLimit.message,
+      status: 429,
       run,
     };
   }

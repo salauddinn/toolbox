@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import type { RunId } from "@/core/run-state";
-import { clientKeyFromRequest } from "@/server/ai/client-key";
+import { bindClientFromRequest } from "@/server/http/bound-client";
 import { guardStateChangingRequest } from "@/server/http/request-guards";
+import { withSessionCookie } from "@/server/http/session";
 import { selectDomainCandidate } from "@/server/workflow/select";
 import { toPublicRunView } from "@/server/workflow/public-view";
 
@@ -32,21 +33,30 @@ export async function POST(request: Request, { params }: Params) {
     );
   }
 
-  const clientKeyHash = clientKeyFromRequest(request.headers);
+  const bound = bindClientFromRequest(request);
+  const respond = (response: NextResponse) => withSessionCookie(response, bound.setCookie);
+
+  // Intent is untrusted developer context only — never stage instructions.
+  const intent =
+    typeof body.modernizationIntent === "string"
+      ? body.modernizationIntent.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, "").slice(0, 500)
+      : undefined;
+
   const result = selectDomainCandidate({
     runId: runId as RunId,
     candidateId: body.candidateId,
-    modernizationIntent:
-      typeof body.modernizationIntent === "string" ? body.modernizationIntent : undefined,
-    clientKeyHash,
+    modernizationIntent: intent,
+    clientKeyHash: bound.clientKeyHash,
   });
 
   if (!result.ok) {
-    return NextResponse.json(
-      { ok: false, code: result.code, message: result.message },
-      { status: result.status },
+    return respond(
+      NextResponse.json(
+        { ok: false, code: result.code, message: result.message },
+        { status: result.status },
+      ),
     );
   }
 
-  return NextResponse.json({ ok: true, run: toPublicRunView(result.run) });
+  return respond(NextResponse.json({ ok: true, run: toPublicRunView(result.run) }));
 }

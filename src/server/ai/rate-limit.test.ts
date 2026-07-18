@@ -3,19 +3,29 @@ import { RateLimiter } from "./rate-limit";
 import { clientKeyFromRequest, hashClientKey } from "./client-key";
 
 describe("rate limiter and client key", () => {
-  it("hashes source-IP signals and falls back globally", () => {
-    const withForwarded = clientKeyFromRequest(
+  it("prefers session binding and uses first XFF hop only", () => {
+    const withSession = clientKeyFromRequest(
       new Headers({ "x-forwarded-for": "1.2.3.4, 5.6.7.8" }),
+      "sess_abc",
     );
-    expect(withForwarded).toBe(hashClientKey("1.2.3.4"));
+    expect(withSession).toBe(hashClientKey("session:sess_abc|ip:1.2.3.4"));
+
+    const ipOnly = clientKeyFromRequest(new Headers({ "x-forwarded-for": "1.2.3.4, 9.9.9.9" }));
+    expect(ipOnly).toBe(hashClientKey("ip:1.2.3.4"));
+
     const fallback = clientKeyFromRequest(new Headers());
-    expect(fallback).toBe(hashClientKey("global-fallback"));
+    expect(fallback).toBe(hashClientKey("ip:global-fallback"));
   });
 
-  it("enforces starts/hour, active client, and process caps", () => {
+  it("enforces starts/hour, active client, process caps, and authorize caps", () => {
     let now = 1_000_000;
     const limiter = new RateLimiter(
-      { maxStartsPerHour: 2, maxActiveRunsPerClient: 1, maxActiveRunsProcess: 2 },
+      {
+        maxStartsPerHour: 2,
+        maxActiveRunsPerClient: 1,
+        maxActiveRunsProcess: 2,
+        maxAuthorizesPerHour: 2,
+      },
       () => now,
     );
 
@@ -30,6 +40,10 @@ describe("rate limiter and client key", () => {
     expect(limiter.tryStart("b").ok).toBe(true);
     expect(limiter.tryStart("c").ok).toBe(true); // processActive becomes 2
     expect(limiter.tryStart("d").ok).toBe(false); // process cap
+
+    expect(limiter.tryAuthorize("a").ok).toBe(true);
+    expect(limiter.tryAuthorize("a").ok).toBe(true);
+    expect(limiter.tryAuthorize("a").ok).toBe(false);
 
     limiter.reset();
     expect(limiter.tryStart("a").ok).toBe(true);

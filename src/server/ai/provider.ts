@@ -1,6 +1,7 @@
 import { parseFileOperations, type FileOperation } from "@/core/changes";
 import { normalizeRepositoryPath } from "@/core/paths";
 import type { StagePlan } from "@/core/stages";
+import { validateAiBaseUrl } from "@/server/ai/provider-url";
 import { getServerEnv } from "@/server/env";
 
 export type ProviderMessage = {
@@ -282,6 +283,18 @@ export class OpenAiCompatibleProvider implements AiProvider {
         }
       : getServerEnv();
 
+    const baseUrlCheck = validateAiBaseUrl(env.AI_BASE_URL, {
+      allowHttpLocalhost: process.env.NODE_ENV !== "production",
+    });
+    if (!baseUrlCheck.ok) {
+      return {
+        ok: false,
+        code: "PROVIDER_HTTP",
+        message: baseUrlCheck.message,
+        retryable: false,
+      };
+    }
+
     const fetchImpl = this.options.fetchImpl ?? fetch;
     // Omit response_format: several Cline models reject it (400 invalid_request_error).
     // JSON is still required via system/user instructions + parseFileOperations.
@@ -309,7 +322,7 @@ export class OpenAiCompatibleProvider implements AiProvider {
     let lastError: GenerationFailure | null = null;
     for (let attempt = 1; attempt <= 2; attempt += 1) {
       try {
-        const response = await fetchImpl(`${env.AI_BASE_URL.replace(/\/$/, "")}/chat/completions`, {
+        const response = await fetchImpl(`${baseUrlCheck.baseUrl}/chat/completions`, {
           method: "POST",
           headers: {
             Authorization: `Bearer ${env.AI_API_KEY}`,

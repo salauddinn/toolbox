@@ -53,6 +53,14 @@ describe("validateServerEnv", () => {
     expect(result.ok).toBe(false);
   });
 
+  it("rejects private AI_BASE_URL targets", () => {
+    const result = validateServerEnv({
+      ...validEnv,
+      AI_BASE_URL: "https://169.254.169.254/latest",
+    });
+    expect(result.ok).toBe(false);
+  });
+
   it("lists every missing required field", () => {
     const result = validateServerEnv({});
     expect(result.ok).toBe(false);
@@ -84,5 +92,6 @@ describe("SECRET_ENV_KEYS", () => {
   it("tracks credentials that must stay server-side", () => {
     expect(SECRET_ENV_KEYS).toContain("AI_API_KEY");
     expect(SECRET_ENV_KEYS).toContain("GITHUB_TOKEN");
+    expect(SECRET_ENV_KEYS).toContain("TOOLBOX_SESSION_SECRET");
   });
 });

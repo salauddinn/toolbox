@@ -5,12 +5,15 @@ export type RateLimitConfig = {
   maxActiveRunsPerClient: number;
   /** Process-wide active runs. */
   maxActiveRunsProcess: number;
+  /** Authorize/generate calls per client per hour (AI spend control). */
+  maxAuthorizesPerHour: number;
 };
 
 export const DEFAULT_RATE_LIMITS: RateLimitConfig = {
   maxStartsPerHour: 3,
   maxActiveRunsPerClient: 1,
   maxActiveRunsProcess: 5,
+  maxAuthorizesPerHour: 12,
 };
 
 type StartRecord = { timestamps: number[] };
@@ -20,6 +23,7 @@ type StartRecord = { timestamps: number[] };
  */
 export class RateLimiter {
   private readonly starts = new Map<string, StartRecord>();
+  private readonly authorizes = new Map<string, StartRecord>();
   private readonly activeByClient = new Map<string, number>();
   private processActive = 0;
   private readonly config: RateLimitConfig;
@@ -63,6 +67,26 @@ export class RateLimiter {
     return { ok: true };
   }
 
+  /**
+   * Gate AI generation / authorize calls to limit provider spend.
+   */
+  tryAuthorize(
+    clientKeyHash: string,
+  ): { ok: true } | { ok: false; code: string; message: string } {
+    this.pruneAuthorizes(clientKeyHash);
+    const record = this.authorizes.get(clientKeyHash) ?? { timestamps: [] };
+    if (record.timestamps.length >= this.config.maxAuthorizesPerHour) {
+      return {
+        ok: false,
+        code: "RATE_LIMIT_AUTHORIZE",
+        message: `At most ${this.config.maxAuthorizesPerHour} generation authorizations per client per hour`,
+      };
+    }
+    record.timestamps.push(this.now());
+    this.authorizes.set(clientKeyHash, record);
+    return { ok: true };
+  }
+
   release(clientKeyHash: string): void {
     const active = this.activeByClient.get(clientKeyHash) ?? 0;
     if (active > 0) {
@@ -79,9 +103,18 @@ export class RateLimiter {
     this.starts.set(clientKeyHash, record);
   }
 
+  private pruneAuthorizes(clientKeyHash: string): void {
+    const hourAgo = this.now() - 60 * 60 * 1000;
+    const record = this.authorizes.get(clientKeyHash);
+    if (!record) return;
+    record.timestamps = record.timestamps.filter((t) => t >= hourAgo);
+    this.authorizes.set(clientKeyHash, record);
+  }
+
   /** Test helper. */
   reset(): void {
     this.starts.clear();
+    this.authorizes.clear();
     this.activeByClient.clear();
     this.processActive = 0;
   }

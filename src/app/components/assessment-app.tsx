@@ -91,6 +91,7 @@ async function postJson(
 ): Promise<{ ok: boolean; status: number; data: unknown }> {
   const response = await fetch(url, {
     method: "POST",
+    credentials: "same-origin",
     headers: {
       "Content-Type": "application/json",
       Accept: "application/json",

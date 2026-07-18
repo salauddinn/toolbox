@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
-import { clientKeyFromRequest } from "@/server/ai/client-key";
 import { guardStateChangingRequest } from "@/server/http/request-guards";
+import { bindClientFromRequest } from "@/server/http/bound-client";
+import { withSessionCookie } from "@/server/http/session";
 import { startAssessment } from "@/server/workflow/assess";
 import { toPublicRunView } from "@/server/workflow/public-view";
 import type { FixtureId } from "@/fixtures/load-fixture";
@@ -32,54 +33,65 @@ export async function POST(request: Request) {
     );
   }
 
-  const clientKeyHash = clientKeyFromRequest(request.headers);
+  const bound = bindClientFromRequest(request);
+  const respond = (response: NextResponse) => withSessionCookie(response, bound.setCookie);
 
   if (body.source === "fixture") {
     if (!FIXTURE_IDS.has(body.fixtureId as FixtureId)) {
-      return NextResponse.json(
-        { ok: false, code: "UNKNOWN_FIXTURE", message: "Unknown fixture id" },
-        { status: 400 },
+      return respond(
+        NextResponse.json(
+          { ok: false, code: "UNKNOWN_FIXTURE", message: "Unknown fixture id" },
+          { status: 400 },
+        ),
       );
     }
     const result = await startAssessment({
-      clientKeyHash,
+      clientKeyHash: bound.clientKeyHash,
       source: { type: "fixture", fixtureId: body.fixtureId as FixtureId },
     });
     if (!result.ok) {
-      return NextResponse.json(
-        { ok: false, code: result.code, message: result.message },
-        { status: result.status },
+      return respond(
+        NextResponse.json(
+          { ok: false, code: result.code, message: result.message },
+          { status: result.status },
+        ),
       );
     }
-    return NextResponse.json({ ok: true, run: toPublicRunView(result.run) });
+    return respond(NextResponse.json({ ok: true, run: toPublicRunView(result.run) }));
   }
 
   if (body.source === "github") {
     if (typeof body.url !== "string" || body.url.trim().length === 0) {
-      return NextResponse.json(
-        { ok: false, code: "INVALID_URL", message: "url is required" },
-        { status: 400 },
+      return respond(
+        NextResponse.json(
+          { ok: false, code: "INVALID_URL", message: "url is required" },
+          { status: 400 },
+        ),
       );
     }
     const result = await startAssessment({
-      clientKeyHash,
+      clientKeyHash: bound.clientKeyHash,
       source: { type: "github", url: body.url.trim() },
     });
     if (!result.ok) {
-      return NextResponse.json(
-        { ok: false, code: result.code, message: result.message },
-        { status: result.status },
+      return respond(
+        NextResponse.json(
+          { ok: false, code: result.code, message: result.message },
+          { status: result.status },
+        ),
       );
     }
-    return NextResponse.json({ ok: true, run: toPublicRunView(result.run) });
+    return respond(NextResponse.json({ ok: true, run: toPublicRunView(result.run) }));
   }
 
-  return NextResponse.json(
-    {
-      ok: false,
-      code: "INVALID_SOURCE",
-      message: 'source must be "fixture" or "github"',
-    },
-    { status: 400 },
+  return respond(
+    NextResponse.json(
+      {
+        ok: false,
+        code: "INVALID_SOURCE",
+        message: 'source must be "fixture" or "github"',
+      },
+      { status: 400 },
+    ),
   );
 }

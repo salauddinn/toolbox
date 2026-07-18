@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import type { RunId } from "@/core/run-state";
-import { clientKeyFromRequest } from "@/server/ai/client-key";
+import { bindClientFromRequest } from "@/server/http/bound-client";
 import { guardStateChangingRequest } from "@/server/http/request-guards";
+import { withSessionCookie } from "@/server/http/session";
 import { toPublicRunView } from "@/server/workflow/public-view";
 import { rejectCurrentChangeSet } from "@/server/workflow/stage-runner";
 
@@ -21,22 +22,27 @@ export async function POST(request: Request, { params }: Params) {
   }
 
   const { runId } = await params;
+  const bound = bindClientFromRequest(request);
+  const respond = (response: NextResponse) => withSessionCookie(response, bound.setCookie);
+
   const result = rejectCurrentChangeSet({
     runId: runId as RunId,
-    clientKeyHash: clientKeyFromRequest(request.headers),
+    clientKeyHash: bound.clientKeyHash,
   });
 
   if (!result.ok) {
-    return NextResponse.json(
-      {
-        ok: false,
-        code: result.code,
-        message: result.message,
-        run: result.run ? toPublicRunView(result.run) : undefined,
-      },
-      { status: result.status },
+    return respond(
+      NextResponse.json(
+        {
+          ok: false,
+          code: result.code,
+          message: result.message,
+          run: result.run ? toPublicRunView(result.run) : undefined,
+        },
+        { status: result.status },
+      ),
     );
   }
 
-  return NextResponse.json({ ok: true, run: toPublicRunView(result.run) });
+  return respond(NextResponse.json({ ok: true, run: toPublicRunView(result.run) }));
 }
