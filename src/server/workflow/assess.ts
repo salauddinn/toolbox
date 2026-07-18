@@ -14,7 +14,12 @@ import { validateServerEnv } from "@/server/env";
 import { rankDomainCandidates } from "@/server/ranking/candidates";
 import { evaluateAllCandidateReadiness } from "@/server/ranking/readiness";
 import { globalRateLimiter } from "@/server/ai/rate-limit";
-import { globalRunStore, type RunStore } from "@/server/run-store";
+import {
+  canExplicitlyEndRun,
+  globalRunStore,
+  holdsRunCapacity,
+  type RunStore,
+} from "@/server/run-store";
 import { screenRepositorySafety } from "@/server/safety/screen";
 
 export type AssessSource =
@@ -26,6 +31,7 @@ export type AssessError = {
   message: string;
   status: number;
   run?: RunState;
+  activeRunId?: RunId;
 };
 
 export type AssessSuccess = {
@@ -38,6 +44,48 @@ export type AssessResult = AssessSuccess | AssessError;
 /** Free the active rate-limit slot for terminal or assessment-only outcomes. */
 export function releaseRunCapacity(clientKeyHash: string): void {
   globalRateLimiter.release(clientKeyHash);
+}
+
+export type EndRunResult =
+  | { ok: true }
+  | { ok: false; code: string; message: string; status: number };
+
+export function endAssessmentRun(input: {
+  runId: RunId;
+  clientKeyHash: string;
+  store?: RunStore;
+}): EndRunResult {
+  const store = input.store ?? globalRunStore;
+  const run = store.get(input.runId);
+  if (!run) {
+    return {
+      ok: false,
+      code: "RUN_NOT_FOUND",
+      message: "Run not found or expired",
+      status: 404,
+    };
+  }
+  if (run.clientKeyHash !== input.clientKeyHash) {
+    return {
+      ok: false,
+      code: "RUN_FORBIDDEN",
+      message: "Run is bound to another client",
+      status: 403,
+    };
+  }
+  if (!canExplicitlyEndRun(run)) {
+    return {
+      ok: false,
+      code: "RUN_BUSY",
+      message: "The current operation must finish before this run can be ended",
+      status: 409,
+    };
+  }
+  if (holdsRunCapacity(run)) {
+    releaseRunCapacity(run.clientKeyHash);
+  }
+  store.delete(run.runId);
+  return { ok: true };
 }
 
 function releaseIfTerminal(clientKeyHash: string, phase: RunState["phase"]): void {
@@ -67,7 +115,16 @@ export async function startAssessment(input: {
 
   const limit = globalRateLimiter.tryStart(input.clientKeyHash);
   if (!limit.ok) {
-    return { ok: false, code: limit.code, message: limit.message, status: 429 };
+    return {
+      ok: false,
+      code: limit.code,
+      message: limit.message,
+      status: 429,
+      activeRunId:
+        limit.code === "RATE_LIMIT_ACTIVE_CLIENT"
+          ? store.findReplaceableByClient(input.clientKeyHash)?.runId
+          : undefined,
+    };
   }
 
   let run: RunState;
