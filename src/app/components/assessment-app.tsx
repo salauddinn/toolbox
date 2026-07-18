@@ -85,6 +85,10 @@ type RunView = Record<string, any> & {
   phase: string;
 };
 
+type StartBody =
+  | { source: "fixture"; fixtureId: string }
+  | { source: "github"; url: string };
+
 async function postJson(
   url: string,
   body: unknown,
@@ -97,6 +101,20 @@ async function postJson(
       Accept: "application/json",
     },
     body: JSON.stringify(body),
+  });
+  const data = await response.json().catch(() => ({}));
+  return { ok: response.ok, status: response.status, data };
+}
+
+async function deleteJson(url: string): Promise<{ ok: boolean; status: number; data: unknown }> {
+  const response = await fetch(url, {
+    method: "DELETE",
+    credentials: "same-origin",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: "{}",
   });
   const data = await response.json().catch(() => ({}));
   return { ok: response.ok, status: response.status, data };
@@ -143,6 +161,10 @@ export function AssessmentApp() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [run, setRun] = useState<RunView | null>(null);
+  const [blockedStart, setBlockedStart] = useState<{
+    body: StartBody;
+    activeRunId: string;
+  } | null>(null);
   const [selectedEvidenceFile, setSelectedEvidenceFile] = useState<string | null>(null);
   const [intent, setIntent] = useState("");
   const [pickedCandidateId, setPickedCandidateId] = useState<string | null>(null);
@@ -153,23 +175,36 @@ export function AssessmentApp() {
     files: { path: string; kind: string; beforePreview?: string; afterPreview?: string }[];
   } | null>(null);
 
-  const startFixture = useCallback(async () => {
+  const startAssessment = useCallback(async (body: StartBody, allowRecovery = true) => {
     setBusy(true);
     setError(null);
     setSelectedEvidenceFile(null);
+    setPendingDiff(null);
     try {
-      const result = await postJson("/api/runs", {
-        source: "fixture",
-        fixtureId: "controlled-example",
-      });
-      const data = result.data as { ok?: boolean; run?: RunView; message?: string; code?: string };
+      const result = await postJson("/api/runs", body);
+      const data = result.data as {
+        ok?: boolean;
+        run?: RunView;
+        message?: string;
+        code?: string;
+        activeRunId?: string;
+      };
       if (!result.ok || !data.ok || !data.run) {
+        if (
+          allowRecovery &&
+          data.code === "RATE_LIMIT_ACTIVE_CLIENT" &&
+          data.activeRunId
+        ) {
+          setBlockedStart({ body, activeRunId: data.activeRunId });
+        } else {
+          setBlockedStart(null);
+        }
         setError(data.message ?? data.code ?? `Request failed (${result.status})`);
         setRun(null);
         return;
       }
+      setBlockedStart(null);
       setRun(data.run);
-      setPendingDiff(null);
       setPickedCandidateId(data.run.ranking?.safestTechnicalCandidateId ?? null);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -178,30 +213,56 @@ export function AssessmentApp() {
     }
   }, []);
 
+  const startFixture = useCallback(async () => {
+    await startAssessment({ source: "fixture", fixtureId: "controlled-example" });
+  }, [startAssessment]);
+
   const startGithub = useCallback(async () => {
+    await startAssessment({ source: "github", url: url.trim() });
+  }, [startAssessment, url]);
+
+  const replacePreviousRun = useCallback(async () => {
+    if (!blockedStart) return;
     setBusy(true);
     setError(null);
-    setSelectedEvidenceFile(null);
-    setPendingDiff(null);
     try {
-      const result = await postJson("/api/runs", {
-        source: "github",
-        url: url.trim(),
-      });
-      const data = result.data as { ok?: boolean; run?: RunView; message?: string; code?: string };
-      if (!result.ok || !data.ok || !data.run) {
+      const result = await deleteJson(`/api/runs/${blockedStart.activeRunId}`);
+      const data = result.data as { message?: string; code?: string };
+      if (!result.ok && result.status !== 404) {
         setError(data.message ?? data.code ?? `Request failed (${result.status})`);
-        setRun(null);
         return;
       }
-      setRun(data.run);
-      setPickedCandidateId(data.run.ranking?.safestTechnicalCandidateId ?? null);
+      const body = blockedStart.body;
+      setBlockedStart(null);
+      await startAssessment(body, false);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
       setBusy(false);
     }
-  }, [url]);
+  }, [blockedStart, startAssessment]);
+
+  const endCurrentRun = useCallback(async () => {
+    if (!run) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const result = await deleteJson(`/api/runs/${run.runId}`);
+      const data = result.data as { message?: string; code?: string };
+      if (!result.ok && result.status !== 404) {
+        setError(data.message ?? data.code ?? `Request failed (${result.status})`);
+        return;
+      }
+      setRun(null);
+      setBlockedStart(null);
+      setPendingDiff(null);
+      setSelectedEvidenceFile(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(false);
+    }
+  }, [run]);
 
   const confirmSelection = useCallback(async () => {
     if (!run || !pickedCandidateId) return;
@@ -329,15 +390,10 @@ export function AssessmentApp() {
                 <button
                   type="button"
                   disabled={busy}
-                  onClick={() => {
-                    setRun(null);
-                    setPendingDiff(null);
-                    setError(null);
-                    setSelectedEvidenceFile(null);
-                  }}
+                  onClick={() => void endCurrentRun()}
                   className="tb-btn tb-btn-secondary h-8 px-2.5 text-[12px]"
                 >
-                  New
+                  End run / Start over
                 </button>
                 <button
                   type="button"
@@ -412,6 +468,16 @@ export function AssessmentApp() {
               >
                 {error}
               </p>
+            ) : null}
+            {blockedStart ? (
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => void replacePreviousRun()}
+                className="tb-btn tb-btn-secondary"
+              >
+                End previous run and start new
+              </button>
             ) : null}
             {busy ? (
               <p className="tb-mono text-[11px] text-muted" aria-live="polite">
