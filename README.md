@@ -113,7 +113,7 @@ These URLs are runtime inputs, not hard-coded product outcomes. ToolBox reruns e
 
 ## Requirements
 
-- Node.js 20+
+- Node.js 24.11+
 - npm
 - A long-lived single-process Node host for deployment
 
