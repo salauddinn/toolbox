@@ -248,7 +248,11 @@ export function applyMountPrefixes(
     const prefix = prefixByFile.get(route.file);
     if (!prefix) return route;
     // Avoid double-prefix if path already starts with mount
-    if (route.path === prefix || route.path.startsWith(`${prefix}/`) || route.path.startsWith(prefix)) {
+    if (
+      route.path === prefix ||
+      route.path.startsWith(`${prefix}/`) ||
+      route.path.startsWith(prefix)
+    ) {
       return { ...route, mountPrefix: prefix };
     }
     const joined =
@@ -305,11 +309,7 @@ export function collectNamedRequires(
         return;
       }
       // const router = mod.router where mod already resolved
-      if (
-        init.type === "MemberExpression" &&
-        init.object.type === "Identifier" &&
-        !init.computed
-      ) {
+      if (init.type === "MemberExpression" && init.object.type === "Identifier" && !init.computed) {
         const from = map.get(init.object.name);
         if (from) map.set(id.name, from);
       }

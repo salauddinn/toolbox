@@ -146,8 +146,7 @@ function coerceOperation(item: unknown): unknown {
   if (!item || typeof item !== "object") return item;
   const raw = item as Record<string, unknown>;
   const typeRaw = raw.type ?? raw.op ?? raw.action ?? raw.operation;
-  const type =
-    typeof typeRaw === "string" ? typeRaw.trim().toLowerCase() : typeRaw;
+  const type = typeof typeRaw === "string" ? typeRaw.trim().toLowerCase() : typeRaw;
   const path = raw.path ?? raw.file ?? raw.filepath ?? raw.filePath ?? raw.filename;
   const content = raw.content ?? raw.body ?? raw.code ?? raw.text ?? raw.source;
   if (type === "delete" || type === "remove" || type === "unlink") {

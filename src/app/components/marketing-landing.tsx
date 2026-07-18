@@ -113,12 +113,12 @@ export function MarketingLanding() {
 
           <div className="space-y-3">
             <h1 className="max-w-2xl text-[2rem] font-semibold leading-[1.12] tracking-tight text-ink sm:text-[2.5rem]">
-              Modernize one domain with evidence, not a rewrite.
+              Turn one tangled Express domain into a verified module.
             </h1>
             <p className="max-w-xl text-[15px] leading-relaxed text-muted sm:text-base">
-              ToolBox assesses a supported Legacy Application, ranks Domain Candidates from code
-              evidence, and advances a confirmed Modernization Decision through bounded Change Sets
-              you authorize—inside the existing deployment boundary.
+              ToolBox finds a safe domain boundary from code evidence, uses AI to generate bounded
+              Change Sets, and validates every proposed change before you accept it. No rewrite or
+              deployment split required.
             </p>
           </div>
 
@@ -134,7 +134,7 @@ export function MarketingLanding() {
           <dl className="grid max-w-lg grid-cols-3 gap-2 pt-1">
             {[
               { k: "Stages", v: "3–4" },
-              { k: "AI tools", v: "None" },
+              { k: "AI role", v: "Bounded" },
               { k: "Deploy split", v: "Never" },
             ].map((item) => (
               <div
@@ -151,7 +151,9 @@ export function MarketingLanding() {
         <aside className="tb-panel overflow-hidden" aria-label="Sample Modernization Assessment">
           <div className="tb-panel-head">
             <div>
-              <p className="tb-mono text-[10px] uppercase tracking-wide text-muted">sample output</p>
+              <p className="tb-mono text-[10px] uppercase tracking-wide text-muted">
+                sample output
+              </p>
               <p className="text-[12px] font-medium text-ink">Modernization Assessment</p>
             </div>
             <span className="tb-chip tb-chip-accent">phase: assessed</span>
@@ -225,7 +227,9 @@ export function MarketingLanding() {
       <section id="how-it-works" className="tb-panel overflow-hidden">
         <div className="tb-panel-head">
           <p className="tb-mono text-[11px] font-medium text-ink">how it works</p>
-          <p className="tb-mono text-[10px] text-muted">deterministic until you authorize generation</p>
+          <p className="tb-mono text-[10px] text-muted">
+            deterministic evidence · bounded AI generation
+          </p>
         </div>
         <ol className="grid sm:grid-cols-3 lg:grid-cols-6">
           {PIPELINE.map((p, i) => (
@@ -258,11 +262,7 @@ export function MarketingLanding() {
                 <div>
                   <div className="flex flex-wrap items-center gap-2">
                     <p className="text-[13px] font-medium text-ink">{s.title}</p>
-                    <span
-                      className={
-                        s.kind === "Required" ? "tb-chip" : "tb-chip tb-chip-warn"
-                      }
-                    >
+                    <span className={s.kind === "Required" ? "tb-chip" : "tb-chip tb-chip-warn"}>
                       {s.kind.toLowerCase()}
                     </span>
                   </div>
@@ -306,9 +306,7 @@ export function MarketingLanding() {
               key={c.title}
               className={`px-4 py-3.5 ${i < 3 ? "border-b border-border" : ""} ${
                 i % 3 !== 2 ? "lg:border-r lg:border-border" : ""
-              } ${i % 2 === 0 ? "sm:border-r sm:border-border" : ""} ${
-                i < 4 ? "sm:border-b" : ""
-              }`}
+              } ${i % 2 === 0 ? "sm:border-r sm:border-border" : ""} ${i < 4 ? "sm:border-b" : ""}`}
             >
               <p className="text-[13px] font-medium text-ink">{c.title}</p>
               <p className="mt-1 text-[12px] leading-relaxed text-muted">{c.body}</p>

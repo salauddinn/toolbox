@@ -367,8 +367,9 @@ export function AssessmentApp() {
           </div>
           <div className="space-y-4 p-5">
             <p className="max-w-2xl text-[13px] leading-relaxed text-muted">
-              Eligibility and Safety Screening run before any AI call. Use the controlled example
-              for a full local path, or paste a public GitHub root URL.
+              Deterministic checks build the assessment before any AI call. After you confirm a
+              Domain Candidate, AI generates only within the approved Stage Plan and static
+              validation checks every proposed change.
             </p>
             <div className="flex flex-col gap-2 sm:flex-row">
               <button
@@ -454,7 +455,7 @@ export function AssessmentApp() {
       </section>
 
       {run ? (
-      <section className="tb-panel space-y-6 p-5 sm:p-6">
+        <section className="tb-panel space-y-6 p-5 sm:p-6">
           <div className="flex flex-wrap items-baseline justify-between gap-2">
             <h2 className="text-[15px] font-semibold text-ink">Assessment detail</h2>
             <p className="tb-mono text-[11px] text-muted">phase={run.phase}</p>
@@ -691,10 +692,7 @@ export function AssessmentApp() {
                     Change Set(s).
                   </p>
                   {run.downloadAvailable && run.downloadPath ? (
-                    <a
-                      href={run.downloadPath}
-                      className="tb-btn tb-btn-primary"
-                    >
+                    <a href={run.downloadPath} className="tb-btn tb-btn-primary">
                       Download result ZIP
                     </a>
                   ) : null}
@@ -754,14 +752,14 @@ export function AssessmentApp() {
                   onClick={() => void authorizeStage()}
                   className="tb-btn tb-btn-primary"
                 >
-                  Authorize generation for this stage
+                  Authorize AI generation for this stage
                 </button>
               ) : null}
 
               {run.phase === "awaiting_acceptance" ? (
                 <div className="space-y-3 rounded-lg border border-border p-4">
                   <p className="text-sm font-medium">
-                    Validated Change Set — review before acceptance
+                    AI-generated, validated Change Set — review before acceptance
                   </p>
                   <p className="text-xs text-muted">
                     Attempt {run.changeSet?.attempt} · {run.changeSet?.operations?.length ?? 0}{" "}
@@ -860,7 +858,7 @@ export function AssessmentApp() {
               </p>
             </div>
           ) : null}
-      </section>
+        </section>
       ) : null}
     </div>
   );
