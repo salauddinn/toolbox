@@ -52,7 +52,12 @@ export async function POST(request: Request) {
     if (!result.ok) {
       return respond(
         NextResponse.json(
-          { ok: false, code: result.code, message: result.message },
+          {
+            ok: false,
+            code: result.code,
+            message: result.message,
+            activeRunId: result.activeRunId,
+          },
           { status: result.status },
         ),
       );
@@ -76,7 +81,12 @@ export async function POST(request: Request) {
     if (!result.ok) {
       return respond(
         NextResponse.json(
-          { ok: false, code: result.code, message: result.message },
+          {
+            ok: false,
+            code: result.code,
+            message: result.message,
+            activeRunId: result.activeRunId,
+          },
           { status: result.status },
         ),
       );
