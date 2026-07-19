@@ -79,7 +79,7 @@ A cheaper model never marks its own work complete. The Sol parent reads the diff
 | U01 | Add the bounded recoverable review payload | Complete | G05 |
 | U02 | Integrate typed client state and presentation adapter | Complete | U01 |
 | U03 | Build Paper + Terminal tokens and route shells | Complete | U02 |
-| U04 | Redesign the landing page | Pending | U03 |
+| U04 | Redesign the landing page | Complete | U03 |
 | U05 | Redesign repository start and gate failures | Pending | U04 |
 | U06 | Build the assessment and candidate decision workspace | Pending | U05 |
 | U07 | Build evidence inspector and dependency file context | Pending | U06 |
@@ -528,41 +528,16 @@ A cheaper model never marks its own work complete. The Sol parent reads the diff
 
 ## U04 — Redesign the landing page
 
-**Writer goal:** Implement the approved evidence-led Paper + Terminal product narrative.
+**Status:** Complete
 
-**Primary files:**
+### U04 completion record
 
-- `src/app/components/marketing-landing.tsx`
-- New landing feature components only when needed
-- Landing tests
-
-**Required work:**
-
-- Outcome-led editorial hero
-- Restrained terminal assessment specimen
-- Five-step modernization workflow
-- Deterministic-versus-AI responsibility ledger
-- Separate assessment and transformation requirements
-- Safety and non-goal boundaries
-
-**Non-goals:**
-
-- Invented product capabilities
-- Unqualified “safe” or “verified” claims
-- Excessive terminal decoration
-
-**Acceptance:**
-
-- A first-time user can identify input, outcome, bounded AI role, authorization, acceptance, and Static Validation limits from the first two sections.
-- Existing terminology and safety claims remain accurate.
-- Mobile layout has no page-level overflow.
-
-**Validation:**
-
-- Landing rendered tests
-- Axe scan
-- Desktop and mobile Playwright smoke
-- Build
+- Writer: Grok 4.5 High; parent verification + independent review
+- Changed areas: outcome-led paper hero, meaningful terminal assessment specimen, five-step workflow, deterministic/AI/developer ledger, split requirements, and explicit safety/non-goal limits
+- Verification: 9 landing tests, Playwright Axe + 320px overflow smoke, lint, typecheck, full Vitest (208), build, Prettier, `git diff --check` — passed
+- Independent review: CLEAN
+- Residual risk: full-repository Prettier has unrelated baseline warnings; U04 files are formatted
+- Next todo: U05
 
 ---
 

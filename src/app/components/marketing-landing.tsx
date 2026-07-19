@@ -1,124 +1,209 @@
 import Link from "next/link";
 
-const PIPELINE = [
-  { step: "01", label: "Load", detail: "Public repo snapshot only" },
-  { step: "02", label: "Screen", detail: "Safety + eligibility gates" },
-  { step: "03", label: "Analyze", detail: "Routes, models, cycles" },
-  { step: "04", label: "Rank", detail: "Domain Candidates by evidence" },
-  { step: "05", label: "Sequence", detail: "Bounded Stage Plans" },
-  { step: "06", label: "Deliver", detail: "Accepted Change Sets + ZIP" },
-] as const;
-
-const STAGES = [
+const WORKFLOW = [
   {
-    id: "S1",
-    title: "Behaviour capture",
-    kind: "Required",
-    body: "Lock observable routes and ownership signals before structure moves.",
+    step: "01",
+    title: "Assess",
+    body: "Load a Supported Repository or the controlled example. Deterministic eligibility, Safety Screening, and static analysis produce ranked Domain Candidates with evidence.",
   },
   {
-    id: "S2",
-    title: "Domain Module extract",
-    kind: "Required",
-    body: "Pull one cohesive Domain Candidate into a module inside the same deploy.",
+    step: "02",
+    title: "Select candidate",
+    body: "Compare readiness and blocking evidence, then confirm one ready Domain Candidate as the Modernization Decision. Ranking reflects code evidence, not business priority.",
   },
   {
-    id: "S3",
-    title: "Integration cleanup",
-    kind: "Required",
-    body: "Rewire supported consumers and remove only superseded legacy paths.",
+    step: "03",
+    title: "Authorize Stage Plan",
+    body: "Inspect the scoped Stage Plan—purpose, path envelope, and validation contract—then authorize generation. AI does not run until you authorize that stage.",
   },
   {
-    id: "S4",
-    title: "Cycle repair",
-    kind: "Conditional",
-    body: "Runs when entry-reachable cycles block a clean module boundary.",
+    step: "04",
+    title: "Validate Change Set",
+    body: "ToolBox runs Static Validation on the proposed Change Set. Checks examine repository artifacts only; they are not Runtime Validation and do not execute the application.",
+  },
+  {
+    step: "05",
+    title: "Accept changes",
+    body: "Review the diff and Validation Report, then perform Change Acceptance. Only accepted Change Sets enter the current snapshot and the downloadable result ZIP.",
   },
 ] as const;
 
-const CANDIDATES = [
+const RESPONSIBILITY = [
   {
-    rank: "01",
-    name: "Orders",
-    score: "0.86",
-    state: "ready",
-    detail: "Exclusive write ownership · 4 routes · Order",
+    concern: "Eligibility and Safety Screening",
+    owner: "Deterministic",
+    detail: "Rules finish before analysis content can reach the AI provider.",
   },
   {
-    rank: "02",
-    name: "Payments",
-    score: "0.71",
-    state: "ready",
-    detail: "Cycle with Orders · 3 routes · Payment",
+    concern: "Routes, models, writes, imports, cycles",
+    owner: "Deterministic",
+    detail: "Babel-based static analysis builds the evidence graph.",
   },
   {
-    rank: "03",
-    name: "Users",
-    score: "0.54",
-    state: "blocked",
-    detail: "Shared writes · readiness fails",
+    concern: "Domain Candidate ranking and readiness",
+    owner: "Deterministic",
+    detail: "Transformation Readiness is computed without AI.",
+  },
+  {
+    concern: "Stage count, purpose, path envelope, checks",
+    owner: "Deterministic",
+    detail: "The sequence planner defines each Stage Plan contract.",
+  },
+  {
+    concern: "Proposed source edits and one repair attempt",
+    owner: "AI",
+    detail: "Generation stays inside the authorized Stage Plan only.",
+  },
+  {
+    concern: "Syntax, path, scope, route, schema, fingerprints",
+    owner: "Deterministic",
+    detail: "Static Validation records only checks actually run.",
+  },
+  {
+    concern: "Promotion into the accepted snapshot",
+    owner: "Developer",
+    detail: "Explicit Change Acceptance is required; AI cannot self-apply.",
   },
 ] as const;
 
-const CONTROLS = [
+const ASSESSMENT_REQUIREMENTS = [
+  "Public GitHub root URL, or the controlled bundled example",
+  "Single-root npm application",
+  "JavaScript CommonJS module system",
+  "Express.js and Mongoose dependencies",
+  "Recognized entry: app.js, server.js, or index.js",
+  "At least one Express route and one Mongoose model",
+  "At most 150 analyzed files and 2 MB of analyzed source",
+] as const;
+
+const TRANSFORMATION_REQUIREMENTS = [
+  "At least one Domain Candidate marked ready for transformation",
+  "CommonJS Jest/Supertest harness available via npm test",
+  "Developer confirmation of the Modernization Decision",
+  "Per-stage Stage Plan authorization before any generation call",
+  "Passing Static Validation before Change Acceptance is offered",
+] as const;
+
+const BOUNDARIES = [
   {
-    title: "Safety before AI",
-    body: "Safety Screening and eligibility finish before any generation call.",
+    title: "Static Validation is not Runtime Validation",
+    body: "External repositories are never installed or executed. Validation Reports list only the checks ToolBox actually ran.",
   },
   {
-    title: "Static analysis only",
-    body: "Untrusted repositories are never installed or executed by ToolBox.",
+    title: "Safety Screening is not certification",
+    body: "Passing risk gates means supported signals were not detected. It does not certify that a repository is safe or malware-free.",
   },
   {
-    title: "Stage envelopes",
-    body: "Each Change Set is constrained to path budgets and protected regions.",
+    title: "No microservices or deploy splits",
+    body: "A Domain Module stays inside the existing deployment boundary. ToolBox does not create services or claim a production migration.",
+  },
+  {
+    title: "Developer authorizes and accepts",
+    body: "You authorize every Stage Plan and accept every validated Change Set. AI output is never applied without explicit Change Acceptance.",
+  },
+  {
+    title: "Support is not transform-ready",
+    body: "Meeting the assessment contract lets a repository enter Modernization Assessment. It does not mean every domain can enter generation.",
   },
   {
     title: "One repair, then stop",
-    body: "A second validation failure rolls back and keeps the current snapshot.",
-  },
-  {
-    title: "Human authorization",
-    body: "You authorize every stage and accept every Change Set before it sticks.",
-  },
-  {
-    title: "Honest artifacts",
-    body: "The result ZIP contains only accepted files plus a Validation Report.",
+    body: "A failed Change Set may receive one bounded repair. A second Static Validation failure rolls back and keeps the last accepted snapshot.",
   },
 ] as const;
 
-const CONTRACT = [
-  "Public GitHub root repository",
-  "Single-root npm · JavaScript CommonJS",
-  "Express.js + Mongoose dependencies",
-  "Entry point: app.js, server.js, or index.js",
-  "At least one route and one Mongoose model",
-  "Jest/Supertest available via npm test",
-  "At most 150 analyzed files and 2 MB of source",
+const SPECIMEN_LINES = [
+  { tone: "muted", text: "# Modernization Assessment · specimen (illustrative)" },
+  { tone: "muted", text: "# Input: public GitHub root · static analysis only" },
+  { tone: "plain", text: "" },
+  { tone: "key", text: "source          github:acme/orders-api" },
+  { tone: "key", text: "eligibility     pass · express+mongoose · commonjs" },
+  { tone: "key", text: "safety          pass · no supported risk signal" },
+  { tone: "key", text: "analysis        routes=9  models=3  cycles=1" },
+  { tone: "plain", text: "" },
+  { tone: "muted", text: "# Domain Candidates ranked by code evidence" },
+  {
+    tone: "ok",
+    text: "01  Orders     score=0.86  ready     exclusive write · 4 routes · Order",
+  },
+  {
+    tone: "ok",
+    text: "02  Payments   score=0.71  ready     cycle w/ Orders · 3 routes · Payment",
+  },
+  {
+    tone: "warn",
+    text: "03  Users      score=0.54  blocked   shared writes · readiness fails",
+  },
+  { tone: "plain", text: "" },
+  { tone: "muted", text: "# Next human controls (not automatic)" },
+  { tone: "accent", text: "decision       confirm ready candidate → Modernization Decision" },
+  {
+    tone: "accent",
+    text: "authorize      Stage Plan S2 · path envelope src/modules/orders/**",
+  },
+  {
+    tone: "muted",
+    text: "validate       Static Validation only · not Runtime Validation",
+  },
+  {
+    tone: "muted",
+    text: "accept         Change Acceptance required before snapshot update",
+  },
 ] as const;
+
+function specimenClass(tone: (typeof SPECIMEN_LINES)[number]["tone"]): string {
+  switch (tone) {
+    case "muted":
+      return "text-terminal-fg-muted";
+    case "ok":
+      return "text-diff-add";
+    case "warn":
+      return "text-diff-change";
+    case "accent":
+      return "text-terminal-fg";
+    case "key":
+      return "text-terminal-fg";
+    default:
+      return "text-terminal-fg";
+  }
+}
 
 export function MarketingLanding() {
   return (
     <div className="space-y-10 pb-6 sm:space-y-12">
-      <section className="grid items-start gap-6 lg:grid-cols-[1.1fr_0.9fr] lg:gap-8">
-        <div className="space-y-6">
+      {/* 1–2. Editorial hero + terminal assessment specimen */}
+      <section
+        aria-labelledby="landing-hero-heading"
+        className="grid items-start gap-6 lg:grid-cols-[1.05fr_0.95fr] lg:gap-8"
+      >
+        <div className="min-w-0 space-y-6">
           <div className="flex flex-wrap gap-2">
             <span className="tb-chip tb-chip-ok">
-              <span className="h-1.5 w-1.5 rounded-full bg-success" />
+              <span className="h-1.5 w-1.5 rounded-full bg-success" aria-hidden />
               for engineering teams
             </span>
             <span className="tb-chip">express · mongoose · commonjs</span>
-            <span className="tb-chip">no microservices required</span>
+            <span className="tb-chip">same deploy boundary</span>
           </div>
 
-          <div className="space-y-3">
-            <h1 className="max-w-2xl text-[2rem] font-semibold leading-[1.12] tracking-tight text-ink sm:text-[2.5rem]">
-              Turn one tangled Express domain into an accepted module.
+          <div className="space-y-4">
+            <h1
+              id="landing-hero-heading"
+              className="tb-serif max-w-2xl text-[2rem] font-semibold leading-[1.15] tracking-tight text-text-primary sm:text-[2.55rem]"
+            >
+              From a Supported Repository to one accepted Domain Module.
             </h1>
-            <p className="max-w-xl text-[15px] leading-relaxed text-muted sm:text-base">
-              ToolBox finds an evidence-backed domain boundary from code, uses AI to generate
-              bounded Change Sets, and validates every proposed change before you accept it. No
-              rewrite or deployment split required.
+            <p className="max-w-xl text-[15px] leading-relaxed text-text-secondary sm:text-base">
+              <strong className="font-medium text-text-primary">Input:</strong> a public GitHub root
+              repository that meets the assessment contract, or the controlled example.{" "}
+              <strong className="font-medium text-text-primary">Outcome:</strong> an evidence-backed
+              Modernization Assessment, then—when you choose—a sequence of bounded Change Sets that
+              extract one Domain Module inside the existing deployment boundary.
+            </p>
+            <p className="max-w-xl text-[15px] leading-relaxed text-text-secondary sm:text-base">
+              AI proposes source edits only after you authorize a Stage Plan. Deterministic Static
+              Validation checks every proposal. Nothing enters the snapshot until your Change
+              Acceptance. Static Validation is not Runtime Validation and does not prove behavioural
+              equivalence.
             </p>
           </div>
 
@@ -127,202 +212,242 @@ export function MarketingLanding() {
               Open work console
             </Link>
             <a href="#how-it-works" className="tb-btn tb-btn-secondary h-11 px-5 text-sm">
-              See how it works
+              See the workflow
             </a>
           </div>
 
-          <dl className="grid max-w-lg grid-cols-3 gap-2 pt-1">
+          <dl className="grid max-w-xl grid-cols-1 gap-2 min-[420px]:grid-cols-3">
             {[
-              { k: "Stages", v: "3–4" },
-              { k: "AI role", v: "Bounded" },
-              { k: "Deploy split", v: "Never" },
+              { k: "AI role", v: "Bounded generation" },
+              { k: "Authorization", v: "Per Stage Plan" },
+              { k: "Acceptance", v: "Developer only" },
             ].map((item) => (
               <div
                 key={item.k}
-                className="rounded-md border border-border bg-surface px-3 py-2.5 shadow-[var(--shadow-soft)]"
+                className="rounded-md border border-border-subtle bg-surface-paper px-3 py-2.5 shadow-[var(--shadow-soft)]"
               >
-                <dt className="tb-mono text-[10px] uppercase tracking-wide text-muted">{item.k}</dt>
-                <dd className="mt-0.5 text-sm font-semibold text-ink">{item.v}</dd>
+                <dt className="tb-mono text-[10px] uppercase tracking-wide text-text-quiet">
+                  {item.k}
+                </dt>
+                <dd className="mt-0.5 text-sm font-semibold text-text-primary">{item.v}</dd>
               </div>
             ))}
           </dl>
         </div>
 
-        <aside className="tb-panel overflow-hidden" aria-label="Sample Modernization Assessment">
-          <div className="tb-panel-head">
-            <div>
-              <p className="tb-mono text-[10px] uppercase tracking-wide text-muted">
-                sample output
+        <aside
+          className="tb-terminal min-w-0 overflow-hidden"
+          aria-label="Illustrative Modernization Assessment specimen"
+        >
+          <div className="flex items-center justify-between gap-3 border-b border-terminal-border bg-surface-terminal-raised px-3 py-2">
+            <div className="min-w-0">
+              <p className="tb-mono text-[10px] uppercase tracking-wide text-terminal-fg-muted">
+                assessment specimen
               </p>
-              <p className="text-[12px] font-medium text-ink">Modernization Assessment</p>
+              <p className="truncate text-[12px] font-medium text-terminal-fg">
+                Evidence summary · not a live run
+              </p>
             </div>
-            <span className="tb-chip tb-chip-accent">phase: assessed</span>
+            <span className="tb-mono shrink-0 rounded border border-terminal-border bg-surface-terminal px-1.5 py-0.5 text-[10px] text-terminal-fg-muted">
+              static only
+            </span>
           </div>
-          <div className="space-y-3 p-3.5">
-            <div className="grid grid-cols-4 gap-1.5">
-              {[
-                { k: "routes", v: "9" },
-                { k: "models", v: "3" },
-                { k: "cycles", v: "1" },
-                { k: "ready", v: "2" },
-              ].map((m) => (
-                <div
-                  key={m.k}
-                  className="rounded border border-border bg-surface-muted/60 px-2 py-1.5"
-                >
-                  <p className="tb-mono text-[9px] uppercase text-muted">{m.k}</p>
-                  <p className="tb-mono text-sm font-semibold tabular-nums text-ink">{m.v}</p>
-                </div>
+          <pre
+            className="overflow-x-auto p-3.5 tb-mono text-[11px] leading-[1.55] selection:bg-accent-action/35 selection:text-terminal-fg"
+            tabIndex={0}
+          >
+            <code>
+              {SPECIMEN_LINES.map((line, index) => (
+                <span key={`${index}-${line.text}`} className={`block ${specimenClass(line.tone)}`}>
+                  {line.text || "\u00a0"}
+                </span>
               ))}
-            </div>
-
-            <div className="overflow-hidden rounded border border-border">
-              <div className="grid grid-cols-[2.25rem_1fr_3.25rem_3.5rem] gap-2 border-b border-border bg-panel-head px-2.5 py-1.5 tb-mono text-[9px] uppercase tracking-wide text-muted">
-                <span>#</span>
-                <span>candidate</span>
-                <span className="text-right">score</span>
-                <span className="text-right">state</span>
-              </div>
-              {CANDIDATES.map((c) => (
-                <div
-                  key={c.name}
-                  className={`grid grid-cols-[2.25rem_1fr_3.25rem_3.5rem] items-center gap-2 border-b border-border px-2.5 py-2 last:border-b-0 ${
-                    c.rank === "01" ? "bg-accent-soft/45" : "bg-surface"
-                  }`}
-                >
-                  <span className="tb-mono text-[11px] text-muted">{c.rank}</span>
-                  <div className="min-w-0">
-                    <p className="truncate text-[12px] font-medium text-ink">{c.name}</p>
-                    <p className="truncate tb-mono text-[10px] text-muted">{c.detail}</p>
-                  </div>
-                  <span className="tb-mono text-right text-[12px] tabular-nums text-ink">
-                    {c.score}
-                  </span>
-                  <span className="text-right">
-                    {c.state === "ready" ? (
-                      <span className="tb-chip tb-chip-ok">ready</span>
-                    ) : (
-                      <span className="tb-chip tb-chip-warn">block</span>
-                    )}
-                  </span>
-                </div>
-              ))}
-            </div>
-
-            <div className="rounded border border-border bg-code-bg p-3 text-code-fg">
-              <p className="tb-mono text-[10px] uppercase tracking-wide text-code-fg/55">
-                stage plan · pending
-              </p>
-              <p className="mt-1.5 text-[12px] font-medium">Extract Orders Domain Module</p>
-              <p className="mt-1 tb-mono text-[10px] leading-relaxed text-code-fg/65">
-                envelope: src/modules/orders/** · maxOps: 20
-                <br />
-                protect: route table · schema fingerprints
-              </p>
-            </div>
-          </div>
+            </code>
+          </pre>
         </aside>
       </section>
 
-      <section id="how-it-works" className="tb-panel overflow-hidden">
+      {/* 3. Five-step modernization workflow */}
+      <section
+        id="how-it-works"
+        aria-labelledby="workflow-heading"
+        className="tb-panel overflow-hidden"
+      >
         <div className="tb-panel-head">
-          <p className="tb-mono text-[11px] font-medium text-ink">how it works</p>
-          <p className="tb-mono text-[10px] text-muted">
-            deterministic evidence · bounded AI generation
-          </p>
+          <div>
+            <h2 id="workflow-heading" className="text-[13px] font-semibold text-text-primary">
+              Modernization workflow
+            </h2>
+            <p className="mt-0.5 text-[12px] text-text-secondary">
+              Assessment and selection stay separate from Stage Plan authorization, validation, and
+              Change Acceptance.
+            </p>
+          </div>
+          <span className="tb-chip">five steps</span>
         </div>
-        <ol className="grid sm:grid-cols-3 lg:grid-cols-6">
-          {PIPELINE.map((p, i) => (
+        <ol className="divide-y divide-border-subtle">
+          {WORKFLOW.map((step) => (
             <li
-              key={p.step}
-              className={`px-3.5 py-3.5 ${
-                i < PIPELINE.length - 1 ? "border-b border-border sm:border-b-0 sm:border-r" : ""
-              }`}
+              key={step.step}
+              className="grid gap-2 px-4 py-3.5 sm:grid-cols-[4.5rem_10rem_1fr] sm:items-start sm:gap-4"
             >
-              <p className="tb-mono text-[10px] text-accent">{p.step}</p>
-              <p className="mt-1 text-[13px] font-medium text-ink">{p.label}</p>
-              <p className="mt-0.5 text-[11px] text-muted">{p.detail}</p>
+              <span className="tb-mono text-[11px] text-accent-action">{step.step}</span>
+              <h3 className="text-[13px] font-semibold text-text-primary">{step.title}</h3>
+              <p className="text-[13px] leading-relaxed text-text-secondary">{step.body}</p>
             </li>
           ))}
         </ol>
       </section>
 
-      <section className="grid gap-4 lg:grid-cols-2">
-        <div className="tb-panel overflow-hidden">
-          <div className="tb-panel-head">
-            <p className="tb-mono text-[11px] font-medium text-ink">modernization sequence</p>
-            <span className="tb-chip">3 required · 1 conditional</span>
+      {/* 4. Deterministic vs AI responsibility ledger */}
+      <section aria-labelledby="ledger-heading" className="overflow-hidden">
+        <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
+          <div>
+            <h2 id="ledger-heading" className="text-[15px] font-semibold text-text-primary">
+              Responsibility ledger
+            </h2>
+            <p className="mt-0.5 max-w-2xl text-[13px] text-text-secondary">
+              Deterministic components own eligibility, evidence, readiness, Stage Plans, and Static
+              Validation. AI owns only authorized generation and one bounded repair. Developers own
+              authorization and Change Acceptance.
+            </p>
           </div>
-          <ul className="divide-y divide-border">
-            {STAGES.map((s) => (
-              <li key={s.id} className="flex items-start gap-3 px-4 py-3.5">
-                <span className="tb-mono mt-0.5 rounded border border-border bg-surface-muted px-1.5 py-0.5 text-[10px] text-muted">
-                  {s.id}
-                </span>
-                <div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <p className="text-[13px] font-medium text-ink">{s.title}</p>
-                    <span className={s.kind === "Required" ? "tb-chip" : "tb-chip tb-chip-warn"}>
-                      {s.kind.toLowerCase()}
-                    </span>
-                  </div>
-                  <p className="mt-1 text-[12px] leading-relaxed text-muted">{s.body}</p>
-                </div>
+        </div>
+        <div className="tb-terminal overflow-hidden">
+          <div className="grid grid-cols-[minmax(0,1.4fr)_6.5rem_minmax(0,1.6fr)] gap-2 border-b border-terminal-border bg-surface-terminal-raised px-3 py-2 tb-mono text-[10px] uppercase tracking-wide text-terminal-fg-muted sm:grid-cols-[minmax(0,1.5fr)_7.5rem_minmax(0,1.8fr)]">
+            <span>Concern</span>
+            <span>Owner</span>
+            <span className="hidden sm:inline">Boundary</span>
+          </div>
+          <ul className="divide-y divide-terminal-border">
+            {RESPONSIBILITY.map((row) => (
+              <li
+                key={row.concern}
+                className="grid grid-cols-1 gap-1 px-3 py-2.5 sm:grid-cols-[minmax(0,1.5fr)_7.5rem_minmax(0,1.8fr)] sm:items-baseline sm:gap-2"
+              >
+                <p className="tb-mono text-[12px] text-terminal-fg">{row.concern}</p>
+                <p
+                  className={`tb-mono text-[11px] font-medium ${
+                    row.owner === "AI"
+                      ? "text-diff-change"
+                      : row.owner === "Developer"
+                        ? "text-diff-add"
+                        : "text-terminal-fg-muted"
+                  }`}
+                >
+                  {row.owner}
+                </p>
+                <p className="tb-mono text-[11px] leading-relaxed text-terminal-fg-muted">
+                  {row.detail}
+                </p>
               </li>
             ))}
           </ul>
         </div>
+      </section>
 
-        <div id="contract" className="tb-panel overflow-hidden">
+      {/* 5. Assessment vs transformation requirements */}
+      <section
+        id="contract"
+        aria-labelledby="contract-heading"
+        className="grid gap-4 lg:grid-cols-2"
+      >
+        <div className="tb-panel min-w-0 overflow-hidden">
           <div className="tb-panel-head">
-            <p className="tb-mono text-[11px] font-medium text-ink">supported contract</p>
-            <span className="tb-chip tb-chip-accent">eligibility gate</span>
+            <h2 id="contract-heading" className="text-[13px] font-semibold text-text-primary">
+              Requirements for assessment
+            </h2>
+            <span className="tb-chip">enter assessment</span>
           </div>
-          <ul className="divide-y divide-border">
-            {CONTRACT.map((line, i) => (
+          <ul className="divide-y divide-border-subtle">
+            {ASSESSMENT_REQUIREMENTS.map((line, index) => (
               <li key={line} className="flex items-start gap-3 px-4 py-2.5 text-[13px]">
-                <span className="tb-mono w-5 shrink-0 text-[10px] text-muted">
-                  {String(i + 1).padStart(2, "0")}
+                <span className="tb-mono w-5 shrink-0 text-[10px] text-text-quiet">
+                  {String(index + 1).padStart(2, "0")}
                 </span>
-                <span className="text-ink/90">{line}</span>
+                <span className="text-text-primary/90">{line}</span>
               </li>
             ))}
           </ul>
-          <div className="border-t border-border bg-surface-muted/50 px-4 py-2.5 text-[11px] text-muted">
-            Support means the repo can enter assessment. It does not mean every domain is
-            transform-ready, and Safety Screening is not malware certification.
+          <div className="border-t border-border-subtle bg-surface-inset/60 px-4 py-2.5 text-[12px] leading-relaxed text-text-secondary">
+            Support means the repository can enter Modernization Assessment. It does not mean every
+            domain is transform-ready.
+          </div>
+        </div>
+
+        <div className="tb-panel min-w-0 overflow-hidden">
+          <div className="tb-panel-head">
+            <h2 className="text-[13px] font-semibold text-text-primary">
+              Additional requirements for transformation
+            </h2>
+            <span className="tb-chip tb-chip-accent">enter generation</span>
+          </div>
+          <ul className="divide-y divide-border-subtle">
+            {TRANSFORMATION_REQUIREMENTS.map((line, index) => (
+              <li key={line} className="flex items-start gap-3 px-4 py-2.5 text-[13px]">
+                <span className="tb-mono w-5 shrink-0 text-[10px] text-text-quiet">
+                  {String(index + 1).padStart(2, "0")}
+                </span>
+                <span className="text-text-primary/90">{line}</span>
+              </li>
+            ))}
+          </ul>
+          <div className="border-t border-border-subtle bg-surface-inset/60 px-4 py-2.5 text-[12px] leading-relaxed text-text-secondary">
+            Transformation Readiness is separate from repository eligibility. When no candidate is
+            ready, ToolBox returns the assessment and blocking evidence without calling AI.
           </div>
         </div>
       </section>
 
-      <section id="controls" className="tb-panel overflow-hidden">
+      {/* 6. Safety and non-goal boundaries */}
+      <section
+        id="controls"
+        aria-labelledby="boundaries-heading"
+        className="tb-panel overflow-hidden"
+      >
         <div className="tb-panel-head">
-          <p className="tb-mono text-[11px] font-medium text-ink">operating controls</p>
-          <p className="tb-mono text-[10px] text-muted">what ToolBox will not skip</p>
+          <div>
+            <h2 id="boundaries-heading" className="text-[13px] font-semibold text-text-primary">
+              Safety and non-goals
+            </h2>
+            <p className="mt-0.5 text-[12px] text-text-secondary">
+              Honest limits ToolBox will not blur.
+            </p>
+          </div>
         </div>
         <div className="grid sm:grid-cols-2 lg:grid-cols-3">
-          {CONTROLS.map((c, i) => (
+          {BOUNDARIES.map((item, index) => (
             <article
-              key={c.title}
-              className={`px-4 py-3.5 ${i < 3 ? "border-b border-border" : ""} ${
-                i % 3 !== 2 ? "lg:border-r lg:border-border" : ""
-              } ${i % 2 === 0 ? "sm:border-r sm:border-border" : ""} ${i < 4 ? "sm:border-b" : ""}`}
+              key={item.title}
+              className={`min-w-0 px-4 py-3.5 ${index < 3 ? "border-b border-border-subtle" : ""} ${
+                index % 3 !== 2 ? "lg:border-r lg:border-border-subtle" : ""
+              } ${index % 2 === 0 ? "sm:border-r sm:border-border-subtle" : ""} ${
+                index < 4 ? "sm:border-b sm:border-border-subtle" : ""
+              } ${index >= 3 ? "border-b border-border-subtle sm:border-b-0" : ""} ${
+                index === 4 ? "lg:border-b-0" : ""
+              } ${index === 5 ? "border-b-0 sm:border-b-0" : ""}`}
             >
-              <p className="text-[13px] font-medium text-ink">{c.title}</p>
-              <p className="mt-1 text-[12px] leading-relaxed text-muted">{c.body}</p>
+              <h3 className="text-[13px] font-medium text-text-primary">{item.title}</h3>
+              <p className="mt-1 text-[12px] leading-relaxed text-text-secondary">{item.body}</p>
             </article>
           ))}
         </div>
       </section>
 
-      <section className="flex flex-col items-start justify-between gap-4 rounded-md border border-border bg-surface px-5 py-4 shadow-[var(--shadow-soft)] sm:flex-row sm:items-center">
-        <div>
-          <p className="text-[14px] font-medium text-ink">Ready to run an assessment?</p>
-          <p className="mt-0.5 text-[12px] text-muted">
+      {/* 7. Final work-console CTA */}
+      <section
+        aria-labelledby="cta-heading"
+        className="flex flex-col items-start justify-between gap-4 rounded-md border border-border-subtle bg-surface-paper px-5 py-4 shadow-[var(--shadow-soft)] sm:flex-row sm:items-center"
+      >
+        <div className="min-w-0">
+          <h2 id="cta-heading" className="text-[14px] font-medium text-text-primary">
+            Ready to run an assessment?
+          </h2>
+          <p className="mt-0.5 text-[12px] text-text-secondary">
             Open the work console to try the controlled example or paste a public GitHub URL.
           </p>
         </div>
-        <Link href="/app" className="tb-btn tb-btn-primary h-10 px-4">
+        <Link href="/app" className="tb-btn tb-btn-primary h-10 shrink-0 px-4">
           Go to work console
         </Link>
       </section>
