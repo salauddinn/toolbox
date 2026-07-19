@@ -3,6 +3,7 @@ import type { AnalysisResult } from "@/core/analysis";
 import type { RepositoryFile } from "@/core/repository";
 import type { StagePlan } from "@/core/stages";
 import { delimitUntrustedSource } from "@/server/ai/provider";
+import { cycleInjectionContract } from "@/server/validation/static";
 
 function domainSlug(candidate: DomainCandidate): string {
   return (
@@ -94,22 +95,38 @@ export function buildStageInstructions(input: {
         "Preserve HTTP methods, paths, Mongoose schemas and collection names.",
         'Return JSON {"operations":[...]} only.',
       ].join("\n");
-    case "cycle_repair":
+    case "cycle_repair": {
+      const contract = cycleInjectionContract(input.analysis, input.candidate);
+      const factoryName = contract?.factoryName ?? `create${input.candidate.name}Module`;
+      const depKey = contract?.dependencyKey ?? "<dependency>Api";
+      const depPath = contract?.dependencyPath ?? "<dependency file>";
+      const moduleIndexPath = `src/modules/${slug}/index.js`;
+      const moduleDirDepth = moduleIndexPath.split("/").length - 1;
+      const rootPrefix = "../".repeat(moduleDirDepth);
       return [
         common,
-        "Remove the supported circular CommonJS dependency for this domain.",
-        "Export a factory from the module public index.js.",
-        "Inject the dependency from the application composition root (entry).",
+        "Break the supported circular CommonJS dependency using constructor injection.",
+        `In the module public index.js, export a factory named EXACTLY "${factoryName}".`,
+        `The factory must take EXACTLY one object-pattern parameter with EXACTLY one property: function ${factoryName}({ ${depKey} }) { ... }`,
+        `Inside the factory you MUST both use "${depKey}" (call a method on it) AND return it as a property named "${depKey}".`,
+        `Export it publicly, for example module.exports = { ${factoryName} } or module.exports.${factoryName} = ${factoryName}.`,
+        `In the composition root (${input.analysis.entryPath}), require the module and "${depPath}", then call: <moduleBinding>.${factoryName}({ ${depKey}: <requireBinding> }).`,
+        `The dependency "${depPath}" MUST arrive only through the factory parameter "${depKey}". The module must contain NO require of "${depPath}" — re-importing it re-creates the cycle and fails validation.`,
+        `Relative requires inside the module must resolve correctly: the public index.js sits ${moduleDirDepth} directories below the repository root, so a require targeting any repository-root file needs exactly ${moduleDirDepth} ascending segments ("${rootPrefix}<path-from-repository-root>"). Do not use fewer segments.`,
+        "Preserve all existing route registrations and HTTP methods.",
         "Update only evidenced cycle files, public module entry, and composition root.",
         "No file creation or deletion.",
         'Return JSON {"operations":[...]} only.',
       ].join("\n");
+    }
     case "integration_cleanup":
       return [
         common,
-        "Rewire remaining supported consumers to the Domain Module public facade (index.js only).",
-        "Delete only selected-domain legacy files that are superseded and unreferenced.",
-        "Preserve routes, methods, schemas and collections.",
+        "Rewire remaining supported consumers to import the Domain Module through its public index.js facade only.",
+        'For any file that already exists, emit an "update" operation; use "create" only for files that do not yet exist.',
+        "Every route listed above (each HTTP method and path) must remain registered after rewiring; do not remove or rename existing route registrations.",
+        "Delete only selected-domain legacy files that are superseded and provably unreferenced.",
+        "Preserve HTTP methods, paths, Mongoose schemas, and collection names.",
         'Return JSON {"operations":[...]} only.',
       ].join("\n");
     default:

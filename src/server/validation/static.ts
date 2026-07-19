@@ -41,7 +41,7 @@ function domainSlug(candidate: DomainCandidate): string {
   );
 }
 
-type CycleInjectionContract = {
+export type CycleInjectionContract = {
   factoryName: string;
   dependencyKey: string;
   dependencyPath: string;
@@ -66,7 +66,7 @@ function pathStem(path: string): string {
     .join("");
 }
 
-function cycleInjectionContract(
+export function cycleInjectionContract(
   analysis: AnalysisResult,
   candidate: DomainCandidate,
 ): CycleInjectionContract | null {
