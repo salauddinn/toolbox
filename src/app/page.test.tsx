@@ -590,7 +590,7 @@ describe("assessment gate failures", () => {
         body: JSON.stringify({ candidateId: "orders" }),
       }),
     );
-    expect(await screen.findByText(/phase:\s*candidate_selected/i)).toBeInTheDocument();
+    expect(await screen.findByText(/phase\s*=\s*candidate_selected/i)).toBeInTheDocument();
     expect(
       await screen.findByRole("heading", { name: "Modernization Decision confirmed" }),
     ).toBeInTheDocument();

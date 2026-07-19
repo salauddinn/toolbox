@@ -7,6 +7,8 @@ import { EvidenceInspector } from "./assessment/evidence-inspector";
 import type { EvidenceInspectorState, InspectRequest } from "./assessment/evidence-types";
 import { toInspectorState } from "./assessment/evidence-types";
 import { GateFailure } from "./assessment/gate-failure";
+import { resolveGuidedStep } from "./assessment/guided-flow";
+import { GuidedShell } from "./assessment/guided-shell";
 import {
   DURABLE_RUN_PHASES,
   presentationFor,
@@ -251,415 +253,400 @@ export function AssessmentApp() {
       </div>
     ) : null;
 
-  return (
-    <div className="min-w-0 space-y-4">
-      <div inert={inspector ? true : undefined} className="min-w-0 space-y-4">
-        <section className="tb-panel overflow-hidden">
-          <div className="tb-panel-head">
-            <div className="min-w-0">
-              <p className="tb-mono text-[10px] uppercase tracking-wide text-muted">work console</p>
-              <h1
-                id="assessment-workspace-heading"
-                tabIndex={-1}
-                className="truncate text-[14px] font-semibold text-ink outline-none"
+  const currentStep = resolveGuidedStep({
+    phase: run?.phase ?? null,
+    localState:
+      assessment.pendingState ?? (blockedStart ? "active-run-conflict" : !run ? "no-run" : null),
+    unknownPhase,
+  });
+
+  const guidedSubtitle = !run
+    ? "Choose how to begin. We’ll guide you one step at a time."
+    : gatePhase
+      ? "This run stopped before modernization. Review the reason, then start over."
+      : presentation.explanation;
+
+  const headerActions = (
+    <>
+      {run ? (
+        <>
+          <span className="tb-chip">run: {run.runId.slice(0, 10)}…</span>
+          {can("end_run") ? (
+            confirmingEnd && !gatePhase && !outcomePhase ? (
+              <div
+                className="flex flex-wrap items-center gap-2"
+                role="group"
+                aria-label="Confirm end run"
               >
-                {run ? "Modernization Assessment" : "Start assessment"}
-              </h1>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              {run ? (
-                <>
-                  <span
-                    className={`tb-chip ${
-                      gatePhase
-                        ? "tb-chip-warn"
-                        : unknownPhase
-                          ? ""
-                          : run.phase === "completed"
-                            ? "tb-chip-ok"
-                            : "tb-chip-accent"
-                    }`}
-                  >
-                    phase: {run.phase}
-                  </span>
-                  <span className="tb-chip">run: {run.runId.slice(0, 10)}…</span>
-                  {can("end_run") ? (
-                    confirmingEnd && !gatePhase && !outcomePhase ? (
-                      <div
-                        className="flex flex-wrap items-center gap-2"
-                        role="group"
-                        aria-label="Confirm end run"
-                      >
-                        <button
-                          type="button"
-                          disabled={busy}
-                          onClick={performEndRun}
-                          className="tb-btn tb-btn-primary h-8 px-2.5 text-[12px]"
-                        >
-                          Confirm end run
-                        </button>
-                        <button
-                          type="button"
-                          disabled={busy}
-                          onClick={() => setConfirmingEnd(false)}
-                          className="tb-btn tb-btn-ghost h-8 px-2.5 text-[12px]"
-                        >
-                          Cancel
-                        </button>
-                      </div>
-                    ) : !gatePhase && !outcomePhase ? (
-                      <button
-                        type="button"
-                        disabled={busy}
-                        onClick={requestEndRun}
-                        className="tb-btn tb-btn-secondary h-8 px-2.5 text-[12px]"
-                      >
-                        End run / Start over
-                      </button>
-                    ) : null
-                  ) : null}
-                  {!unknownPhase && !gatePhase && !outcomePhase ? (
-                    <button
-                      type="button"
-                      disabled={busy}
-                      onClick={() => void assessment.startFixture()}
-                      className="tb-btn tb-btn-primary h-8 px-2.5 text-[12px]"
-                    >
-                      Retry example
-                    </button>
-                  ) : null}
-                </>
-              ) : (
-                <>
-                  <span className="tb-chip">no active run</span>
-                  <Link href="/" className="tb-btn tb-btn-ghost h-8 px-2.5 text-[12px]">
-                    Product page
-                  </Link>
-                </>
-              )}
-            </div>
-          </div>
-        </section>
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={performEndRun}
+                  className="tb-btn tb-btn-primary h-9 min-h-11 px-3 text-[13px]"
+                >
+                  Confirm end run
+                </button>
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => setConfirmingEnd(false)}
+                  className="tb-btn tb-btn-ghost h-9 min-h-11 px-3 text-[13px]"
+                >
+                  Cancel
+                </button>
+              </div>
+            ) : !gatePhase && !outcomePhase ? (
+              <button
+                type="button"
+                disabled={busy}
+                onClick={requestEndRun}
+                className="tb-btn tb-btn-secondary h-9 min-h-11 px-3 text-[13px]"
+              >
+                End run / Start over
+              </button>
+            ) : null
+          ) : null}
+        </>
+      ) : (
+        <>
+          <span className="tb-chip">no active run</span>
+          <Link href="/" className="tb-btn tb-btn-ghost h-9 min-h-11 px-3 text-[13px]">
+            Product page
+          </Link>
+        </>
+      )}
+    </>
+  );
 
-        {!run ? (
-          <RepositoryStart
-            url={url}
-            onUrlChange={setUrl}
-            busy={busy}
-            error={error}
-            blockedStart={blockedStart}
-            confirmingReplace={confirmingReplace}
-            onConfirmingReplaceChange={setConfirmingReplace}
-            onStartFixture={() => void assessment.startFixture()}
-            onStartGithub={(nextUrl) => void assessment.startGithub(nextUrl)}
-            onReplacePreviousRun={() => void assessment.replacePreviousRun()}
-            onDismissConflict={() => assessment.dismissStartConflict()}
-          />
-        ) : null}
+  return (
+    <div className="min-w-0">
+      <div inert={inspector ? true : undefined} className="min-w-0">
+        <GuidedShell
+          currentStep={currentStep}
+          title={unknownPhase ? presentation.heading : undefined}
+          subtitle={guidedSubtitle}
+          actions={headerActions}
+        >
+          {!run ? (
+            <RepositoryStart
+              url={url}
+              onUrlChange={setUrl}
+              busy={busy}
+              error={error}
+              blockedStart={blockedStart}
+              confirmingReplace={confirmingReplace}
+              onConfirmingReplaceChange={setConfirmingReplace}
+              onStartFixture={() => void assessment.startFixture()}
+              onStartGithub={(nextUrl) => void assessment.startGithub(nextUrl)}
+              onReplacePreviousRun={() => void assessment.replacePreviousRun()}
+              onDismissConflict={() => assessment.dismissStartConflict()}
+            />
+          ) : null}
 
-        {run ? <SupportedContractDetails defaultOpen={false} /> : null}
+          {run ? <SupportedContractDetails defaultOpen={false} /> : null}
 
-        {run && error && !gatePhase ? (
-          <div className="tb-panel overflow-hidden" role="alert">
-            <div className="tb-panel-head">
-              <p className="text-[13px] font-semibold text-danger">
-                {assessment.operationError
-                  ? presentation.heading
-                  : "The requested action did not complete"}
-              </p>
-              <span className="tb-chip tb-chip-warn">preserved</span>
+          {run && error && !gatePhase ? (
+            <div className="tb-panel overflow-hidden" role="alert">
+              <div className="tb-panel-head">
+                <p className="text-[13px] font-semibold text-danger">
+                  {assessment.operationError
+                    ? presentation.heading
+                    : "The requested action did not complete"}
+                </p>
+                <span className="tb-chip tb-chip-warn">preserved</span>
+              </div>
+              <div className="tb-terminal overflow-hidden border-0 border-t border-terminal-border">
+                <pre className="overflow-x-auto p-3 tb-mono text-[11px] leading-relaxed text-terminal-fg">
+                  {error}
+                </pre>
+              </div>
             </div>
-            <div className="tb-terminal overflow-hidden border-0 border-t border-terminal-border">
-              <pre className="overflow-x-auto p-3 tb-mono text-[11px] leading-relaxed text-terminal-fg">
-                {error}
-              </pre>
-            </div>
-          </div>
-        ) : null}
-        {run && busy ? (
-          <p className="tb-mono text-[11px] text-muted" aria-live="polite">
-            working…
-          </p>
-        ) : null}
-
-        {run && unknownPhase ? (
-          <section className="tb-panel p-5 sm:p-6" role="alert">
-            <h2 className="text-[15px] font-semibold text-ink">{presentation.heading}</h2>
-            <p className="mt-2 text-sm text-muted">{presentation.explanation}</p>
-            <p className="mt-3 text-[12px] text-text-quiet">
-              No unsupported mutations are offered for this phase.
+          ) : null}
+          {run && busy ? (
+            <p className="tb-mono text-[11px] text-muted" aria-live="polite">
+              working…
             </p>
-          </section>
-        ) : null}
+          ) : null}
 
-        {run && run.phase === "eligibility_failed" ? (
-          <GateFailure
-            kind="eligibility_failed"
-            presentation={presentation}
-            sourceLabel={run.sourceLabel}
-            rejections={run.eligibility.rejections}
-            busy={busy}
-            confirmingEnd={confirmingEnd}
-            onConfirmingEndChange={setConfirmingEnd}
-            onEndRun={performEndRun}
-            onInspect={openInspect}
-          />
-        ) : null}
+          {run && unknownPhase ? (
+            <section className="tb-panel p-5 sm:p-6" role="alert">
+              <h2 className="text-[15px] font-semibold text-ink">{presentation.heading}</h2>
+              <p className="mt-2 text-sm text-muted">{presentation.explanation}</p>
+              <p className="mt-3 text-[12px] text-text-quiet">
+                No unsupported mutations are offered for this phase.
+              </p>
+            </section>
+          ) : null}
 
-        {run && run.phase === "safety_failed" ? (
-          <GateFailure
-            kind="safety_failed"
-            presentation={presentation}
-            sourceLabel={run.sourceLabel}
-            rejections={run.safety.rejections}
-            busy={busy}
-            confirmingEnd={confirmingEnd}
-            onConfirmingEndChange={setConfirmingEnd}
-            onEndRun={performEndRun}
-            onInspect={openInspect}
-          />
-        ) : null}
-
-        {run && run.phase === "not_ready" ? (
-          <>
+          {run && run.phase === "eligibility_failed" ? (
             <GateFailure
-              kind="not_ready"
+              kind="eligibility_failed"
               presentation={presentation}
               sourceLabel={run.sourceLabel}
-              readinessFailures={readinessFailures}
+              rejections={run.eligibility.rejections}
               busy={busy}
               confirmingEnd={confirmingEnd}
               onConfirmingEndChange={setConfirmingEnd}
               onEndRun={performEndRun}
               onInspect={openInspect}
             />
-            <section className="tb-panel space-y-6 overflow-hidden p-5 sm:p-6">
-              <div className="flex flex-wrap items-baseline justify-between gap-2">
-                <h2 className="text-[15px] font-semibold text-ink">
-                  Assessment evidence (read-only)
-                </h2>
-                <p className="tb-mono text-[11px] text-muted">phase={run.phase}</p>
-              </div>
+          ) : null}
 
-              <AssessmentDecision
+          {run && run.phase === "safety_failed" ? (
+            <GateFailure
+              kind="safety_failed"
+              presentation={presentation}
+              sourceLabel={run.sourceLabel}
+              rejections={run.safety.rejections}
+              busy={busy}
+              confirmingEnd={confirmingEnd}
+              onConfirmingEndChange={setConfirmingEnd}
+              onEndRun={performEndRun}
+              onInspect={openInspect}
+            />
+          ) : null}
+
+          {run && run.phase === "not_ready" ? (
+            <>
+              <GateFailure
+                kind="not_ready"
+                presentation={presentation}
                 sourceLabel={run.sourceLabel}
-                entryPath={run.analysis.entryPath}
-                routeCount={run.analysis.routeCount}
-                modelCount={run.analysis.modelCount}
-                cycleCount={graph?.cycles.length ?? 0}
-                candidates={candidates}
-                readinessByCandidateId={readinessMap}
-                safestTechnicalCandidateId={run.ranking.safestTechnicalCandidateId}
-                pickedCandidateId={pickedCandidateId}
-                onPickCandidate={setPickedCandidateId}
-                allowConfirmation={false}
-                canConfirm={false}
+                readinessFailures={readinessFailures}
                 busy={busy}
-                onConfirm={() => undefined}
+                confirmingEnd={confirmingEnd}
+                onConfirmingEndChange={setConfirmingEnd}
+                onEndRun={performEndRun}
                 onInspect={openInspect}
               />
+              <section className="tb-panel space-y-6 overflow-hidden p-5 sm:p-6">
+                <div className="flex flex-wrap items-baseline justify-between gap-2">
+                  <h2 className="text-[15px] font-semibold text-ink">
+                    Assessment evidence (read-only)
+                  </h2>
+                  <p className="tb-mono text-[11px] text-muted">phase={run.phase}</p>
+                </div>
 
-              {graphSection}
-            </section>
-          </>
-        ) : null}
-
-        {run && !unknownPhase && !gatePhase ? (
-          <section className="tb-panel min-w-0 space-y-6 overflow-hidden p-5 sm:p-6">
-            <div className="flex flex-wrap items-baseline justify-between gap-2">
-              <h2 className="text-[15px] font-semibold text-ink">Assessment detail</h2>
-              <p className="tb-mono text-[11px] text-muted">phase={run.phase}</p>
-            </div>
-
-            {run.phase === "assessed" ? (
-              <>
                 <AssessmentDecision
                   sourceLabel={run.sourceLabel}
-                  entryPath={run.analysis?.entryPath ?? "—"}
-                  routeCount={run.analysis?.routeCount ?? 0}
-                  modelCount={run.analysis?.modelCount ?? 0}
+                  entryPath={run.analysis.entryPath}
+                  routeCount={run.analysis.routeCount}
+                  modelCount={run.analysis.modelCount}
                   cycleCount={graph?.cycles.length ?? 0}
                   candidates={candidates}
                   readinessByCandidateId={readinessMap}
-                  safestTechnicalCandidateId={run.ranking?.safestTechnicalCandidateId}
+                  safestTechnicalCandidateId={run.ranking.safestTechnicalCandidateId}
                   pickedCandidateId={pickedCandidateId}
                   onPickCandidate={setPickedCandidateId}
-                  allowConfirmation={can("select_candidate") || can("confirm_candidate")}
-                  canConfirm={can("confirm_candidate")}
+                  allowConfirmation={false}
+                  canConfirm={false}
                   busy={busy}
-                  onConfirm={() => void assessment.confirmSelection()}
+                  onConfirm={() => undefined}
                   onInspect={openInspect}
                 />
 
                 {graphSection}
-              </>
-            ) : null}
+              </section>
+            </>
+          ) : null}
 
-            {run.phase === "candidate_selected" ? (
-              <div className="space-y-3 rounded-lg border border-border-subtle bg-surface-inset/40 p-4">
-                <h3 className="text-[14px] font-semibold text-ink">{presentation.heading}</h3>
-                <p className="text-[13px] leading-relaxed text-text-secondary">
-                  {presentation.explanation}
-                </p>
-                {"selectedCandidate" in run && run.selectedCandidate ? (
-                  <p className="text-[13px] text-text-primary">
-                    Confirmed Domain Candidate: <strong>{run.selectedCandidate.name}</strong>
-                  </p>
-                ) : null}
-                <p className="text-[12px] text-text-quiet">
-                  No Stage Plan is assumed until the server exposes a sequence for this decision.
-                </p>
+          {run && !unknownPhase && !gatePhase ? (
+            <section className="tb-panel min-w-0 space-y-6 overflow-hidden p-5 sm:p-6">
+              <div className="flex flex-wrap items-baseline justify-between gap-2">
+                <h2 className="text-[15px] font-semibold text-ink">Assessment detail</h2>
+                <p className="tb-mono text-[11px] text-muted">phase={run.phase}</p>
               </div>
-            ) : null}
 
-            {isSequencePhase ? (
-              <div className="space-y-6">
-                {stagePlanStages.length > 0 && stageIndex != null ? (
-                  <StagePlanView
-                    stages={stagePlanStages}
-                    stageIndex={stageIndex}
-                    phase={run.phase as StageOperationPhase}
-                    selectedDomain={selectedDomain}
-                    pendingConditional={sequence?.pendingConditional}
-                    presentation={
-                      authorizePending
-                        ? presentationFor({ kind: "local", state: "authorize-request-pending" })
-                        : run.phase === "awaiting_authorization"
-                          ? presentation
-                          : presentationFor({ kind: "run", phase: "awaiting_authorization" })
-                    }
-                    authorizePending={authorizePending}
-                    canAuthorize={can("authorize_stage")}
+              {run.phase === "assessed" ? (
+                <>
+                  <AssessmentDecision
+                    sourceLabel={run.sourceLabel}
+                    entryPath={run.analysis?.entryPath ?? "—"}
+                    routeCount={run.analysis?.routeCount ?? 0}
+                    modelCount={run.analysis?.modelCount ?? 0}
+                    cycleCount={graph?.cycles.length ?? 0}
+                    candidates={candidates}
+                    readinessByCandidateId={readinessMap}
+                    safestTechnicalCandidateId={run.ranking?.safestTechnicalCandidateId}
+                    pickedCandidateId={pickedCandidateId}
+                    onPickCandidate={setPickedCandidateId}
+                    allowConfirmation={can("select_candidate") || can("confirm_candidate")}
+                    canConfirm={can("confirm_candidate")}
                     busy={busy}
-                    onAuthorize={() => void assessment.authorize()}
+                    onConfirm={() => void assessment.confirmSelection()}
                     onInspect={openInspect}
-                    hideAuthorizeAction={
-                      authorizePending ||
-                      run.phase === "generating" ||
-                      run.phase === "validating" ||
-                      run.phase === "repairing" ||
-                      run.phase === "awaiting_acceptance" ||
-                      run.phase === "stage_failed_rolled_back" ||
-                      run.phase === "sequence_stopped" ||
-                      run.phase === "completed"
-                    }
                   />
-                ) : null}
 
-                {authorizePending ? (
-                  <OperationStatusView
-                    kind="authorize-pending"
-                    presentation={presentationFor({
-                      kind: "local",
-                      state: "authorize-request-pending",
-                    })}
-                    currentStageTitle={currentStageTitle}
-                  />
-                ) : null}
+                  {graphSection}
+                </>
+              ) : null}
 
-                {!authorizePending && run.phase === "generating" ? (
-                  <OperationStatusView
-                    kind="durable-generating"
-                    presentation={presentation}
-                    currentStageTitle={currentStageTitle}
-                  />
-                ) : null}
-
-                {!authorizePending && run.phase === "validating" ? (
-                  <OperationStatusView
-                    kind="durable-validating"
-                    presentation={presentation}
-                    currentStageTitle={currentStageTitle}
-                  />
-                ) : null}
-
-                {!authorizePending && run.phase === "repairing" ? (
-                  <OperationStatusView
-                    kind="durable-repairing"
-                    presentation={presentation}
-                    currentStageTitle={currentStageTitle}
-                  />
-                ) : null}
-
-                {!authorizePending && run.phase === "awaiting_acceptance" ? (
-                  <ChangeSetReview
-                    presentation={presentation}
-                    review={acceptanceReview ?? "incomplete"}
-                    reviewPayload={run.reviewPayload}
-                    currentStageTitle={currentStageTitle}
-                    canAccept={can("accept_change_set")}
-                    canReject={can("reject_change_set")}
-                    busy={busy || refreshingReview}
-                    onAccept={() => void assessment.accept()}
-                    onReject={() => void assessment.reject()}
-                    onRefreshReview={() => void refreshReview()}
-                  />
-                ) : null}
-
-                {!authorizePending && run.phase === "stage_failed_rolled_back" ? (
-                  <SequenceOutcome
-                    kind="stage_failed_rolled_back"
-                    presentation={presentation}
-                    sourceLabel={"sourceLabel" in run ? run.sourceLabel : undefined}
-                    selectedCandidateName={selectedDomain}
-                    currentStageTitle={currentStageTitle}
-                    acceptedChangeSetCount={run.acceptedChangeSetCount}
-                    validationReport={validationReport}
-                    busy={busy}
-                    confirmingEnd={confirmingEnd}
-                    onConfirmingEndChange={setConfirmingEnd}
-                    onEndRun={performEndRun}
-                    endError={assessment.operationError?.operation === "end-run" ? error : null}
-                  />
-                ) : null}
-
-                {!authorizePending && run.phase === "sequence_stopped" ? (
-                  <SequenceOutcome
-                    kind="sequence_stopped"
-                    presentation={presentation}
-                    sourceLabel={"sourceLabel" in run ? run.sourceLabel : undefined}
-                    selectedCandidateName={selectedDomain}
-                    currentStageTitle={currentStageTitle}
-                    acceptedChangeSetCount={run.acceptedChangeSetCount}
-                    validationReport={validationReport}
-                    stopReason={run.reason}
-                    busy={busy}
-                    confirmingEnd={confirmingEnd}
-                    onConfirmingEndChange={setConfirmingEnd}
-                    onEndRun={performEndRun}
-                    endError={assessment.operationError?.operation === "end-run" ? error : null}
-                  />
-                ) : null}
-
-                {!authorizePending && run.phase === "completed" ? (
-                  <CompletionArtifact
-                    presentation={presentation}
-                    sourceLabel={"sourceLabel" in run ? run.sourceLabel : undefined}
-                    selectedCandidateName={selectedDomain}
-                    acceptedChangeSetCount={run.acceptedChangeSetCount}
-                    validationReports={"validationReports" in run ? run.validationReports : []}
-                    downloadAvailable={run.downloadAvailable}
-                    downloadPath={run.downloadPath}
-                    busy={busy}
-                    confirmingEnd={confirmingEnd}
-                    onConfirmingEndChange={setConfirmingEnd}
-                    onEndRun={performEndRun}
-                    endError={assessment.operationError?.operation === "end-run" ? error : null}
-                  />
-                ) : null}
-
-                {run.phase !== "stage_failed_rolled_back" &&
-                run.phase !== "sequence_stopped" &&
-                run.phase !== "completed" ? (
-                  <p className="text-[12px] text-text-quiet">
-                    Authorization and Change Acceptance are separate controls. Only Change
-                    Acceptance promotes the validated candidate snapshot.
+              {run.phase === "candidate_selected" ? (
+                <div className="space-y-3 rounded-lg border border-border-subtle bg-surface-inset/40 p-4">
+                  <h3 className="text-[14px] font-semibold text-ink">{presentation.heading}</h3>
+                  <p className="text-[13px] leading-relaxed text-text-secondary">
+                    {presentation.explanation}
                   </p>
-                ) : null}
-              </div>
-            ) : null}
-          </section>
-        ) : null}
+                  {"selectedCandidate" in run && run.selectedCandidate ? (
+                    <p className="text-[13px] text-text-primary">
+                      Confirmed Domain Candidate: <strong>{run.selectedCandidate.name}</strong>
+                    </p>
+                  ) : null}
+                  <p className="text-[12px] text-text-quiet">
+                    No Stage Plan is assumed until the server exposes a sequence for this decision.
+                  </p>
+                </div>
+              ) : null}
+
+              {isSequencePhase ? (
+                <div className="space-y-6">
+                  {stagePlanStages.length > 0 && stageIndex != null ? (
+                    <StagePlanView
+                      stages={stagePlanStages}
+                      stageIndex={stageIndex}
+                      phase={run.phase as StageOperationPhase}
+                      selectedDomain={selectedDomain}
+                      pendingConditional={sequence?.pendingConditional}
+                      presentation={
+                        authorizePending
+                          ? presentationFor({ kind: "local", state: "authorize-request-pending" })
+                          : run.phase === "awaiting_authorization"
+                            ? presentation
+                            : presentationFor({ kind: "run", phase: "awaiting_authorization" })
+                      }
+                      authorizePending={authorizePending}
+                      canAuthorize={can("authorize_stage")}
+                      busy={busy}
+                      onAuthorize={() => void assessment.authorize()}
+                      onInspect={openInspect}
+                      hideAuthorizeAction={
+                        authorizePending ||
+                        run.phase === "generating" ||
+                        run.phase === "validating" ||
+                        run.phase === "repairing" ||
+                        run.phase === "awaiting_acceptance" ||
+                        run.phase === "stage_failed_rolled_back" ||
+                        run.phase === "sequence_stopped" ||
+                        run.phase === "completed"
+                      }
+                    />
+                  ) : null}
+
+                  {authorizePending ? (
+                    <OperationStatusView
+                      kind="authorize-pending"
+                      presentation={presentationFor({
+                        kind: "local",
+                        state: "authorize-request-pending",
+                      })}
+                      currentStageTitle={currentStageTitle}
+                    />
+                  ) : null}
+
+                  {!authorizePending && run.phase === "generating" ? (
+                    <OperationStatusView
+                      kind="durable-generating"
+                      presentation={presentation}
+                      currentStageTitle={currentStageTitle}
+                    />
+                  ) : null}
+
+                  {!authorizePending && run.phase === "validating" ? (
+                    <OperationStatusView
+                      kind="durable-validating"
+                      presentation={presentation}
+                      currentStageTitle={currentStageTitle}
+                    />
+                  ) : null}
+
+                  {!authorizePending && run.phase === "repairing" ? (
+                    <OperationStatusView
+                      kind="durable-repairing"
+                      presentation={presentation}
+                      currentStageTitle={currentStageTitle}
+                    />
+                  ) : null}
+
+                  {!authorizePending && run.phase === "awaiting_acceptance" ? (
+                    <ChangeSetReview
+                      presentation={presentation}
+                      review={acceptanceReview ?? "incomplete"}
+                      reviewPayload={run.reviewPayload}
+                      currentStageTitle={currentStageTitle}
+                      canAccept={can("accept_change_set")}
+                      canReject={can("reject_change_set")}
+                      busy={busy || refreshingReview}
+                      onAccept={() => void assessment.accept()}
+                      onReject={() => void assessment.reject()}
+                      onRefreshReview={() => void refreshReview()}
+                    />
+                  ) : null}
+
+                  {!authorizePending && run.phase === "stage_failed_rolled_back" ? (
+                    <SequenceOutcome
+                      kind="stage_failed_rolled_back"
+                      presentation={presentation}
+                      sourceLabel={"sourceLabel" in run ? run.sourceLabel : undefined}
+                      selectedCandidateName={selectedDomain}
+                      currentStageTitle={currentStageTitle}
+                      acceptedChangeSetCount={run.acceptedChangeSetCount}
+                      validationReport={validationReport}
+                      busy={busy}
+                      confirmingEnd={confirmingEnd}
+                      onConfirmingEndChange={setConfirmingEnd}
+                      onEndRun={performEndRun}
+                      endError={assessment.operationError?.operation === "end-run" ? error : null}
+                    />
+                  ) : null}
+
+                  {!authorizePending && run.phase === "sequence_stopped" ? (
+                    <SequenceOutcome
+                      kind="sequence_stopped"
+                      presentation={presentation}
+                      sourceLabel={"sourceLabel" in run ? run.sourceLabel : undefined}
+                      selectedCandidateName={selectedDomain}
+                      currentStageTitle={currentStageTitle}
+                      acceptedChangeSetCount={run.acceptedChangeSetCount}
+                      validationReport={validationReport}
+                      stopReason={run.reason}
+                      busy={busy}
+                      confirmingEnd={confirmingEnd}
+                      onConfirmingEndChange={setConfirmingEnd}
+                      onEndRun={performEndRun}
+                      endError={assessment.operationError?.operation === "end-run" ? error : null}
+                    />
+                  ) : null}
+
+                  {!authorizePending && run.phase === "completed" ? (
+                    <CompletionArtifact
+                      presentation={presentation}
+                      sourceLabel={"sourceLabel" in run ? run.sourceLabel : undefined}
+                      selectedCandidateName={selectedDomain}
+                      acceptedChangeSetCount={run.acceptedChangeSetCount}
+                      validationReports={"validationReports" in run ? run.validationReports : []}
+                      downloadAvailable={run.downloadAvailable}
+                      downloadPath={run.downloadPath}
+                      busy={busy}
+                      confirmingEnd={confirmingEnd}
+                      onConfirmingEndChange={setConfirmingEnd}
+                      onEndRun={performEndRun}
+                      endError={assessment.operationError?.operation === "end-run" ? error : null}
+                    />
+                  ) : null}
+
+                  {run.phase !== "stage_failed_rolled_back" &&
+                  run.phase !== "sequence_stopped" &&
+                  run.phase !== "completed" ? (
+                    <p className="text-[12px] text-text-quiet">
+                      Authorization and Change Acceptance are separate controls. Only Change
+                      Acceptance promotes the validated candidate snapshot.
+                    </p>
+                  ) : null}
+                </div>
+              ) : null}
+            </section>
+          ) : null}
+        </GuidedShell>
       </div>
 
       <EvidenceInspector
