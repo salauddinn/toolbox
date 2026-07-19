@@ -31,7 +31,37 @@ const IGNORED_FILE_NAMES = new Set([
   "pnpm-lock.yaml",
   "npm-shrinkwrap.json",
   "composer.lock",
+  ".yarnrc.yml",
+  "pnpm-workspace.yaml",
+  "bun.lock",
+  "bun.lockb",
 ]);
+
+export type PackageManagerName = "npm" | "yarn" | "pnpm" | "bun" | "composer";
+
+/**
+ * Package-manager files are ignored as untrusted source, but root names remain
+ * useful eligibility evidence. Do not add their contents to a SourceSnapshot.
+ */
+const PACKAGE_MANAGER_EVIDENCE_BY_FILE_NAME: ReadonlyMap<string, PackageManagerName> = new Map([
+  ["package-lock.json", "npm"],
+  ["npm-shrinkwrap.json", "npm"],
+  ["yarn.lock", "yarn"],
+  [".yarnrc.yml", "yarn"],
+  ["pnpm-lock.yaml", "pnpm"],
+  ["pnpm-workspace.yaml", "pnpm"],
+  ["bun.lock", "bun"],
+  ["bun.lockb", "bun"],
+  ["composer.lock", "composer"],
+]);
+
+/** Returns a root package-manager signal without inspecting file contents. */
+export function packageManagerForEvidencePath(posixPath: string): PackageManagerName | null {
+  if (posixPath.includes("/")) {
+    return null;
+  }
+  return PACKAGE_MANAGER_EVIDENCE_BY_FILE_NAME.get(posixPath.toLowerCase()) ?? null;
+}
 
 const IGNORED_EXTENSIONS = new Set([
   ".png",

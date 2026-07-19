@@ -8,6 +8,12 @@ export type RepositoryFile = {
   sizeBytes: number;
 };
 
+/** Content-free package-manager signal retained from archive extraction. */
+export type PackageManagerEvidence = {
+  path: NormalizedPath;
+  manager: "npm" | "yarn" | "pnpm" | "bun" | "composer";
+};
+
 /**
  * Immutable captured repository state for one run.
  * All analysis, generation, validation, and downloads use this snapshot
@@ -23,6 +29,10 @@ export type SourceSnapshot = {
   /** Content-addressable hash of analyzed file paths + contents. */
   contentHash: string;
   files: ReadonlyMap<NormalizedPath, RepositoryFile>;
+  /**
+   * Lockfile/config names only. Their untrusted content is never retained in the snapshot.
+   */
+  packageManagerEvidence: readonly PackageManagerEvidence[];
   /** Recognized application entry when known; set after eligibility. */
   entryPath?: NormalizedPath;
 };
@@ -57,6 +67,7 @@ export function createSourceSnapshot(input: {
   files: Iterable<RepositoryFile>;
   capturedAt?: string;
   contentHash?: string;
+  packageManagerEvidence?: Iterable<PackageManagerEvidence>;
   entryPath?: NormalizedPath;
 }): SourceSnapshot {
   const map = new Map<NormalizedPath, RepositoryFile>();
@@ -69,6 +80,7 @@ export function createSourceSnapshot(input: {
     capturedAt: input.capturedAt ?? new Date().toISOString(),
     contentHash: input.contentHash ?? "",
     files: map,
+    packageManagerEvidence: [...(input.packageManagerEvidence ?? [])],
     entryPath: input.entryPath,
   };
 }

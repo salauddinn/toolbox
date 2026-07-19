@@ -1,16 +1,18 @@
+import { createHash } from "node:crypto";
 import { createGunzip } from "node:zlib";
 import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import tar from "tar-stream";
 import {
   createRepositoryFile,
+  type PackageManagerEvidence,
   type RepositoryFile,
   type SnapshotLimits,
   DEFAULT_SNAPSHOT_LIMITS,
 } from "@/core/repository";
 import { normalizeRepositoryPath, type NormalizedPath } from "@/core/paths";
 import type { SafetyReasonCode } from "@/core/safety";
-import { isIgnoredPath } from "./ignore";
+import { isIgnoredPath, packageManagerForEvidencePath } from "./ignore";
 
 export type ArchiveEntryMeta = {
   path: string;
@@ -26,7 +28,13 @@ export type ExtractRejection = {
 };
 
 export type ExtractResult =
-  | { ok: true; files: RepositoryFile[]; skippedIgnored: number }
+  | {
+      ok: true;
+      files: RepositoryFile[];
+      /** Root lockfile/config names only; ignored content is never retained. */
+      packageManagerEvidence: PackageManagerEvidence[];
+      skippedIgnored: number;
+    }
   | { ok: false; rejection: ExtractRejection };
 
 export type RawArchiveEntry = {
@@ -170,7 +178,8 @@ export function materializeEntries(
   limits: SnapshotLimits = DEFAULT_SNAPSHOT_LIMITS,
 ): ExtractResult {
   const files: RepositoryFile[] = [];
-  const seen = new Map<NormalizedPath, string>();
+  const seenFingerprints = new Map<NormalizedPath, string>();
+  const packageManagerEvidence = new Map<NormalizedPath, PackageManagerEvidence>();
   let skippedIgnored = 0;
   let analyzedBytes = 0;
   let analyzedFiles = 0;
@@ -219,6 +228,34 @@ export function materializeEntries(
       };
     }
 
+    // Collision checks precede ignore filtering so protected files cannot bypass
+    // normalized-path safety. Only a digest is retained; ignored content is not.
+    const fingerprint = createHash("sha256").update(entry.content).digest("hex");
+    const priorFingerprint = seenFingerprints.get(normalized.path);
+    if (priorFingerprint !== undefined && priorFingerprint !== fingerprint) {
+      return {
+        ok: false,
+        rejection: {
+          code: "SAFETY_NORMALIZED_PATH_COLLISION",
+          message: "Normalized path collision with differing content",
+          path: normalized.path,
+        },
+      };
+    }
+    if (priorFingerprint !== undefined) {
+      if (isIgnoredPath(normalized.path)) skippedIgnored += 1;
+      continue;
+    }
+    seenFingerprints.set(normalized.path, fingerprint);
+
+    const packageManager = packageManagerForEvidencePath(normalized.path);
+    if (packageManager) {
+      packageManagerEvidence.set(normalized.path, {
+        path: normalized.path,
+        manager: packageManager,
+      });
+    }
+
     if (isIgnoredPath(normalized.path)) {
       skippedIgnored += 1;
       continue;
@@ -236,22 +273,6 @@ export function materializeEntries(
     }
 
     const content = entry.content.toString("utf8");
-    const prior = seen.get(normalized.path);
-    if (prior !== undefined && prior !== content) {
-      return {
-        ok: false,
-        rejection: {
-          code: "SAFETY_NORMALIZED_PATH_COLLISION",
-          message: "Normalized path collision with differing content",
-          path: normalized.path,
-        },
-      };
-    }
-    if (prior !== undefined) {
-      continue;
-    }
-    seen.set(normalized.path, content);
-
     const file = createRepositoryFile(normalized.path, content);
     files.push(file);
 
@@ -280,7 +301,14 @@ export function materializeEntries(
     };
   }
 
-  return { ok: true, files, skippedIgnored };
+  return {
+    ok: true,
+    files,
+    packageManagerEvidence: [...packageManagerEvidence.values()].sort((a, b) =>
+      a.path.localeCompare(b.path),
+    ),
+    skippedIgnored,
+  };
 }
 
 function mapPathCode(code: string): ExtractRejection["code"] {

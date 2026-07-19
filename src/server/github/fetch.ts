@@ -296,6 +296,7 @@ export async function loadGitHubRepository(
     sourceLabel: parsed.ref.canonicalUrl,
     files: extracted.files,
     contentHash,
+    packageManagerEvidence: extracted.packageManagerEvidence,
   });
 
   return { ok: true, snapshot, ref: parsed.ref };

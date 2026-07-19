@@ -68,6 +68,10 @@ describe("loadGitHubRepository", () => {
         name: "acme-app-abc123/app.js",
         content: "const express = require('express');\nmodule.exports = express();\n",
       },
+      {
+        name: "acme-app-abc123/package-lock.json",
+        content: '{"private":"lockfile-content-must-not-survive"}',
+      },
     ]);
 
     const fetchImpl: typeof fetch = async (input) => {
@@ -93,6 +97,11 @@ describe("loadGitHubRepository", () => {
       expect(result.snapshot.sourceLabel).toBe("https://github.com/acme/app");
       expect(result.snapshot.files.has("app.js" as never)).toBe(true);
       expect(result.snapshot.files.has("package.json" as never)).toBe(true);
+      expect(result.snapshot.files.has("package-lock.json" as never)).toBe(false);
+      expect(result.snapshot.packageManagerEvidence).toEqual([
+        { path: "package-lock.json", manager: "npm" },
+      ]);
+      expect(JSON.stringify(result.snapshot)).not.toContain("lockfile-content-must-not-survive");
       expect(result.snapshot.contentHash.length).toBeGreaterThan(10);
     }
   });

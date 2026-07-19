@@ -32,6 +32,8 @@ export type EligibilityResult =
   | {
       eligible: true;
       packageManager: "npm";
+      /** Deterministic package-manager evidence with lockfile/config content omitted. */
+      packageManagerEvidence: readonly Evidence[];
       moduleSystem: "commonjs";
       framework: "express";
       persistence: "mongoose";

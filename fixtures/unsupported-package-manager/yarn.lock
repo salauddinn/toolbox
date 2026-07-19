@@ -1,0 +1,2 @@
+# This untrusted lockfile must not enter the snapshot or prompt.
+private-lockfile-content-yarn-only

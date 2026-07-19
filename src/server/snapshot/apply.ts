@@ -6,10 +6,16 @@ import {
 } from "@/core/repository";
 import type { FileOperation } from "@/core/changes";
 import { assertNormalizedPath, normalizeRepositoryPath, type NormalizedPath } from "@/core/paths";
+import { isIgnoredPath } from "@/server/github/ignore";
 import { hashRepositoryFiles } from "@/server/snapshot/hash";
 
 export type ApplyError = {
-  code: "PATH_INVALID" | "UPDATE_MISSING" | "CREATE_EXISTS" | "DELETE_MISSING";
+  code:
+    | "PATH_INVALID"
+    | "IGNORED_PATH_PROTECTED"
+    | "UPDATE_MISSING"
+    | "CREATE_EXISTS"
+    | "DELETE_MISSING";
   message: string;
   path?: string;
 };
@@ -43,6 +49,16 @@ export function applyOperationsToSnapshot(
       };
     }
     const path = pathResult.path;
+    if (isIgnoredPath(path)) {
+      return {
+        ok: false,
+        error: {
+          code: "IGNORED_PATH_PROTECTED",
+          message: `Ignored paths cannot be modified: ${path}`,
+          path,
+        },
+      };
+    }
 
     if (op.type === "create") {
       if (map.has(path)) {
@@ -89,6 +105,7 @@ export function applyOperationsToSnapshot(
     sourceLabel: base.sourceLabel,
     files,
     contentHash: hashRepositoryFiles(files),
+    packageManagerEvidence: base.packageManagerEvidence,
     entryPath: base.entryPath,
   });
 

@@ -23,6 +23,14 @@ describe("fixture loaders", () => {
     expect(snapshot.contentHash.length).toBeGreaterThan(10);
   });
 
+  it("uses shared ignore and evidence predicates for uppercase lockfile names", () => {
+    const snapshot = loadFixtureSnapshot("unsupported-syntax");
+
+    expect(snapshot.files.has("BUN.LOCK" as never)).toBe(false);
+    expect(snapshot.packageManagerEvidence).toContainEqual({ path: "BUN.LOCK", manager: "bun" });
+    expect(JSON.stringify(snapshot)).not.toContain("untrusted-upper-case-bun-lock-content");
+  });
+
   it("loads unsupported ESM fixture with type module", () => {
     const pkg = readFixturePackageJson("unsupported-esm");
     expect(pkg.type).toBe("module");

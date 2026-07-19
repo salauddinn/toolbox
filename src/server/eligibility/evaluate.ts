@@ -1,7 +1,7 @@
 import type { EligibilityRejection, EligibilityResult } from "@/core/eligibility";
 import type { Evidence } from "@/core/evidence";
 import { assertNormalizedPath, type NormalizedPath } from "@/core/paths";
-import type { RepositoryFile, SourceSnapshot } from "@/core/repository";
+import type { PackageManagerEvidence, RepositoryFile, SourceSnapshot } from "@/core/repository";
 import { DEFAULT_SNAPSHOT_LIMITS } from "@/core/repository";
 import { isAnalyzableSourcePath } from "@/server/github/ignore";
 
@@ -16,6 +16,7 @@ type PackageJson = {
   peerDependencies?: Record<string, string>;
   workspaces?: unknown;
   scripts?: Record<string, string>;
+  packageManager?: string;
 };
 
 function evidence(
@@ -118,16 +119,95 @@ function resolveEntryPath(
   return null;
 }
 
-function hasLockfileConflict(files: readonly RepositoryFile[]): boolean {
-  const names = new Set<string>(files.map((f) => f.path as string));
-  // We ignore lockfiles during extract; detect monorepo package managers via package fields only.
-  // Presence of yarn/pnpm config files still signals non-npm primary workflows.
-  return (
-    names.has("yarn.lock") ||
-    names.has("pnpm-lock.yaml") ||
-    names.has("pnpm-workspace.yaml") ||
-    files.some((f) => f.path === ".yarnrc.yml" || f.path === "bun.lockb")
+type DetectedPackageManager = PackageManagerEvidence["manager"] | "unknown";
+
+function declaredPackageManager(pkg: PackageJson): DetectedPackageManager | null {
+  if (typeof pkg.packageManager !== "string" || pkg.packageManager.trim() === "") {
+    return null;
+  }
+  const name = pkg.packageManager.trim().split("@", 1)[0]?.toLowerCase();
+  if (name === "npm" || name === "yarn" || name === "pnpm" || name === "bun") {
+    return name;
+  }
+  return "unknown";
+}
+
+function packageManagerEvidenceForLockfile(lockfile: PackageManagerEvidence): Evidence {
+  return evidence(
+    `ELIGIBILITY_PACKAGE_MANAGER_${lockfile.manager.toUpperCase()}_LOCKFILE`,
+    `${lockfile.manager} package-manager evidence: ${lockfile.path}`,
+    lockfile.path,
+    1,
+    "[lockfile content omitted]",
+    "info",
   );
+}
+
+function packageManagerEvidenceForDeclaration(
+  pkgFile: RepositoryFile,
+  manager: DetectedPackageManager,
+): Evidence {
+  return evidence(
+    "ELIGIBILITY_PACKAGE_MANAGER_DECLARATION",
+    `Declared package manager: ${manager}`,
+    assertNormalizedPath("package.json"),
+    1,
+    `packageManager: ${String(parsePackageJson(pkgFile.content)?.packageManager ?? "")}`,
+    "info",
+  );
+}
+
+function evaluatePackageManager(
+  pkg: PackageJson,
+  pkgFile: RepositoryFile,
+  lockfiles: readonly PackageManagerEvidence[],
+): { ok: true; evidence: Evidence[] } | { ok: false; message: string; evidence: Evidence[] } {
+  const declaration = declaredPackageManager(pkg);
+  const detected = new Set<DetectedPackageManager>(lockfiles.map((lockfile) => lockfile.manager));
+  if (declaration) {
+    detected.add(declaration);
+  }
+
+  const lockfileEvidence = lockfiles.map(packageManagerEvidenceForLockfile);
+  const declarationEvidence = declaration
+    ? [packageManagerEvidenceForDeclaration(pkgFile, declaration)]
+    : [];
+  const managerEvidence = [...lockfileEvidence, ...declarationEvidence];
+
+  if (detected.size === 0) {
+    return {
+      ok: true,
+      evidence: [
+        evidence(
+          "ELIGIBILITY_PACKAGE_MANAGER_NPM_DEFAULT",
+          "No package-manager lockfile or declaration; applying the npm-only repository contract",
+          assertNormalizedPath("package.json"),
+          1,
+          "[no package-manager lockfile]",
+          "info",
+        ),
+      ],
+    };
+  }
+
+  if (detected.size === 1 && detected.has("npm")) {
+    return { ok: true, evidence: managerEvidence };
+  }
+
+  const managers = [...detected].sort();
+  if (managers.length > 1) {
+    return {
+      ok: false,
+      message: `Ambiguous package-manager evidence: ${managers.join(", ")}`,
+      evidence: managerEvidence,
+    };
+  }
+
+  return {
+    ok: false,
+    message: `Only single-root npm projects are supported; detected ${managers[0]}`,
+    evidence: managerEvidence,
+  };
 }
 
 /**
@@ -183,24 +263,29 @@ export function evaluateEligibility(snapshot: SourceSnapshot): EligibilityResult
     );
   }
 
-  if (hasLockfileConflict(files) || detectMonorepo(pkg, files)) {
+  const packageManager = evaluatePackageManager(pkg, pkgFile, snapshot.packageManagerEvidence);
+  if (detectMonorepo(pkg, files)) {
     rejections.push(
       reject(
-        detectMonorepo(pkg, files)
-          ? "ELIGIBILITY_MONOREPO_OR_MULTI_ROOT"
-          : "ELIGIBILITY_UNSUPPORTED_PACKAGE_MANAGER",
-        detectMonorepo(pkg, files)
-          ? "Monorepos and multiple application roots are not supported"
-          : "Only single-root npm projects are supported",
+        "ELIGIBILITY_MONOREPO_OR_MULTI_ROOT",
+        "Monorepos and multiple application roots are not supported",
         [
           evidence(
-            "ELIGIBILITY_UNSUPPORTED_PACKAGE_MANAGER",
+            "ELIGIBILITY_MONOREPO_OR_MULTI_ROOT",
             "Unsupported package layout",
             assertNormalizedPath("package.json"),
             1,
             pkgFile.content.slice(0, 160),
           ),
         ],
+      ),
+    );
+  } else if (!packageManager.ok) {
+    rejections.push(
+      reject(
+        "ELIGIBILITY_UNSUPPORTED_PACKAGE_MANAGER",
+        packageManager.message,
+        packageManager.evidence,
       ),
     );
   }
@@ -316,6 +401,7 @@ export function evaluateEligibility(snapshot: SourceSnapshot): EligibilityResult
   return {
     eligible: true,
     packageManager: "npm",
+    packageManagerEvidence: packageManager.evidence,
     moduleSystem: "commonjs",
     framework: "express",
     persistence: "mongoose",
