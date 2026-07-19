@@ -12,8 +12,8 @@
 | Local UI + correctness release checks | **PASS** |
 | Local process-restart recovery | **PASS** |
 | Live public GitHub fetch + deterministic gates | **PASS** (honest stop outcomes) |
-| Full external modernization to accepted module | **NOT YET** (no ready public candidate proven in this run) |
-| Submission / public release claims | **NO-GO** until deploy/demo items below are evidenced |
+| Full external modernization to accepted module | **PASS** (local `next start`, public repo `salauddinn/toolbox-external-smoke`) |
+| Submission / public release claims | **NO-GO** until deploy URL / demo publish items below are evidenced |
 
 All planned implementation todos **F00, G01–G05, U01–U11** are complete and committed. Remaining open items are mostly deploy/demo packaging, plus a full happy-path external modernization when a supported public repo is available.
 
@@ -60,6 +60,8 @@ Conclusion: local long-lived process retains runs across requests; restart disca
 
 Production server on `127.0.0.1:3200`, real GitHub archive fetch (no fixture path).
 
+### Honest stop outcomes
+
 | Repository | HTTP | Outcome | Notes |
 | --- | --- | --- | --- |
 | `https://github.com/bradtraversy/mern-auth` | 200 | `eligibility_failed` | Live fetch succeeded; rejected for ESM (`type: module`) |
@@ -67,12 +69,25 @@ Production server on `127.0.0.1:3200`, real GitHub archive fetch (no fixture pat
 | `https://github.com/sahat/hackathon-starter` | 200 | `safety_failed` | Live fetch succeeded; Safety Screening stopped the run |
 | Additional starts | 429 | `RATE_LIMIT_STARTS` | Client start budget enforced (`<= 3 / hour`) |
 
+### Successful external modernization
+
+| Field | Value |
+| --- | --- |
+| Public repo | `https://github.com/salauddinn/toolbox-external-smoke` |
+| Account | `salauddinn` only |
+| Content | Published controlled-example CommonJS Express/Mongoose smoke target |
+| Host | local `next start` `:3200` |
+| Result | `assessed` → selected `orders` → 4 accepted Change Sets → `completed` |
+| Artifact | ZIP download HTTP 200 (10471 bytes) with `repository/` + `toolbox-validation-report.json` |
+| Generation mode | `TOOLBOX_DETERMINISTIC_GENERATION=1` after live AI authorize hit `PROVIDER_TRANSPORT` timeout |
+| Product fix required | GitHub tarball now uses metadata `default_branch` (HEAD codeload 404 on this public repo) |
+
 Conclusion:
 
 - Networked GitHub URL intake works on a real process.
-- Eligibility and Safety Screening produce honest stop states (not crashes, not silent success).
-- A **full successful external modernization** (ready candidate → authorize → accept → artifact) was **not** completed in this session.
-- Do not claim “successful external modernization” until a supported public CommonJS Express/Mongoose repo is run end-to-end, including AI-backed stages if required.
+- Eligibility and Safety Screening produce honest stop states.
+- Full external modernization to an accepted artifact is proven on a public repo under `salauddinn`.
+- First AI authorize attempt timed out once; deterministic generation completed the stage pipeline for the release evidence run. Re-test AI authorize on deploy if provider latency is critical for the demo.
 
 ## Explicit dark mode
 
@@ -88,19 +103,18 @@ These are **not** marked complete.
 
 | Item | Owner | Why open | Verification point |
 | --- | --- | --- | --- |
-| Full successful external modernization | Release operator | Live fetch/gates proven; no ready public candidate completed through acceptance | Supported public CommonJS Express/Mongoose repo end-to-end |
 | Controlled-example on deploy host | Release operator | Local host only so far | `npm test` / controlled E2E on deploy image |
 | Incognito deployed-browser test | Release operator | No public URL in this gate | Deployed URL, cold browser |
 | Process-restart on deploy host | Release operator | Local process recycle passed; deploy host not exercised | Stop deploy process → `/api/health` → prior runs gone |
 | Three-minute demo timing + video | Demo presenter | Timing depends on deploy latency and narration | Timed walkthrough + published video |
-| Public URL / repo publish / link audit | Submitter | Submission packaging | `TASKS.md` §15 |
+| Public app URL / repo publish / link audit | Submitter | Submission packaging | `TASKS.md` §15 |
 
 ## Non-claims
 
 This record does **not** claim:
 
 - Public deployment readiness
-- Full external GitHub modernization to an accepted module
+- AI provider latency under demo conditions (one local AI authorize timed out; deterministic path completed the external smoke)
 - Three-minute demo timing
 - Published demo video or pitch deck
 - That P1 optional polish is complete
@@ -114,7 +128,7 @@ This record does **not** claim:
 ## Next actions for submission
 
 1. Deploy the application and record the public URL.
-2. Find or prepare a supported public CommonJS Express/Mongoose repo and complete external modernization end-to-end; attach dated evidence.
-3. Re-run controlled-example and process-restart checks on the deploy host.
+2. Re-run controlled-example, external smoke repo, and process-restart checks on the deploy host.
+3. Optionally re-try AI authorize against the smoke repo if the demo must show live provider generation.
 4. Time the demo under three minutes and publish the video.
 5. Only then mark remaining `TASKS.md` §14–15 items complete.

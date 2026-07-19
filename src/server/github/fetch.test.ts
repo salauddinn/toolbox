@@ -77,16 +77,22 @@ describe("loadGitHubRepository", () => {
     const fetchImpl: typeof fetch = async (input) => {
       const url = String(input);
       if (url.includes("api.github.com/repos/") && !url.includes("tarball")) {
-        return new Response(JSON.stringify({ private: false, full_name: "acme/app" }), {
-          status: 200,
-          headers: { "content-type": "application/json" },
-        });
+        return new Response(
+          JSON.stringify({ private: false, full_name: "acme/app", default_branch: "main" }),
+          {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          },
+        );
       }
-      if (url.includes("/tarball/")) {
+      if (url.includes("/tarball/main")) {
         return new Response(new Uint8Array(tarball), {
           status: 200,
           headers: { "content-type": "application/octet-stream" },
         });
+      }
+      if (url.includes("/tarball/HEAD")) {
+        return new Response("missing", { status: 404 });
       }
       throw new Error(`unexpected fetch ${url}`);
     };

@@ -199,7 +199,7 @@ Done when the result ZIP's `repository/` folder reflects only accepted Change Se
 
 Gate records: `docs/P0-RELEASE-GATE.md` (UI GO) and `docs/R01-RELEASE-GATE.md` (2026-07-19 local release pass). Local correctness and U01–U11 UI work are complete; remaining items below are scheduled release/deploy verification and still block submission.
 
-- [ ] Complete the successful external-repository modernization scenario. (live GitHub fetch + honest eligibility/safety stops verified 2026-07-19 on local `next start`; full ready-candidate → accept path still open — see `docs/R01-RELEASE-GATE.md`)
+- [x] Complete the successful external-repository modernization scenario. (2026-07-19 local `next start`: public `https://github.com/salauddinn/toolbox-external-smoke` → assessed Orders → 4 accepted Change Sets → completed + ZIP; see `docs/R01-RELEASE-GATE.md`)
 - [x] Complete the honest-rejection scenario with zero generation calls. (fixture ESM path covered in E2E; live public ESM repo also stopped at eligibility)
 - [x] Complete the double-failure repair/rollback scenario. (stage-runner tests)
 - [x] Run the controlled example tests and record the real local result. (2026-07-19: controlled E2E + full Vitest/build/e2e; see `docs/R01-RELEASE-GATE.md`)
