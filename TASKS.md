@@ -199,16 +199,16 @@ Done when the result ZIP's `repository/` folder reflects only accepted Change Se
 
 Gate records: `docs/P0-RELEASE-GATE.md` (UI GO) and `docs/R01-RELEASE-GATE.md` (2026-07-19 local release pass). Local correctness and U01–U11 UI work are complete; remaining items below are scheduled release/deploy verification and still block submission.
 
-- [ ] Complete the successful external-repository scenario. (scheduled R01 — needs live URL + network; owner: release operator)
-- [x] Complete the honest-rejection scenario with zero generation calls. (fixture ESM path covered in E2E)
+- [ ] Complete the successful external-repository modernization scenario. (live GitHub fetch + honest eligibility/safety stops verified 2026-07-19 on local `next start`; full ready-candidate → accept path still open — see `docs/R01-RELEASE-GATE.md`)
+- [x] Complete the honest-rejection scenario with zero generation calls. (fixture ESM path covered in E2E; live public ESM repo also stopped at eligibility)
 - [x] Complete the double-failure repair/rollback scenario. (stage-runner tests)
-- [x] Run the controlled example tests and record the real local result. (2026-07-19: controlled E2E + G01–G04 suites passed; see `docs/P0-RELEASE-GATE.md`)
-- [ ] Re-run the controlled example tests on the deploy host and record that result. (scheduled R01)
-- [ ] Test the deployed application in an incognito browser. (scheduled R01 — needs public URL)
-- [x] Verify one long-lived application process retains run state across all stage requests. (RunStore + E2E)
-- [ ] Verify process restart discards active runs cleanly and the health endpoint recovers. (scheduled R01 — deploy host process recycle)
+- [x] Run the controlled example tests and record the real local result. (2026-07-19: controlled E2E + full Vitest/build/e2e; see `docs/R01-RELEASE-GATE.md`)
+- [ ] Re-run the controlled example tests on the deploy host and record that result. (scheduled — needs deploy host)
+- [ ] Test the deployed application in an incognito browser. (scheduled — needs public URL)
+- [x] Verify one long-lived application process retains run state across all stage requests. (RunStore + E2E + local `next start` GET after create)
+- [x] Verify process restart discards active runs cleanly and the health endpoint recovers. (local `next start` recycle 2026-07-19: health ok, prior run 404, new run ok; deploy-host repeat still recommended)
 - [x] Confirm API secrets are absent from client assets and the public repository. (secrets-boundary tests)
-- [ ] Confirm the full demo path fits within three minutes. (scheduled R01 — after final UI)
+- [ ] Confirm the full demo path fits within three minutes. (scheduled — after deploy URL)
 
 Done when all three release scenarios work on the deployed URL.
 

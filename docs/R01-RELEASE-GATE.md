@@ -10,9 +10,12 @@
 | Gate | Result |
 | --- | --- |
 | Local UI + correctness release checks | **PASS** |
-| Submission / public release claims | **NO-GO** until deploy/network/demo items below are evidenced |
+| Local process-restart recovery | **PASS** |
+| Live public GitHub fetch + deterministic gates | **PASS** (honest stop outcomes) |
+| Full external modernization to accepted module | **NOT YET** (no ready public candidate proven in this run) |
+| Submission / public release claims | **NO-GO** until deploy/demo items below are evidenced |
 
-All planned implementation todos **F00, G01–G05, U01–U11** are complete and committed. Remaining open items are environmental release checks, not unfinished product features.
+All planned implementation todos **F00, G01–G05, U01–U11** are complete and committed. Remaining open items are mostly deploy/demo packaging, plus a full happy-path external modernization when a supported public repo is available.
 
 ## Local verification (2026-07-19)
 
@@ -37,6 +40,40 @@ Also previously verified during the queue:
 - Paper + Terminal UI through completion (U03–U11)
 - Explicit user-controlled dark mode with persistence and Axe coverage (U11)
 
+## Process-restart recovery (local production server)
+
+Host: `next start` on `127.0.0.1:3200` with `.env.local`.
+
+| Step | Result |
+| --- | --- |
+| `GET /api/health` before load | `status: ok`, `service: toolbox` |
+| `POST /api/runs` fixture `controlled-example` | `ok: true`, phase `assessed`, run id issued |
+| `GET /api/runs/:id` with session cookie | `200`, same run retained in-process |
+| Kill Node process and restart `next start` | process came back |
+| `GET /api/health` after restart | `status: ok` |
+| `GET /api/runs/:id` after restart | `404 RUN_NOT_FOUND` — prior in-memory run discarded |
+| New `POST /api/runs` after restart | `ok: true`, new assessed run |
+
+Conclusion: local long-lived process retains runs across requests; restart discards runs and health recovers. **Deploy-host repeat still recommended before submission.**
+
+## Live public GitHub checks (local host + network)
+
+Production server on `127.0.0.1:3200`, real GitHub archive fetch (no fixture path).
+
+| Repository | HTTP | Outcome | Notes |
+| --- | --- | --- | --- |
+| `https://github.com/bradtraversy/mern-auth` | 200 | `eligibility_failed` | Live fetch succeeded; rejected for ESM (`type: module`) |
+| `https://github.com/madhums/node-express-mongoose-demo` | 200 | `safety_failed` | Live fetch succeeded; Safety Screening stopped the run |
+| `https://github.com/sahat/hackathon-starter` | 200 | `safety_failed` | Live fetch succeeded; Safety Screening stopped the run |
+| Additional starts | 429 | `RATE_LIMIT_STARTS` | Client start budget enforced (`<= 3 / hour`) |
+
+Conclusion:
+
+- Networked GitHub URL intake works on a real process.
+- Eligibility and Safety Screening produce honest stop states (not crashes, not silent success).
+- A **full successful external modernization** (ready candidate → authorize → accept → artifact) was **not** completed in this session.
+- Do not claim “successful external modernization” until a supported public CommonJS Express/Mongoose repo is run end-to-end, including AI-backed stages if required.
+
 ## Explicit dark mode
 
 - Default: light paper
@@ -51,10 +88,10 @@ These are **not** marked complete.
 
 | Item | Owner | Why open | Verification point |
 | --- | --- | --- | --- |
-| External-repository scenario | Release operator | Needs live public GitHub URL + network + AI provider | Deployed app against a real public repo |
+| Full successful external modernization | Release operator | Live fetch/gates proven; no ready public candidate completed through acceptance | Supported public CommonJS Express/Mongoose repo end-to-end |
 | Controlled-example on deploy host | Release operator | Local host only so far | `npm test` / controlled E2E on deploy image |
 | Incognito deployed-browser test | Release operator | No public URL in this gate | Deployed URL, cold browser |
-| Process-restart recovery | Release operator | Needs real process recycle | Stop process → `/api/health` → prior runs gone |
+| Process-restart on deploy host | Release operator | Local process recycle passed; deploy host not exercised | Stop deploy process → `/api/health` → prior runs gone |
 | Three-minute demo timing + video | Demo presenter | Timing depends on deploy latency and narration | Timed walkthrough + published video |
 | Public URL / repo publish / link audit | Submitter | Submission packaging | `TASKS.md` §15 |
 
@@ -63,7 +100,7 @@ These are **not** marked complete.
 This record does **not** claim:
 
 - Public deployment readiness
-- External GitHub modernization success
+- Full external GitHub modernization to an accepted module
 - Three-minute demo timing
 - Published demo video or pitch deck
 - That P1 optional polish is complete
@@ -77,7 +114,7 @@ This record does **not** claim:
 ## Next actions for submission
 
 1. Deploy the application and record the public URL.
-2. Run external-repository and deploy-host controlled-example checks; attach dated evidence.
-3. Verify process restart + health recovery on the deploy host.
+2. Find or prepare a supported public CommonJS Express/Mongoose repo and complete external modernization end-to-end; attach dated evidence.
+3. Re-run controlled-example and process-restart checks on the deploy host.
 4. Time the demo under three minutes and publish the video.
-5. Only then mark `TASKS.md` §14–15 complete.
+5. Only then mark remaining `TASKS.md` §14–15 items complete.
