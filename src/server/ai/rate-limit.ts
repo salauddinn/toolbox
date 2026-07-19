@@ -70,9 +70,7 @@ export class RateLimiter {
   /**
    * Gate AI generation / authorize calls to limit provider spend.
    */
-  tryAuthorize(
-    clientKeyHash: string,
-  ): { ok: true } | { ok: false; code: string; message: string } {
+  tryAuthorize(clientKeyHash: string): { ok: true } | { ok: false; code: string; message: string } {
     this.pruneAuthorizes(clientKeyHash);
     const record = this.authorizes.get(clientKeyHash) ?? { timestamps: [] };
     if (record.timestamps.length >= this.config.maxAuthorizesPerHour) {

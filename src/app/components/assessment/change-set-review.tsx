@@ -300,11 +300,7 @@ function diffLineClassName(type: DiffLineType): string {
   return "";
 }
 
-function UnifiedDiffView({
-  file,
-}: {
-  file: ChangeSetReviewFile;
-}) {
+function UnifiedDiffView({ file }: { file: ChangeSetReviewFile }) {
   const diffLines = computeUnifiedDiff(file.beforePreview, file.afterPreview, file.kind);
   const hasContent = diffLines.length > 0 && diffLines.some((l) => l.content.length > 0);
   const addCount = diffLines.filter((l) => l.type === "add").length;

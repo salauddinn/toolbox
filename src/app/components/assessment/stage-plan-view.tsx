@@ -509,7 +509,9 @@ function ProgressActivityPanel({
   return (
     <div
       className="space-y-3 rounded-lg border border-accent-action/30 bg-accent-action/5 p-4"
-      data-testid={kind === "authorize-pending" ? "honest-authorize-pending" : "durable-operation-terminal"}
+      data-testid={
+        kind === "authorize-pending" ? "honest-authorize-pending" : "durable-operation-terminal"
+      }
       role="status"
       aria-busy="true"
       aria-label={activeLabel}
@@ -533,17 +535,17 @@ function ProgressActivityPanel({
         </span>
       </div>
 
-      <div
-        className="tb-progress-track"
-        data-testid="indeterminate-progress"
-        aria-hidden
-      >
+      <div className="tb-progress-track" data-testid="indeterminate-progress" aria-hidden>
         <div className="tb-progress-indeterminate" />
       </div>
 
       <ol className="space-y-2" data-testid="authorize-progress-steps">
         {steps.map((step) => (
-          <li key={step.id} className="flex items-start gap-2 text-[12px]" data-step-state={step.state}>
+          <li
+            key={step.id}
+            className="flex items-start gap-2 text-[12px]"
+            data-step-state={step.state}
+          >
             <span
               className={
                 step.state === "done"
@@ -566,9 +568,7 @@ function ProgressActivityPanel({
               }
             >
               {step.label}
-              {step.state === "active" ? (
-                <span className="sr-only"> (in progress)</span>
-              ) : null}
+              {step.state === "active" ? <span className="sr-only"> (in progress)</span> : null}
             </span>
           </li>
         ))}
@@ -576,8 +576,8 @@ function ProgressActivityPanel({
 
       <p className="text-[12px] leading-relaxed text-text-secondary">{detail}</p>
       <p className="tb-mono text-[11px] text-text-quiet" data-testid="honest-progress-note">
-        status: generating_and_validating_authorized_stage · no live subphase, percentage, or polling
-        feed is available
+        status: generating_and_validating_authorized_stage · no live subphase, percentage, or
+        polling feed is available
       </p>
     </div>
   );

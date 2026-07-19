@@ -12,9 +12,7 @@ describe("validateAiBaseUrl", () => {
 
   it("rejects private and metadata hosts", () => {
     expect(validateAiBaseUrl("https://169.254.169.254/latest").ok).toBe(false);
-    expect(validateAiBaseUrl("https://127.0.0.1/v1", { allowHttpLocalhost: false }).ok).toBe(
-      false,
-    );
+    expect(validateAiBaseUrl("https://127.0.0.1/v1", { allowHttpLocalhost: false }).ok).toBe(false);
     expect(validateAiBaseUrl("https://10.0.0.5/v1").ok).toBe(false);
     expect(validateAiBaseUrl("https://metadata.google.internal/").ok).toBe(false);
   });

@@ -3,19 +3,9 @@
  * become an SSRF path to internal metadata services.
  */
 
-const BLOCKED_HOST_SUFFIXES = [
-  ".internal",
-  ".local",
-  ".localhost",
-  ".localdomain",
-];
+const BLOCKED_HOST_SUFFIXES = [".internal", ".local", ".localhost", ".localdomain"];
 
-const BLOCKED_HOSTS = new Set([
-  "localhost",
-  "metadata.google.internal",
-  "metadata",
-  "0.0.0.0",
-]);
+const BLOCKED_HOSTS = new Set(["localhost", "metadata.google.internal", "metadata", "0.0.0.0"]);
 
 function isPrivateOrSpecialIp(hostname: string): boolean {
   // IPv4
@@ -41,9 +31,7 @@ function isPrivateOrSpecialIp(hostname: string): boolean {
   return false;
 }
 
-export type AiBaseUrlResult =
-  | { ok: true; baseUrl: string }
-  | { ok: false; message: string };
+export type AiBaseUrlResult = { ok: true; baseUrl: string } | { ok: false; message: string };
 
 /**
  * Validate AI_BASE_URL before server-side fetch.
@@ -61,8 +49,7 @@ export function validateAiBaseUrl(
   }
 
   const host = url.hostname.toLowerCase();
-  const allowHttpLocal =
-    options.allowHttpLocalhost ?? process.env.NODE_ENV !== "production";
+  const allowHttpLocal = options.allowHttpLocalhost ?? process.env.NODE_ENV !== "production";
 
   if (url.protocol === "http:") {
     if (!(allowHttpLocal && (host === "localhost" || host === "127.0.0.1"))) {

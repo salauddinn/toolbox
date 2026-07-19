@@ -39,7 +39,9 @@ export async function POST(request: Request, { params }: Params) {
   // Intent is untrusted developer context only — never stage instructions.
   const intent =
     typeof body.modernizationIntent === "string"
-      ? body.modernizationIntent.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, "").slice(0, 500)
+      ? body.modernizationIntent
+          .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, "")
+          .slice(0, 500)
       : undefined;
 
   const result = selectDomainCandidate({

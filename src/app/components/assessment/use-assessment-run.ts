@@ -84,7 +84,9 @@ export function useAssessmentRun() {
     // (advisory ranking only). Preserve a still-valid local pick across failed confirms.
     if (nextRun.phase === "assessed" || nextRun.phase === "not_ready") {
       setPickedCandidateId((prev) =>
-        prev && nextRun.ranking?.candidates?.some((candidate) => candidate.id === prev) ? prev : null,
+        prev && nextRun.ranking?.candidates?.some((candidate) => candidate.id === prev)
+          ? prev
+          : null,
       );
     } else {
       setPickedCandidateId(null);

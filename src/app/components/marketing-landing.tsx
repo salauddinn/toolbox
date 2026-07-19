@@ -195,7 +195,10 @@ export function MarketingLanding() {
           </dl>
         </div>
 
-        <aside className="tb-panel min-w-0 overflow-hidden" aria-label="Sample Modernization Assessment">
+        <aside
+          className="tb-panel min-w-0 overflow-hidden"
+          aria-label="Sample Modernization Assessment"
+        >
           <div className="tb-panel-head">
             <div className="min-w-0">
               <p className="tb-mono text-[10px] uppercase tracking-wide text-text-quiet">
@@ -218,7 +221,9 @@ export function MarketingLanding() {
                   className="rounded border border-border-subtle bg-surface-muted/60 px-2 py-1.5"
                 >
                   <p className="tb-mono text-[9px] uppercase text-text-quiet">{m.k}</p>
-                  <p className="tb-mono text-sm font-semibold tabular-nums text-text-primary">{m.v}</p>
+                  <p className="tb-mono text-sm font-semibold tabular-nums text-text-primary">
+                    {m.v}
+                  </p>
                 </div>
               ))}
             </div>
@@ -382,7 +387,11 @@ export function MarketingLanding() {
         </div>
       </section>
 
-      <section id="contract" aria-labelledby="contract-heading" className="tb-panel overflow-hidden">
+      <section
+        id="contract"
+        aria-labelledby="contract-heading"
+        className="tb-panel overflow-hidden"
+      >
         <details className="group">
           <summary className="tb-panel-head cursor-pointer list-none [&::-webkit-details-marker]:hidden">
             <div className="min-w-0">

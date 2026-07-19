@@ -159,7 +159,7 @@ export function AssessmentApp() {
   }, [run]);
 
   const candidates =
-    run?.phase === "assessed" || run?.phase === "not_ready" ? run.ranking?.candidates ?? [] : [];
+    run?.phase === "assessed" || run?.phase === "not_ready" ? (run.ranking?.candidates ?? []) : [];
   const readinessMap =
     run?.phase === "assessed" || run?.phase === "not_ready" ? run.readinessByCandidateId : {};
   const sequence = run && "sequence" in run ? run.sequence : undefined;

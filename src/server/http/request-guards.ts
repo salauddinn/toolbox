@@ -21,9 +21,7 @@ export function requireJsonContentType(request: Request): NextResponse | null {
 function isStrictCsrf(): boolean {
   // Production always strict. Tests can set TOOLBOX_CSRF_STRICT=1 without
   // mutating read-only NODE_ENV.
-  return (
-    process.env.NODE_ENV === "production" || process.env.TOOLBOX_CSRF_STRICT === "1"
-  );
+  return process.env.NODE_ENV === "production" || process.env.TOOLBOX_CSRF_STRICT === "1";
 }
 
 /**

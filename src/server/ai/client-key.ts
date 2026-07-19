@@ -5,10 +5,7 @@ import { createHash } from "node:crypto";
  * Session binding prevents same-NAT cross-user run access when cookies work.
  * IP remains a secondary signal for rate limiting and legacy fallbacks.
  */
-export function clientKeyFromRequest(
-  headers: Headers,
-  sessionId?: string,
-): string {
+export function clientKeyFromRequest(headers: Headers, sessionId?: string): string {
   const ip = trustedClientIp(headers) ?? "global-fallback";
   if (sessionId) {
     return hashClientKey(`session:${sessionId}|ip:${ip}`);
