@@ -117,17 +117,20 @@ describe("ChangeSetReview workspace", () => {
     expect(within(navigator).getByText("updated")).toBeTruthy();
     expect(within(navigator).getByText("deleted")).toBeTruthy();
 
-    // Default selection is the first file (create) with after preview only.
-    expect(screen.getByTestId("preview-after").textContent).toMatch(/describe\('orders'/);
-    expect(screen.queryByTestId("preview-before")).toBeNull();
+    // Default selection is the first file (create) with all-additions diff.
+    const firstDiff = screen.getByTestId("unified-diff");
+    expect(firstDiff.textContent).toMatch(/diff --git a\/tests\/behavior\/orders\.test\.js/);
+    expect(firstDiff.textContent).toMatch(/\+describe\('orders'/);
 
     await user.click(screen.getByTestId("review-file-routes/orders.js"));
-    expect(screen.getByTestId("preview-before").textContent).toMatch(/list\)/);
-    expect(screen.getByTestId("preview-after").textContent).toMatch(/domain\.list/);
+    const updateDiff = screen.getByTestId("unified-diff");
+    expect(updateDiff.textContent).toMatch(/-router\.get\('\/orders', list\)/);
+    expect(updateDiff.textContent).toMatch(/\+router\.get\('\/orders', domain\.list\)/);
 
     await user.click(screen.getByTestId("review-file-legacy/orders-helper.js"));
     expect(screen.getByTestId("delete-consequence").textContent).toMatch(/Delete operation/);
-    expect(screen.getByTestId("preview-delete").textContent).toMatch(/helper/);
+    const deleteDiff = screen.getByTestId("unified-diff");
+    expect(deleteDiff.textContent).toMatch(/-module\.exports = helper/);
 
     expect(screen.getByTestId("validation-ledger")).toBeTruthy();
     expect(screen.getByTestId("validation-final-outcome").textContent).toMatch(/passed/);

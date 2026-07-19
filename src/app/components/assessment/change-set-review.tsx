@@ -227,89 +227,128 @@ function RejectConfirmDialog({
   );
 }
 
-function PreviewPane({
-  label,
-  text,
-  emptyLabel,
-  tone,
+/**
+ * Compute a simple line-by-line unified diff between two text blocks.
+ * Returns an array of diff lines with their type annotation.
+ * Uses a basic LCS-based algorithm suitable for the small, truncated previews
+ * surfaced in the review payload.
+ */
+type DiffLineType = "add" | "delete" | "context";
+type DiffLine = { type: DiffLineType; content: string };
+
+function computeUnifiedDiff(
+  before: string | undefined,
+  after: string | undefined,
+  kind: ChangeSetReviewFile["kind"],
+): DiffLine[] {
+  if (kind === "create") {
+    const lines = (after ?? "").split("\n");
+    return lines.map((line) => ({ type: "add" as const, content: line }));
+  }
+  if (kind === "delete") {
+    const lines = (before ?? "").split("\n");
+    return lines.map((line) => ({ type: "delete" as const, content: line }));
+  }
+
+  // For updates: simple line-by-line LCS diff
+  const beforeLines = (before ?? "").split("\n");
+  const afterLines = (after ?? "").split("\n");
+
+  // Build LCS table
+  const m = beforeLines.length;
+  const n = afterLines.length;
+  const dp: number[][] = Array.from({ length: m + 1 }, () => Array(n + 1).fill(0));
+  for (let i = 1; i <= m; i++) {
+    for (let j = 1; j <= n; j++) {
+      dp[i]![j] =
+        beforeLines[i - 1] === afterLines[j - 1]
+          ? dp[i - 1]![j - 1]! + 1
+          : Math.max(dp[i - 1]![j]!, dp[i]![j - 1]!);
+    }
+  }
+
+  // Backtrack to produce diff
+  const result: DiffLine[] = [];
+  let i = m;
+  let j = n;
+  while (i > 0 || j > 0) {
+    if (i > 0 && j > 0 && beforeLines[i - 1] === afterLines[j - 1]) {
+      result.push({ type: "context", content: beforeLines[i - 1]! });
+      i--;
+      j--;
+    } else if (j > 0 && (i === 0 || dp[i]![j - 1]! >= dp[i - 1]![j]!)) {
+      result.push({ type: "add", content: afterLines[j - 1]! });
+      j--;
+    } else {
+      result.push({ type: "delete", content: beforeLines[i - 1]! });
+      i--;
+    }
+  }
+  result.reverse();
+  return result;
+}
+
+function diffLinePrefix(type: DiffLineType): string {
+  if (type === "add") return "+";
+  if (type === "delete") return "-";
+  return " ";
+}
+
+function diffLineClassName(type: DiffLineType): string {
+  if (type === "add") return "text-diff-add bg-diff-add-bg";
+  if (type === "delete") return "text-diff-delete bg-diff-delete-bg";
+  return "";
+}
+
+function UnifiedDiffView({
+  file,
 }: {
-  label: string;
-  text?: string;
-  emptyLabel: string;
-  tone: "before" | "after" | "delete";
+  file: ChangeSetReviewFile;
 }) {
-  const toneClass =
-    tone === "after"
-      ? "border-diff-add/30 bg-diff-add-bg/40"
-      : tone === "delete"
-        ? "border-diff-delete/30 bg-diff-delete-bg/40"
-        : "border-terminal-border";
+  const diffLines = computeUnifiedDiff(file.beforePreview, file.afterPreview, file.kind);
+  const hasContent = diffLines.length > 0 && diffLines.some((l) => l.content.length > 0);
+  const addCount = diffLines.filter((l) => l.type === "add").length;
+  const deleteCount = diffLines.filter((l) => l.type === "delete").length;
+
+  const aPath = file.kind === "create" ? "/dev/null" : `a/${file.path}`;
+  const bPath = file.kind === "delete" ? "/dev/null" : `b/${file.path}`;
 
   return (
-    <div className="min-w-0 space-y-1.5" data-testid={`preview-${tone}`}>
-      <p className="tb-mono text-[10px] uppercase tracking-wide text-text-quiet">{label}</p>
-      <div className={`tb-terminal overflow-hidden ${toneClass}`}>
-        {text !== undefined && text.length > 0 ? (
-          <pre className="max-h-64 overflow-auto p-3 tb-mono text-[11px] leading-relaxed text-terminal-fg whitespace-pre-wrap break-words">
-            {text}
-          </pre>
-        ) : (
-          <p className="p-3 tb-mono text-[11px] text-terminal-fg-muted">{emptyLabel}</p>
-        )}
+    <div className="space-y-2" data-testid="file-preview">
+      <div className="tb-terminal overflow-hidden" data-testid="unified-diff">
+        <pre className="max-h-96 overflow-auto p-3 tb-mono text-[11px] leading-relaxed text-terminal-fg whitespace-pre-wrap break-words">
+          <span className="text-text-quiet">{`diff --git a/${file.path} b/${file.path}\n`}</span>
+          <span className="text-text-quiet">{`--- ${aPath}\n`}</span>
+          <span className="text-text-quiet">{`+++ ${bPath}\n`}</span>
+          {hasContent ? (
+            <>
+              <span className="text-accent">{`@@ -1,${deleteCount > 0 || file.kind === "update" ? diffLines.filter((l) => l.type !== "add").length : 0} +1,${addCount > 0 || file.kind === "update" ? diffLines.filter((l) => l.type !== "delete").length : 0} @@\n`}</span>
+              {diffLines.map((line, index) => (
+                <span key={index} className={diffLineClassName(line.type)}>
+                  {`${diffLinePrefix(line.type)}${line.content}\n`}
+                </span>
+              ))}
+            </>
+          ) : (
+            <span className="text-terminal-fg-muted">{`(no preview content available)\n`}</span>
+          )}
+        </pre>
       </div>
+      {file.kind === "delete" ? (
+        <p className="text-[12px] text-text-quiet" data-testid="delete-consequence">
+          Delete operation — path is removed from the candidate snapshot if accepted.
+        </p>
+      ) : file.kind === "create" ? (
+        <p className="text-[12px] text-text-quiet">
+          Create operation — path does not exist in the current accepted snapshot.
+        </p>
+      ) : null}
     </div>
   );
 }
 
 function FilePreview({ file }: { file: ChangeSetReviewFile }) {
-  if (file.kind === "delete") {
-    return (
-      <div className="grid gap-3" data-testid="file-preview">
-        <PreviewPane
-          label="Before (accepted snapshot excerpt)"
-          text={file.beforePreview}
-          emptyLabel="No before preview available for this deleted path."
-          tone="delete"
-        />
-        <p className="text-[12px] text-text-quiet" data-testid="delete-consequence">
-          Delete operation — path is removed from the candidate snapshot if accepted.
-        </p>
-      </div>
-    );
-  }
-
-  if (file.kind === "create") {
-    return (
-      <div className="grid gap-3" data-testid="file-preview">
-        <PreviewPane
-          label="After (candidate snapshot excerpt)"
-          text={file.afterPreview}
-          emptyLabel="No after preview available for this created path."
-          tone="after"
-        />
-        <p className="text-[12px] text-text-quiet">
-          Create operation — path does not exist in the current accepted snapshot.
-        </p>
-      </div>
-    );
-  }
-
-  return (
-    <div className="grid gap-3 lg:grid-cols-2" data-testid="file-preview">
-      <PreviewPane
-        label="Before (accepted snapshot excerpt)"
-        text={file.beforePreview}
-        emptyLabel="No before preview available."
-        tone="before"
-      />
-      <PreviewPane
-        label="After (candidate snapshot excerpt)"
-        text={file.afterPreview}
-        emptyLabel="No after preview available."
-        tone="after"
-      />
-    </div>
-  );
+  return <UnifiedDiffView file={file} />;
 }
 
 function ValidationLedger({ report }: { report: ChangeSetReviewPayload["validationReport"] }) {
