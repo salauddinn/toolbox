@@ -586,30 +586,13 @@ export function rejectChangeSet(state: RunState): TransitionResult {
   };
 }
 
-export function stopAfterRollback(state: RunState): TransitionResult {
-  if (state.phase !== "stage_failed_rolled_back") {
-    return invalid(state.phase, "stopAfterRollback", "Stop requires rolled-back stage failure");
-  }
-  return {
-    ok: true,
-    state: {
-      ...baseOf(state),
-      phase: "sequence_stopped",
-      snapshot: state.snapshot,
-      selectedCandidate: state.selectedCandidate,
-      reason: "validation_rollback",
-      validationReport: state.validationReport,
-      acceptedChangeSets: state.acceptedChangeSets,
-    },
-  };
-}
 
 /** One developer-triggered, repair-context retry after the automatic repair has rolled back. */
 export function retryRolledBackStage(state: RunState): TransitionResult {
   if (state.phase !== "stage_failed_rolled_back") {
     return invalid(state.phase, "retryRolledBackStage", "Retry requires a rolled-back stage");
   }
-  if ((state.manualRepairRetries ?? 0) >= 2) {
+  if (state.manualRepairRetries >= 2) {
     return invalid(
       state.phase,
       "retryRolledBackStage",
@@ -629,7 +612,7 @@ export function retryRolledBackStage(state: RunState): TransitionResult {
     ok: true,
     state: {
       ...baseOf(state),
-      manualRepairRetries: (state.manualRepairRetries ?? 0) + 1,
+      manualRepairRetries: state.manualRepairRetries + 1,
       phase: "repairing",
       snapshot: state.snapshot,
       initialSnapshot: state.initialSnapshot,
