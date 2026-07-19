@@ -12,6 +12,10 @@
 /coverage
 /fixtures/**/node_modules
 /fixtures/**/coverage
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
 
 # next.js
 /.next/
