@@ -1,44 +1,45 @@
 @import "tailwindcss";
 
 /*
-  Paper + Terminal tokens
-  Default is warm light paper. Dark paper is an explicit user choice via data-theme
-  (never automatic prefers-color-scheme inversion). Terminal insets stay cooler/darker
-  than surrounding paper in both themes so the distinction survives.
-  Legacy aliases keep existing utility classes working during the redesign.
+  White + blue shell with dark terminal insets.
+  Default light theme is cool white/gray + utility blue (not warm cream paper).
+  Dark theme is an explicit user choice via data-theme (never automatic
+  prefers-color-scheme inversion). Terminal insets stay cooler/darker than the
+  surrounding shell in both themes. Token names keep *-paper roles for class
+  compatibility; values are white/blue product surfaces.
 */
 :root,
 html[data-theme="light"] {
-  /* Paper surfaces */
-  --canvas-paper: #f3eee4;
-  --surface-paper: #fffdf8;
-  --surface-inset: #ebe4d6;
+  /* Cool white surfaces */
+  --canvas-paper: #f4f5f7;
+  --surface-paper: #ffffff;
+  --surface-inset: #eef1f5;
 
-  /* Paper text — AA on paper surfaces */
-  --text-primary: #1c1917;
-  --text-secondary: #44403c;
-  --text-quiet: #57534e;
+  /* Text — AA on white surfaces */
+  --text-primary: #0b1220;
+  --text-secondary: #5b667a;
+  --text-quiet: #7b879a;
 
   /* Borders and focus */
-  --border-subtle: #d6ceb8;
-  --border-strong: #a89f88;
-  --focus: #0b57d0;
+  --border-subtle: #d8dee8;
+  --border-strong: #b8c2d1;
+  --focus: #0b5fff;
 
   /* Accents and status */
-  --accent-action: #0b57d0;
-  --accent-action-hover: #0842a0;
+  --accent-action: #0b5fff;
+  --accent-action-hover: #0847c7;
   --accent-action-foreground: #ffffff;
   --accent-action-soft: #e8f0ff;
-  --success: #0f6b3c;
-  --warning: #8a4b00;
-  --danger: #a1192e;
+  --success: #0f7a45;
+  --warning: #a35b00;
+  --danger: #c81e4a;
 
   /* Terminal surfaces (always dark insets) */
-  --surface-terminal: #0e141b;
-  --surface-terminal-raised: #151c25;
-  --terminal-fg: #e6edf5;
-  --terminal-fg-muted: #9aa7b8;
-  --terminal-border: #2a3544;
+  --surface-terminal: #0f172a;
+  --surface-terminal-raised: #151c29;
+  --terminal-fg: #e2e8f0;
+  --terminal-fg-muted: #94a3b8;
+  --terminal-border: #243044;
 
   /* Diff semantics on terminal */
   --diff-add: #3dd68c;
@@ -50,11 +51,11 @@ html[data-theme="light"] {
 
   /* Shape / elevation */
   --radius: 8px;
-  --shadow-soft: 0 1px 0 rgba(28, 25, 23, 0.04), 0 1px 2px rgba(28, 25, 23, 0.05);
-  --shadow-lift: 0 1px 0 rgba(28, 25, 23, 0.05), 0 8px 24px rgba(28, 25, 23, 0.08);
-  --grid: rgba(28, 25, 23, 0.045);
+  --shadow-soft: 0 1px 0 rgba(11, 18, 32, 0.04), 0 1px 2px rgba(11, 18, 32, 0.04);
+  --shadow-lift: 0 1px 0 rgba(11, 18, 32, 0.05), 0 8px 24px rgba(11, 18, 32, 0.08);
+  --grid: rgba(11, 18, 32, 0.045);
 
-  /* Legacy aliases → paper/terminal roles */
+  /* Legacy aliases → shell/terminal roles */
   --background: var(--canvas-paper);
   --foreground: var(--text-primary);
   --surface: var(--surface-paper);
@@ -68,44 +69,42 @@ html[data-theme="light"] {
   --accent-foreground: var(--accent-action-foreground);
   --accent-soft: var(--accent-action-soft);
   --ink: var(--text-primary);
-  --panel-head: color-mix(in srgb, var(--surface-inset) 72%, var(--surface-paper));
+  --panel-head: #f0f3f7;
   --code-bg: var(--surface-terminal);
   --code-fg: var(--terminal-fg);
   color-scheme: light;
 }
 
 /*
-  Explicit dark-paper theme — warm dark shell, cooler near-black terminal.
+  Explicit dark theme — cool slate shell, deeper terminal inset.
   Opt-in only through data-theme="dark" (user toggle + localStorage).
 */
 html[data-theme="dark"] {
-  /* Warm dark paper stays clearly above near-black terminal */
-  --canvas-paper: #1d1813;
-  --surface-paper: #2b241c;
-  --surface-inset: #3a3126;
+  --canvas-paper: #0a0e14;
+  --surface-paper: #111722;
+  --surface-inset: #1a2231;
 
-  --text-primary: #f6eee3;
-  --text-secondary: #d0c0ab;
-  --text-quiet: #b0a08c;
+  --text-primary: #e6ebf2;
+  --text-secondary: #93a0b5;
+  --text-quiet: #6d7b91;
 
-  --border-subtle: #4a3f32;
-  --border-strong: #7a6850;
-  --focus: #8bb8ff;
+  --border-subtle: #243044;
+  --border-strong: #334560;
+  --focus: #6aa0ff;
 
-  --accent-action: #d7e6ff;
-  --accent-action-hover: #eaf2ff;
-  --accent-action-foreground: #071018;
-  --accent-action-soft: rgba(215, 230, 255, 0.18);
-  --success: #3dcf8e;
-  --warning: #e0a84a;
+  --accent-action: #4c8dff;
+  --accent-action-hover: #6aa0ff;
+  --accent-action-foreground: #041022;
+  --accent-action-soft: #13233f;
+  --success: #3ecf8e;
+  --warning: #e8b34a;
   --danger: #f0718b;
 
-  /* Cool near-black terminal inset — keep a strong paper/terminal split */
-  --surface-terminal: #05080c;
-  --surface-terminal-raised: #0b1118;
-  --terminal-fg: #eaf0f7;
-  --terminal-fg-muted: #9eb0c2;
-  --terminal-border: #3a4b60;
+  --surface-terminal: #080c12;
+  --surface-terminal-raised: #0f1622;
+  --terminal-fg: #d7e0ee;
+  --terminal-fg-muted: #8b9bb0;
+  --terminal-border: #2a3a52;
 
   --diff-add: #3dd68c;
   --diff-add-bg: rgba(61, 214, 140, 0.16);
@@ -114,9 +113,9 @@ html[data-theme="dark"] {
   --diff-delete: #f0718b;
   --diff-delete-bg: rgba(240, 113, 139, 0.16);
 
-  --shadow-soft: 0 1px 0 rgba(0, 0, 0, 0.28), 0 1px 2px rgba(0, 0, 0, 0.32);
-  --shadow-lift: 0 1px 0 rgba(0, 0, 0, 0.3), 0 12px 28px rgba(0, 0, 0, 0.42);
-  --grid: rgba(243, 235, 224, 0.045);
+  --shadow-soft: 0 1px 0 rgba(0, 0, 0, 0.35);
+  --shadow-lift: 0 1px 0 rgba(0, 0, 0, 0.35), 0 12px 28px rgba(0, 0, 0, 0.45);
+  --grid: rgba(230, 235, 242, 0.035);
 
   --background: var(--canvas-paper);
   --foreground: var(--text-primary);
@@ -131,7 +130,7 @@ html[data-theme="dark"] {
   --accent-foreground: var(--accent-action-foreground);
   --accent-soft: var(--accent-action-soft);
   --ink: var(--text-primary);
-  --panel-head: color-mix(in srgb, var(--surface-inset) 72%, var(--surface-paper));
+  --panel-head: #0f1622;
   --code-bg: var(--surface-terminal);
   --code-fg: var(--terminal-fg);
   color-scheme: dark;

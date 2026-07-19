@@ -189,7 +189,7 @@ export function MarketingLanding() {
           <div className="space-y-4">
             <h1
               id="landing-hero-heading"
-              className="tb-serif max-w-2xl text-[2rem] font-semibold leading-[1.15] tracking-tight text-text-primary sm:text-[2.55rem]"
+              className="max-w-2xl text-[2rem] font-semibold leading-[1.15] tracking-tight text-text-primary sm:text-[2.55rem]"
             >
               Find a domain you can modularize safely. Prove it with code evidence. Let AI change
               only what you authorize.
