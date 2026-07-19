@@ -87,6 +87,40 @@ describe("stage runner", () => {
     }
   });
 
+  it("uses deterministic generation for a demo run without provider credentials", async () => {
+    const store = new RunStore();
+    const assessed = await startAssessment({
+      clientKeyHash: "demo-stage",
+      source: { type: "fixture", fixtureId: "controlled-example", demo: true },
+      store,
+    });
+    expect(assessed.ok).toBe(true);
+    if (!assessed.ok) return;
+    const assessedRun = assessed.run;
+    if (assessedRun.phase !== "assessed") return;
+    const ready = assessedRun.ranking.candidates.find(
+      (candidate) => assessedRun.readinessByCandidateId.get(candidate.id)?.ready,
+    );
+    expect(ready).toBeDefined();
+    if (!ready) return;
+    const selected = selectDomainCandidate({
+      runId: assessedRun.runId,
+      candidateId: ready.id,
+      clientKeyHash: "demo-stage",
+      store,
+    });
+    expect(selected.ok).toBe(true);
+    if (!selected.ok) return;
+
+    const generated = await authorizeAndGenerate({
+      runId: selected.run.runId,
+      clientKeyHash: "demo-stage",
+      store,
+    });
+    expect(generated.ok).toBe(true);
+    if (generated.ok) expect(generated.run.phase).toBe("awaiting_acceptance");
+  });
+
   it("keeps an over-budget provider output out of the candidate snapshot", async () => {
     const store = new RunStore();
     const run = await readyRun(store, "stage-provider-output-budget");

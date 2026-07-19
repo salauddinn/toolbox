@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AssessmentDecision } from "./assessment/assessment-decision";
 import { EvidenceInspector } from "./assessment/evidence-inspector";
 import type { EvidenceInspectorState, InspectRequest } from "./assessment/evidence-types";
@@ -95,15 +95,23 @@ function presentationStateFor(
   return { kind: "run", phase: run.phase };
 }
 
-export function AssessmentApp() {
+export function AssessmentApp({ demo = false }: { demo?: boolean }) {
   const [url, setUrl] = useState("");
   const [inspector, setInspector] = useState<EvidenceInspectorState | null>(null);
   const inspectorTriggerRef = useRef<HTMLElement | null>(null);
   const [confirmingEnd, setConfirmingEnd] = useState(false);
   const [confirmingReplace, setConfirmingReplace] = useState(false);
   const [refreshingReview, setRefreshingReview] = useState(false);
-  const assessment = useAssessmentRun();
-  const { run, busy, error, blockedStart, pickedCandidateId, setPickedCandidateId } = assessment;
+  const assessment = useAssessmentRun({ demo });
+  const { run, busy, error, blockedStart, pickedCandidateId, setPickedCandidateId, startFixture } =
+    assessment;
+  const demoStartedRef = useRef(false);
+
+  useEffect(() => {
+    if (!demo || demoStartedRef.current) return;
+    demoStartedRef.current = true;
+    void startFixture();
+  }, [demo, startFixture]);
   const state = presentationStateFor(
     run,
     assessment.pendingState,
@@ -376,19 +384,76 @@ export function AssessmentApp() {
           footer={outcomeFooter}
         >
           {!run ? (
-            <RepositoryStart
-              url={url}
-              onUrlChange={setUrl}
-              busy={busy}
-              error={error}
-              blockedStart={blockedStart}
-              confirmingReplace={confirmingReplace}
-              onConfirmingReplaceChange={setConfirmingReplace}
-              onStartFixture={() => void assessment.startFixture()}
-              onStartGithub={(nextUrl) => void assessment.startGithub(nextUrl)}
-              onReplacePreviousRun={() => void assessment.replacePreviousRun()}
-              onDismissConflict={() => assessment.dismissStartConflict()}
-            />
+            demo ? (
+              <section
+                className="tb-panel mx-auto max-w-2xl overflow-hidden"
+                aria-labelledby="demo-start-heading"
+              >
+                <div className="tb-panel-head">
+                  <div>
+                    <p className="tb-mono text-[10px] uppercase tracking-wide text-accent-action">
+                      no-ai walkthrough
+                    </p>
+                    <h2
+                      id="demo-start-heading"
+                      className="text-[15px] font-semibold text-text-primary"
+                    >
+                      Preparing the controlled example
+                    </h2>
+                  </div>
+                  <span className="tb-chip tb-chip-accent">deterministic</span>
+                </div>
+                <div className="space-y-4 p-4 sm:p-5">
+                  <p className="text-[13px] leading-relaxed text-text-secondary">
+                    This walkthrough analyzes the bundled repository and uses deterministic stage
+                    output. It never sends a request to an AI provider.
+                  </p>
+                  {blockedStart ? (
+                    <div className="space-y-3 rounded-md border border-border-subtle bg-surface-inset p-3">
+                      <p className="text-[13px] text-text-secondary">
+                        You already have an active run in this browser. Open the work console to
+                        finish or end it, then return to the demo.
+                      </p>
+                      <Link href="/app" className="tb-btn tb-btn-secondary">
+                        Open work console
+                      </Link>
+                    </div>
+                  ) : error ? (
+                    <div
+                      className="space-y-3 rounded-md border border-danger/30 bg-danger/5 p-3"
+                      role="alert"
+                    >
+                      <p className="text-[13px] text-danger">The demo could not start: {error}</p>
+                      <button
+                        type="button"
+                        onClick={() => void startFixture()}
+                        className="tb-btn tb-btn-secondary"
+                      >
+                        Try demo again
+                      </button>
+                    </div>
+                  ) : (
+                    <p className="tb-mono text-[11px] text-text-quiet" aria-live="polite">
+                      {busy ? "loading → safety → eligibility → analyze → rank…" : "starting demo…"}
+                    </p>
+                  )}
+                </div>
+              </section>
+            ) : (
+              <RepositoryStart
+                url={url}
+                onUrlChange={setUrl}
+                busy={busy}
+                error={error}
+                blockedStart={blockedStart}
+                confirmingReplace={confirmingReplace}
+                onConfirmingReplaceChange={setConfirmingReplace}
+                onStartFixture={() => void startFixture()}
+                onStartGithub={(nextUrl) => void assessment.startGithub(nextUrl)}
+                onReplacePreviousRun={() => void assessment.replacePreviousRun()}
+                onDismissConflict={() => assessment.dismissStartConflict()}
+              />
+            )
           ) : null}
 
           {run ? <SupportedContractDetails defaultOpen={false} /> : null}

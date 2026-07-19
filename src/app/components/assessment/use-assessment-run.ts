@@ -53,7 +53,7 @@ function phaseStep(run: PublicRunView | null): WorkflowStep {
   return "repository";
 }
 
-export function useAssessmentRun() {
+export function useAssessmentRun(options: { demo?: boolean } = {}) {
   const [run, setRun] = useState<PublicRunView | null>(null);
   const [pendingState, setPendingState] = useState<PendingState | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -142,8 +142,13 @@ export function useAssessmentRun() {
   );
 
   const startFixture = useCallback(
-    () => start({ source: "fixture", fixtureId: "controlled-example" }),
-    [start],
+    () =>
+      start({
+        source: "fixture",
+        fixtureId: "controlled-example",
+        ...(options.demo ? { demo: true } : {}),
+      }),
+    [options.demo, start],
   );
 
   const startGithub = useCallback(

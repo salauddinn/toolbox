@@ -166,14 +166,14 @@ export function MarketingLanding() {
             <Link href="/app" className="tb-btn tb-btn-primary h-11 px-5 text-sm">
               Open work console
             </Link>
-            <a href="#how-it-works" className="tb-btn tb-btn-secondary h-11 px-5 text-sm">
-              See how it works
-            </a>
+            <Link href="/demo" className="tb-btn tb-btn-secondary h-11 px-5 text-sm">
+              See how it works — no AI
+            </Link>
           </div>
 
           <p className="max-w-xl text-[12px] leading-relaxed text-text-quiet">
-            Reliable demo: work console →{" "}
-            <span className="font-medium text-text-secondary">Try controlled example</span>
+            The demo uses a controlled repository and deterministic output. It never needs an API
+            key or calls an AI provider.
           </p>
 
           <dl className="grid max-w-lg grid-cols-3 gap-2 pt-1">
@@ -289,8 +289,8 @@ export function MarketingLanding() {
               From general-purpose AI to purpose-built modernization
             </h2>
             <p className="mt-0.5 text-[12px] text-text-secondary">
-              AI coding assistants are powerful. ToolBox adds the structure, evidence, and validation
-              gates that monolith modernization specifically needs.
+              AI coding assistants are powerful. ToolBox adds the structure, evidence, and
+              validation gates that monolith modernization specifically needs.
             </p>
           </div>
           <span className="tb-chip tb-chip-accent">compare</span>
@@ -305,35 +305,47 @@ export function MarketingLanding() {
               </h3>
             </div>
             <ul className="divide-y divide-border-subtle">
-              {([
-                {
-                  label: "Discovery",
-                  detail: "Responds based on available context. You describe what to extract; AI suggests based on the files it can see.",
-                },
-                {
-                  label: "Evidence",
-                  detail: "Conversational explanation. No structured dependency graph or scored readiness ranking.",
-                },
-                {
-                  label: "Scope control",
-                  detail: "Broad flexibility — AI can touch any file in a single response, which is great for general tasks.",
-                },
-                {
-                  label: "Validation",
-                  detail: "You verify the output manually or run your own test suite after each change.",
-                },
-                {
-                  label: "Approval gate",
-                  detail: "Changes are presented as a diff or applied directly. Review happens after generation.",
-                },
-                {
-                  label: "Repair",
-                  detail: "If something breaks, you iterate with follow-up prompts until it works.",
-                },
-              ] as const).map((row) => (
+              {(
+                [
+                  {
+                    label: "Discovery",
+                    detail:
+                      "Responds based on available context. You describe what to extract; AI suggests based on the files it can see.",
+                  },
+                  {
+                    label: "Evidence",
+                    detail:
+                      "Conversational explanation. No structured dependency graph or scored readiness ranking.",
+                  },
+                  {
+                    label: "Scope control",
+                    detail:
+                      "Broad flexibility — AI can touch any file in a single response, which is great for general tasks.",
+                  },
+                  {
+                    label: "Validation",
+                    detail:
+                      "You verify the output manually or run your own test suite after each change.",
+                  },
+                  {
+                    label: "Approval gate",
+                    detail:
+                      "Changes are presented as a diff or applied directly. Review happens after generation.",
+                  },
+                  {
+                    label: "Repair",
+                    detail:
+                      "If something breaks, you iterate with follow-up prompts until it works.",
+                  },
+                ] as const
+              ).map((row) => (
                 <li key={row.label} className="px-4 py-2.5">
-                  <p className="tb-mono text-[10px] uppercase tracking-wide text-text-quiet">{row.label}</p>
-                  <p className="mt-1 text-[12px] leading-relaxed text-text-secondary">{row.detail}</p>
+                  <p className="tb-mono text-[10px] uppercase tracking-wide text-text-quiet">
+                    {row.label}
+                  </p>
+                  <p className="mt-1 text-[12px] leading-relaxed text-text-secondary">
+                    {row.detail}
+                  </p>
                 </li>
               ))}
             </ul>
@@ -346,40 +358,50 @@ export function MarketingLanding() {
           <div className="min-w-0">
             <div className="flex items-center gap-2 border-b border-border-subtle bg-diff-add-bg px-4 py-2.5">
               <span className="tb-chip tb-chip-ok">toolbox</span>
-              <h3 className="text-[13px] font-semibold text-text-primary">
-                With ToolBox
-              </h3>
+              <h3 className="text-[13px] font-semibold text-text-primary">With ToolBox</h3>
             </div>
             <ul className="divide-y divide-border-subtle">
-              {([
-                {
-                  label: "Discovery",
-                  detail: "Deterministic AST analysis ranks Domain Candidates by coupling, routes, models, and cycles — before AI is called.",
-                },
-                {
-                  label: "Evidence",
-                  detail: "Clickable code evidence — imports, callers, database writes — with scored readiness and blocking signals.",
-                },
-                {
-                  label: "Scope control",
-                  detail: "Stage Plan defines a path envelope and budget. AI generation stays inside the authorized boundary.",
-                },
-                {
-                  label: "Validation",
-                  detail: "Static Validation checks syntax, path scope, route table, and schema fingerprints automatically after every change.",
-                },
-                {
-                  label: "Approval gate",
-                  detail: "Explicit Change Acceptance after reviewing the validated diff. AI cannot self-apply any output.",
-                },
-                {
-                  label: "Repair",
-                  detail: "One bounded repair attempt with automatic re-validation. Second failure rolls back to last accepted snapshot.",
-                },
-              ] as const).map((row) => (
+              {(
+                [
+                  {
+                    label: "Discovery",
+                    detail:
+                      "Deterministic AST analysis ranks Domain Candidates by coupling, routes, models, and cycles — before AI is called.",
+                  },
+                  {
+                    label: "Evidence",
+                    detail:
+                      "Clickable code evidence — imports, callers, database writes — with scored readiness and blocking signals.",
+                  },
+                  {
+                    label: "Scope control",
+                    detail:
+                      "Stage Plan defines a path envelope and budget. AI generation stays inside the authorized boundary.",
+                  },
+                  {
+                    label: "Validation",
+                    detail:
+                      "Static Validation checks syntax, path scope, route table, and schema fingerprints automatically after every change.",
+                  },
+                  {
+                    label: "Approval gate",
+                    detail:
+                      "Explicit Change Acceptance after reviewing the validated diff. AI cannot self-apply any output.",
+                  },
+                  {
+                    label: "Repair",
+                    detail:
+                      "One bounded repair attempt with automatic re-validation. Second failure rolls back to last accepted snapshot.",
+                  },
+                ] as const
+              ).map((row) => (
                 <li key={row.label} className="px-4 py-2.5">
-                  <p className="tb-mono text-[10px] uppercase tracking-wide text-text-quiet">{row.label}</p>
-                  <p className="mt-1 text-[12px] leading-relaxed text-text-secondary">{row.detail}</p>
+                  <p className="tb-mono text-[10px] uppercase tracking-wide text-text-quiet">
+                    {row.label}
+                  </p>
+                  <p className="mt-1 text-[12px] leading-relaxed text-text-secondary">
+                    {row.detail}
+                  </p>
                 </li>
               ))}
             </ul>
@@ -391,9 +413,9 @@ export function MarketingLanding() {
         </div>
 
         <div className="border-t border-border-subtle bg-surface-inset/40 px-4 py-3 text-[12px] leading-relaxed text-text-secondary">
-          <strong className="font-medium text-text-primary">Built with Codex.</strong>{" "}
-          ToolBox itself was developed using OpenAI Codex for planning, code generation, and testing —
-          then adds deterministic analysis, validation, and approval gates on top.
+          <strong className="font-medium text-text-primary">Built with Codex.</strong> ToolBox
+          itself was developed using OpenAI Codex for planning, code generation, and testing — then
+          adds deterministic analysis, validation, and approval gates on top.
         </div>
       </section>
 

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { cleanup, render, screen, within } from "@testing-library/react";
+import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { AssessmentApp } from "./components/assessment-app";
@@ -33,9 +33,9 @@ describe("product landing", () => {
       }),
     ).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Open work console" })).toHaveAttribute("href", "/app");
-    expect(screen.getByRole("link", { name: "See how it works" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "See how it works — no AI" })).toHaveAttribute(
       "href",
-      "#how-it-works",
+      "/demo",
     );
     expect(screen.getByRole("link", { name: "Go to work console" })).toHaveAttribute(
       "href",
@@ -50,7 +50,7 @@ describe("product landing", () => {
     expect(hero).toHaveTextContent(/authorize a Stage Plan/i);
     expect(hero).toHaveTextContent(/applies nothing until you accept/i);
     expect(hero).toHaveTextContent(/Same deploy/i);
-    expect(hero).toHaveTextContent(/Try controlled example/i);
+    expect(hero).toHaveTextContent(/deterministic output/i);
     expect(hero).toHaveTextContent("3–4");
     expect(hero).toHaveTextContent("Bounded");
     expect(hero).toHaveTextContent("Never");
@@ -154,6 +154,35 @@ describe("product landing", () => {
 });
 
 describe("assessment no-run screen", () => {
+  it("starts the dedicated demo with a deterministic server-side marker", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      jsonResponse(200, {
+        ok: true,
+        run: {
+          runId: "demo-run",
+          phase: "assessed",
+          ranking: { candidates: [] },
+          readinessByCandidateId: {},
+        },
+      }),
+    );
+
+    render(<AssessmentApp demo />);
+
+    expect(
+      screen.getByRole("heading", { name: "Preparing the controlled example" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/never sends a request to an AI provider/i)).toBeInTheDocument();
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/runs",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ source: "fixture", fixtureId: "controlled-example", demo: true }),
+      }),
+    );
+  });
+
   it("renders distinct controlled-example and GitHub entry paths", () => {
     render(<AssessmentApp />);
 

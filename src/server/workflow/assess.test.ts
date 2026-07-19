@@ -32,6 +32,21 @@ describe("assessment workflow", () => {
     }
   });
 
+  it("marks the controlled example as a deterministic demo run", async () => {
+    const store = new RunStore();
+    const result = await startAssessment({
+      clientKeyHash: "demo-client",
+      source: { type: "fixture", fixtureId: "controlled-example", demo: true },
+      store,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    if (result.run.phase === "assessed" || result.run.phase === "not_ready") {
+      expect(result.run.snapshot.sourceLabel).toBe("demo:controlled-example");
+    }
+  });
+
   it("stops on unsupported ESM with eligibility failure and no analysis ranking", async () => {
     const store = new RunStore();
     const result = await startAssessment({

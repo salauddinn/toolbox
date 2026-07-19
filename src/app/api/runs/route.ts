@@ -17,7 +17,8 @@ const FIXTURE_IDS = new Set<FixtureId>([
   "ambiguous-package-manager",
 ]);
 
-type StartBody = { source: "fixture"; fixtureId: string } | { source: "github"; url: string };
+type StartBody =
+  { source: "fixture"; fixtureId: string; demo?: boolean } | { source: "github"; url: string };
 
 /**
  * POST /api/runs — start Modernization Assessment (no AI).
@@ -48,9 +49,25 @@ export async function POST(request: Request) {
         ),
       );
     }
+    if (body.demo === true && body.fixtureId !== "controlled-example") {
+      return respond(
+        NextResponse.json(
+          {
+            ok: false,
+            code: "INVALID_DEMO_FIXTURE",
+            message: "Demo mode is available only for the controlled example",
+          },
+          { status: 400 },
+        ),
+      );
+    }
     const result = await startAssessment({
       clientKeyHash: bound.clientKeyHash,
-      source: { type: "fixture", fixtureId: body.fixtureId as FixtureId },
+      source: {
+        type: "fixture",
+        fixtureId: body.fixtureId as FixtureId,
+        demo: body.demo === true,
+      },
     });
     if (!result.ok) {
       return respond(

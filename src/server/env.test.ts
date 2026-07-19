@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, it } from "vitest";
 import {
   DEFAULT_AI_INPUT_TOKEN_BUDGET,
+  DEFAULT_AI_BASE_URL,
+  DEFAULT_AI_MODEL,
   DEFAULT_AI_OUTPUT_TOKEN_BUDGET,
   DEFAULT_AI_REQUEST_TIMEOUT_MS,
   MAX_AI_INPUT_TOKEN_BUDGET,
@@ -35,6 +37,24 @@ describe("validateServerEnv", () => {
       expect(result.env.AI_REQUEST_TIMEOUT_MS).toBe(DEFAULT_AI_REQUEST_TIMEOUT_MS);
       expect(result.env.GITHUB_TOKEN).toBeUndefined();
     }
+  });
+
+  it("defaults the primary provider to ClinePass MiniMax M3", () => {
+    const result = validateServerEnv({ AI_API_KEY: "cline-key-not-real", NODE_ENV: "test" });
+    expect(result).toEqual({
+      ok: true,
+      env: expect.objectContaining({
+        AI_BASE_URL: DEFAULT_AI_BASE_URL,
+        AI_MODEL: DEFAULT_AI_MODEL,
+      }),
+    });
+  });
+
+  it("allows Gemini or OpenAI to be configured without a ClinePass key", () => {
+    const gemini = validateServerEnv({ GEMINI_API_KEY: "gemini-key-not-real", NODE_ENV: "test" });
+    const openai = validateServerEnv({ OPENAI_API_KEY: "openai-key-not-real", NODE_ENV: "test" });
+    expect(gemini.ok).toBe(true);
+    expect(openai.ok).toBe(true);
   });
 
   it("accepts configured provider request timeout within range", () => {
@@ -147,14 +167,14 @@ describe("validateServerEnv", () => {
     expect(result.ok).toBe(false);
   });
 
-  it("lists every missing required field", () => {
+  it("requires at least one configured AI provider key", () => {
     const result = validateServerEnv({});
     expect(result.ok).toBe(false);
     if (!result.ok) {
       const joined = result.issues.join(" ");
-      expect(joined).toContain("AI_BASE_URL");
       expect(joined).toContain("AI_API_KEY");
-      expect(joined).toContain("AI_MODEL");
+      expect(joined).toContain("GEMINI_API_KEY");
+      expect(joined).toContain("OPENAI_API_KEY");
     }
   });
 });
@@ -177,6 +197,8 @@ describe("getServerEnv", () => {
 describe("SECRET_ENV_KEYS", () => {
   it("tracks credentials that must stay server-side", () => {
     expect(SECRET_ENV_KEYS).toContain("AI_API_KEY");
+    expect(SECRET_ENV_KEYS).toContain("GEMINI_API_KEY");
+    expect(SECRET_ENV_KEYS).toContain("OPENAI_API_KEY");
     expect(SECRET_ENV_KEYS).toContain("GITHUB_TOKEN");
     expect(SECRET_ENV_KEYS).toContain("TOOLBOX_SESSION_SECRET");
   });

@@ -9,7 +9,11 @@ const SESSION_ID_BYTES = 24;
 
 function sessionSecret(): string {
   return (
-    process.env.TOOLBOX_SESSION_SECRET || process.env.AI_API_KEY || "toolbox-dev-session-secret"
+    process.env.TOOLBOX_SESSION_SECRET ||
+    process.env.AI_API_KEY ||
+    process.env.GEMINI_API_KEY ||
+    process.env.OPENAI_API_KEY ||
+    "toolbox-dev-session-secret"
   );
 }
 

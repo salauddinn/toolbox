@@ -6,6 +6,7 @@ import {
   estimateChatRequestBytes,
   estimateCompletionBytes,
   delimitUntrustedSource,
+  FallbackAiProvider,
   OpenAiCompatibleProvider,
   validateOperationsAgainstStage,
 } from "./provider";
@@ -86,6 +87,75 @@ describe("AI provider adapter", () => {
     if (result.ok) {
       expect(result.operations).toHaveLength(1);
     }
+  });
+
+  it("uses the next provider only after a retryable provider failure", async () => {
+    let fallbackCalls = 0;
+    const provider = new FallbackAiProvider([
+      {
+        generate: async () => ({
+          ok: false as const,
+          code: "PROVIDER_TRANSPORT" as const,
+          message: "temporarily unavailable",
+          retryable: true,
+        }),
+      },
+      {
+        generate: async () => {
+          fallbackCalls += 1;
+          return {
+            ok: true as const,
+            operations: [
+              {
+                type: "create" as const,
+                path: assertNormalizedPath("tests/fallback.test.js"),
+                content: "test('fallback', () => {});",
+              },
+            ],
+            rawText: "{}",
+            attempt: 1 as const,
+          };
+        },
+      },
+    ]);
+
+    const result = await provider.generate({
+      stage: stage(),
+      untrustedSourceBlock: delimitUntrustedSource("code"),
+      instructions: "go",
+    });
+
+    expect(result.ok).toBe(true);
+    expect(fallbackCalls).toBe(1);
+  });
+
+  it("does not fail over after a non-retryable provider failure", async () => {
+    let fallbackCalls = 0;
+    const provider = new FallbackAiProvider([
+      {
+        generate: async () => ({
+          ok: false as const,
+          code: "PROVIDER_HTTP" as const,
+          message: "invalid request",
+          retryable: false,
+        }),
+      },
+      {
+        generate: async () => {
+          fallbackCalls += 1;
+          throw new Error("must not run");
+        },
+      },
+    ]);
+
+    const result = await provider.generate({
+      stage: stage(),
+      untrustedSourceBlock: delimitUntrustedSource("code"),
+      instructions: "go",
+    });
+
+    expect(result).toMatchObject({ ok: false, code: "PROVIDER_HTTP" });
+    expect(fallbackCalls).toBe(0);
   });
 
   it("rejects invalid JSON and schema without mutating", async () => {

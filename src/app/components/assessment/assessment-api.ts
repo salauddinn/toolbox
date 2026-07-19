@@ -1,7 +1,7 @@
 import type { PublicRunView } from "@/server/workflow/public-view";
 
 export type StartAssessmentBody =
-  { source: "fixture"; fixtureId: string } | { source: "github"; url: string };
+  { source: "fixture"; fixtureId: string; demo?: boolean } | { source: "github"; url: string };
 
 export type SelectCandidateBody = {
   candidateId: string;

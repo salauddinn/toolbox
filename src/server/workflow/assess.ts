@@ -23,7 +23,7 @@ import {
 import { screenRepositorySafety } from "@/server/safety/screen";
 
 export type AssessSource =
-  { type: "fixture"; fixtureId: FixtureId } | { type: "github"; url: string };
+  { type: "fixture"; fixtureId: FixtureId; demo?: boolean } | { type: "github"; url: string };
 
 export type AssessError = {
   ok: false;
@@ -140,7 +140,11 @@ export async function startAssessment(input: {
   }
 
   const sourceLabel =
-    input.source.type === "fixture" ? `fixture:${input.source.fixtureId}` : input.source.url;
+    input.source.type === "fixture"
+      ? input.source.demo
+        ? `demo:${input.source.fixtureId}`
+        : `fixture:${input.source.fixtureId}`
+      : input.source.url;
 
   const loading = beginLoading(run, sourceLabel);
   if (!loading.ok) {
@@ -160,6 +164,9 @@ export async function startAssessment(input: {
     let snapshot;
     if (input.source.type === "fixture") {
       snapshot = loadFixtureSnapshot(input.source.fixtureId);
+      if (input.source.demo) {
+        snapshot = { ...snapshot, sourceLabel };
+      }
     } else {
       const env = validateServerEnv();
       const token = input.githubToken ?? (env.ok ? env.env.GITHUB_TOKEN : undefined);

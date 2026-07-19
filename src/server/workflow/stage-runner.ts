@@ -14,7 +14,7 @@ import {
 import { assertNormalizedPath } from "@/core/paths";
 import type { ValidationReport } from "@/core/validation";
 import type { AiProvider } from "@/server/ai/provider";
-import { OpenAiCompatibleProvider } from "@/server/ai/provider";
+import { createConfiguredAiProvider, OpenAiCompatibleProvider } from "@/server/ai/provider";
 import { generateDeterministicOperations } from "@/server/generation/deterministic";
 import { buildStageInstructions, buildUntrustedBlock } from "@/server/generation/prompts";
 import { applyOperationsToSnapshot } from "@/server/snapshot/apply";
@@ -194,12 +194,19 @@ export async function authorizeAndGenerate(
   }
   run = authorized.state;
   store.set(run);
+  const generationRun = run as GenRun;
 
-  const provider = input.provider ?? new OpenAiCompatibleProvider();
-  const deterministic = input.forceDeterministic ?? shouldUseDeterministicGeneration();
+  const deterministic =
+    input.forceDeterministic ??
+    (shouldUseDeterministicGeneration() ||
+      generationRun.snapshot.sourceLabel === "demo:controlled-example");
+  // A no-AI demo intentionally does not validate or load provider credentials.
+  const provider =
+    input.provider ??
+    (deterministic ? new OpenAiCompatibleProvider() : createConfiguredAiProvider());
 
   return runGenerateValidateLoop({
-    run: run as GenRun,
+    run: generationRun,
     store,
     provider,
     deterministic,
