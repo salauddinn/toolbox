@@ -122,19 +122,27 @@ These URLs are runtime inputs, not hard-coded product outcomes. ToolBox reruns e
 ```bash
 npm install
 cp .env.example .env.local
-# Fill AI_BASE_URL, AI_API_KEY, and AI_MODEL.
+# Fill AI_BASE_URL, AI_API_KEY, and AI_MODEL for normal AI generation.
 # Optional AI_INPUT_TOKEN_BUDGET (65536 default; 1000000 maximum) and
 # AI_OUTPUT_TOKEN_BUDGET (32768 default; 131072 maximum) are server-side provider request budgets.
 # They use deterministic UTF-8 byte estimates plus a chat framing safety reserve, not exact tokenizer counts.
 # The 32768 output budget is a stricter outer gate than Stage Plan operation/byte ceilings,
 # so a Stage Plan with larger byte ceilings can be unreachable in one provider response.
+# Optional AI_REQUEST_TIMEOUT_MS (180000 default; 10000–600000) is the single provider HTTP timeout.
 # GITHUB_TOKEN is optional and used only for public-repository rate capacity.
 npm run dev
 ```
 
 Never prefix secrets with `NEXT_PUBLIC_`. API keys remain server-side.
 
-For tests and offline fixture development only, `TOOLBOX_DETERMINISTIC_GENERATION=1` replaces provider generation with fixture-shaped deterministic operations. Do not enable it when demonstrating live AI generation.
+### Generation modes (both supported)
+
+| Mode | How | Use when |
+| --- | --- | --- |
+| **Normal AI** (default) | Leave `TOOLBOX_DETERMINISTIC_GENERATION` unset/`0`. Set `AI_*`. | Live authorize/generate with your provider |
+| **Toolbox deterministic** | `TOOLBOX_DETERMINISTIC_GENERATION=1` | Offline demos, fixtures, or when you want no live model call |
+
+Run one mode per process. For slow providers, raise `AI_REQUEST_TIMEOUT_MS` (for example `300000`) instead of switching modes.
 
 ## Scripts
 

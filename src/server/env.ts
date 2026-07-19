@@ -8,12 +8,22 @@ export const DEFAULT_AI_INPUT_TOKEN_BUDGET = 64 * 1024;
  */
 export const DEFAULT_AI_OUTPUT_TOKEN_BUDGET = 32 * 1024;
 
+/** Default single provider HTTP request timeout (slow models often exceed 60s). */
+export const DEFAULT_AI_REQUEST_TIMEOUT_MS = 180_000;
+
 /** Operational caps keep untrusted environment configuration from producing impractical requests. */
 export const MAX_AI_INPUT_TOKEN_BUDGET = 1_000_000;
 export const MAX_AI_OUTPUT_TOKEN_BUDGET = 128 * 1024;
+export const MIN_AI_REQUEST_TIMEOUT_MS = 10_000;
+export const MAX_AI_REQUEST_TIMEOUT_MS = 600_000;
 
 const inputTokenBudgetSchema = z.coerce.number().int().min(1).max(MAX_AI_INPUT_TOKEN_BUDGET);
 const outputTokenBudgetSchema = z.coerce.number().int().min(1).max(MAX_AI_OUTPUT_TOKEN_BUDGET);
+const requestTimeoutSchema = z.coerce
+  .number()
+  .int()
+  .min(MIN_AI_REQUEST_TIMEOUT_MS)
+  .max(MAX_AI_REQUEST_TIMEOUT_MS);
 
 /**
  * Server-only environment contract.
@@ -37,6 +47,8 @@ const serverEnvSchema = z.object({
   /** Provider request budgets, capped to documented operational maxima. */
   AI_INPUT_TOKEN_BUDGET: inputTokenBudgetSchema.default(DEFAULT_AI_INPUT_TOKEN_BUDGET),
   AI_OUTPUT_TOKEN_BUDGET: outputTokenBudgetSchema.default(DEFAULT_AI_OUTPUT_TOKEN_BUDGET),
+  /** Single chat-completions HTTP timeout in milliseconds. */
+  AI_REQUEST_TIMEOUT_MS: requestTimeoutSchema.default(DEFAULT_AI_REQUEST_TIMEOUT_MS),
   GITHUB_TOKEN: z.string().min(1).optional(),
   TOOLBOX_SESSION_SECRET: z.string().min(16).optional(),
   NODE_ENV: z.enum(["development", "test", "production"]).optional(),
@@ -58,6 +70,7 @@ function readRawEnv(source: EnvSource = process.env): EnvSource {
     AI_MODEL: source.AI_MODEL,
     AI_INPUT_TOKEN_BUDGET: source.AI_INPUT_TOKEN_BUDGET,
     AI_OUTPUT_TOKEN_BUDGET: source.AI_OUTPUT_TOKEN_BUDGET,
+    AI_REQUEST_TIMEOUT_MS: source.AI_REQUEST_TIMEOUT_MS,
     GITHUB_TOKEN: source.GITHUB_TOKEN || undefined,
     TOOLBOX_SESSION_SECRET: source.TOOLBOX_SESSION_SECRET || undefined,
     NODE_ENV: source.NODE_ENV,

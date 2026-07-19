@@ -2,8 +2,11 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   DEFAULT_AI_INPUT_TOKEN_BUDGET,
   DEFAULT_AI_OUTPUT_TOKEN_BUDGET,
+  DEFAULT_AI_REQUEST_TIMEOUT_MS,
   MAX_AI_INPUT_TOKEN_BUDGET,
   MAX_AI_OUTPUT_TOKEN_BUDGET,
+  MAX_AI_REQUEST_TIMEOUT_MS,
+  MIN_AI_REQUEST_TIMEOUT_MS,
   getServerEnv,
   resetServerEnvCache,
   SECRET_ENV_KEYS,
@@ -29,8 +32,37 @@ describe("validateServerEnv", () => {
       expect(result.env.AI_MODEL).toBe("gpt-4.1-mini");
       expect(result.env.AI_INPUT_TOKEN_BUDGET).toBe(DEFAULT_AI_INPUT_TOKEN_BUDGET);
       expect(result.env.AI_OUTPUT_TOKEN_BUDGET).toBe(DEFAULT_AI_OUTPUT_TOKEN_BUDGET);
+      expect(result.env.AI_REQUEST_TIMEOUT_MS).toBe(DEFAULT_AI_REQUEST_TIMEOUT_MS);
       expect(result.env.GITHUB_TOKEN).toBeUndefined();
     }
+  });
+
+  it("accepts configured provider request timeout within range", () => {
+    const result = validateServerEnv({
+      ...validEnv,
+      AI_REQUEST_TIMEOUT_MS: "120000",
+    });
+    expect(result).toEqual({
+      ok: true,
+      env: expect.objectContaining({
+        AI_REQUEST_TIMEOUT_MS: 120000,
+      }),
+    });
+  });
+
+  it("rejects provider request timeout outside documented range", () => {
+    const low = validateServerEnv({
+      ...validEnv,
+      AI_REQUEST_TIMEOUT_MS: String(MIN_AI_REQUEST_TIMEOUT_MS - 1),
+    });
+    const high = validateServerEnv({
+      ...validEnv,
+      AI_REQUEST_TIMEOUT_MS: String(MAX_AI_REQUEST_TIMEOUT_MS + 1),
+    });
+    expect(low.ok).toBe(false);
+    expect(high.ok).toBe(false);
+    if (!low.ok) expect(low.issues.join(" ")).toContain("AI_REQUEST_TIMEOUT_MS");
+    if (!high.ok) expect(high.issues.join(" ")).toContain("AI_REQUEST_TIMEOUT_MS");
   });
 
   it("accepts configured positive token budgets", () => {

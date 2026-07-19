@@ -5,8 +5,11 @@ import { validateAiBaseUrl } from "@/server/ai/provider-url";
 import {
   DEFAULT_AI_INPUT_TOKEN_BUDGET,
   DEFAULT_AI_OUTPUT_TOKEN_BUDGET,
+  DEFAULT_AI_REQUEST_TIMEOUT_MS,
   MAX_AI_INPUT_TOKEN_BUDGET,
   MAX_AI_OUTPUT_TOKEN_BUDGET,
+  MAX_AI_REQUEST_TIMEOUT_MS,
+  MIN_AI_REQUEST_TIMEOUT_MS,
   getServerEnv,
 } from "@/server/env";
 
@@ -51,7 +54,8 @@ export type AiProvider = {
 
 const UNTRUSTED_OPEN = "<<<UNTRUSTED_REPOSITORY_DATA>>>";
 const UNTRUSTED_CLOSE = "<<<END_UNTRUSTED_REPOSITORY_DATA>>>";
-const PROVIDER_REQUEST_TIMEOUT_MS = 60_000;
+/** @deprecated Prefer env AI_REQUEST_TIMEOUT_MS / DEFAULT_AI_REQUEST_TIMEOUT_MS. */
+export const PROVIDER_REQUEST_TIMEOUT_MS = DEFAULT_AI_REQUEST_TIMEOUT_MS;
 // A fixed byte reserve for OpenAI-compatible chat envelope/framing. This is
 // deliberately an estimate rather than a claim about any provider tokenizer.
 const CHAT_MESSAGE_FRAMING_SAFETY_RESERVE_BYTES = 3;
@@ -61,6 +65,18 @@ export type ProviderTokenBudgets = {
   input: number;
   output: number;
 };
+
+function resolveRequestTimeoutMs(value: number | undefined): number {
+  if (
+    typeof value === "number" &&
+    Number.isSafeInteger(value) &&
+    value >= MIN_AI_REQUEST_TIMEOUT_MS &&
+    value <= MAX_AI_REQUEST_TIMEOUT_MS
+  ) {
+    return value;
+  }
+  return DEFAULT_AI_REQUEST_TIMEOUT_MS;
+}
 
 /**
  * Deterministic UTF-8 byte estimate for the chat request plus a fixed framing
@@ -321,6 +337,8 @@ export class OpenAiCompatibleProvider implements AiProvider {
       model?: string;
       /** Server-side test/composition override; environment values remain the production default. */
       tokenBudgets?: Partial<ProviderTokenBudgets>;
+      /** Optional per-provider timeout override in milliseconds. */
+      requestTimeoutMs?: number;
     } = {},
   ) {}
 
@@ -332,8 +350,13 @@ export class OpenAiCompatibleProvider implements AiProvider {
           AI_MODEL: this.options.model ?? "gpt-4.1-mini",
           AI_INPUT_TOKEN_BUDGET: DEFAULT_AI_INPUT_TOKEN_BUDGET,
           AI_OUTPUT_TOKEN_BUDGET: DEFAULT_AI_OUTPUT_TOKEN_BUDGET,
+          AI_REQUEST_TIMEOUT_MS: DEFAULT_AI_REQUEST_TIMEOUT_MS,
         }
       : getServerEnv();
+
+    const requestTimeoutMs = resolveRequestTimeoutMs(
+      this.options.requestTimeoutMs ?? env.AI_REQUEST_TIMEOUT_MS,
+    );
 
     const baseUrlCheck = validateAiBaseUrl(env.AI_BASE_URL, {
       allowHttpLocalhost: process.env.NODE_ENV !== "production",
@@ -409,7 +432,7 @@ export class OpenAiCompatibleProvider implements AiProvider {
             "Content-Type": "application/json",
           },
           body: JSON.stringify(body),
-          signal: AbortSignal.timeout(PROVIDER_REQUEST_TIMEOUT_MS),
+          signal: AbortSignal.timeout(requestTimeoutMs),
         });
 
         if (response.status === 429 || response.status >= 500) {
