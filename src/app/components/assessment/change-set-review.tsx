@@ -45,7 +45,7 @@ function truncationCopy(label: ReviewTruncationLabel | string): string {
     case "paths_truncated":
       return "Changed paths truncated — only allowlisted paths in this review are shown.";
     case "previews_truncated":
-      return "File previews truncated — full file bodies are never exposed in the browser.";
+      return "File previews are intentionally truncated. Full repository file contents are never exposed in the browser; use the source repository for complete review.";
     case "validation_checks_truncated":
       return "Validation checks truncated — remaining checks stay server-side.";
     case "validation_details_truncated":

@@ -109,7 +109,9 @@ describe("ChangeSetReview workspace", () => {
     expect(totals).toMatch(/attempt: 1/);
     expect(totals).toMatch(/\+1 ~1 -1/);
     expect(totals).toMatch(/truncation: previews_truncated/);
-    expect(screen.getByTestId("truncation-labels").textContent).toMatch(/previews truncated/i);
+    expect(screen.getByTestId("truncation-labels").textContent).toMatch(
+      /previews are intentionally truncated/i,
+    );
 
     const navigator = screen.getByTestId("changed-file-navigator");
     expect(within(navigator).getByRole("option", { name: /orders\.test\.js/i })).toBeTruthy();
