@@ -113,12 +113,12 @@ export function MarketingLanding() {
 
           <div className="space-y-3">
             <h1 className="max-w-2xl text-[2rem] font-semibold leading-[1.12] tracking-tight text-ink sm:text-[2.5rem]">
-              Turn one tangled Express domain into a verified module.
+              Turn one tangled Express domain into an accepted module.
             </h1>
             <p className="max-w-xl text-[15px] leading-relaxed text-muted sm:text-base">
-              ToolBox finds a safe domain boundary from code evidence, uses AI to generate bounded
-              Change Sets, and validates every proposed change before you accept it. No rewrite or
-              deployment split required.
+              ToolBox finds an evidence-backed domain boundary from code, uses AI to generate
+              bounded Change Sets, and validates every proposed change before you accept it. No
+              rewrite or deployment split required.
             </p>
           </div>
 
