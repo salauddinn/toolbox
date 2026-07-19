@@ -83,18 +83,23 @@ export function buildStageInstructions(input: {
         "Do not claim tests were executed.",
         'Return JSON {"operations":[...]} only.',
       ].join("\n");
-    case "domain_module":
+    case "domain_module": {
+      const moduleDirDepth = `src/modules/${slug}/index.js`.split("/").length - 1;
+      const rootPrefix = "../".repeat(moduleDirDepth);
       return [
         common,
         `Create Domain Module under src/modules/${slug}/ with:`,
         `  index.js, ${slug}.routes.js, ${slug}.controller.js, ${slug}.service.js, ${slug}.repository.js, ${slug}.model.js`,
         "Public index.js must be the only external entry (module.exports facade).",
         "Dependency direction: routes → controller → service → repository → model.",
+        `Require sibling files INSIDE the module by their local relative name only, prefixed with "./" and no directory segments, e.g. index.js requires "./${slug}.routes", "./${slug}.routes" requires "./${slug}.controller", and so on down the chain. Never require a module file by its repository path (e.g. "./src/modules/${slug}") — that does not resolve.`,
+        `Any require that targets a file OUTSIDE the module (a repository-root file such as the existing model or another route file) MUST use exactly ${moduleDirDepth} ascending segments ("${rootPrefix}<path-from-repository-root>"), because the module files sit ${moduleDirDepth} directories below the repository root. Do not use "./" or fewer segments for repository-root files.`,
         "Update route registration in the app entry to use the new module public entry.",
         "Do not delete legacy files in this stage.",
         "Preserve HTTP methods, paths, Mongoose schemas and collection names.",
         'Return JSON {"operations":[...]} only.',
       ].join("\n");
+    }
     case "cycle_repair": {
       const contract = cycleInjectionContract(input.analysis, input.candidate);
       const factoryName = contract?.factoryName ?? `create${input.candidate.name}Module`;
