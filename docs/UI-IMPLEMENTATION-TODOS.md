@@ -87,7 +87,7 @@ A cheaper model never marks its own work complete. The Sol parent reads the diff
 | U09 | Build the Change Set review workspace | Complete | U08 |
 | U10 | Build rollback, stop, and completion experiences | Complete | U09 |
 | U11 | Complete responsive and accessibility behavior | Complete | U10 |
-| R01 | Run the complete release and demo gate | Pending | U11 |
+| R01 | Run the complete release and demo gate | Local complete; deploy/demo open | U11 |
 
 ---
 
@@ -786,6 +786,8 @@ A cheaper model never marks its own work complete. The Sol parent reads the diff
 ---
 
 ## R01 — Run the complete release and demo gate
+
+**Status:** Local complete; deploy/demo items remain open — see `docs/R01-RELEASE-GATE.md`
 
 **Writer goal:** Verify and document the final product honestly.
 

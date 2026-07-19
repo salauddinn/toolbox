@@ -197,7 +197,7 @@ Done when the result ZIP's `repository/` folder reflects only accepted Change Se
 
 ### 14. Pass the release gate
 
-Gate record: `docs/P0-RELEASE-GATE.md` (2026-07-19). Local correctness P0 follow-ups are complete; remaining items below are scheduled release/deploy verification and still block submission.
+Gate records: `docs/P0-RELEASE-GATE.md` (UI GO) and `docs/R01-RELEASE-GATE.md` (2026-07-19 local release pass). Local correctness and U01–U11 UI work are complete; remaining items below are scheduled release/deploy verification and still block submission.
 
 - [ ] Complete the successful external-repository scenario. (scheduled R01 — needs live URL + network; owner: release operator)
 - [x] Complete the honest-rejection scenario with zero generation calls. (fixture ESM path covered in E2E)
