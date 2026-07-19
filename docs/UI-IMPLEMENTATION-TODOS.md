@@ -42,7 +42,7 @@ For every pending todo, the parent agent must perform these steps in order:
 | Responsibility | Default model | Effort |
 | --- | --- | --- |
 | Parent orchestration, scope control, and acceptance | GPT-5.6 Sol | High |
-| Sequential implementation worker | GPT-5.6 Terra | High |
+| Sequential implementation worker | GPT-5.6 Terra through U02; Grok 4.5 High from U03 onward | High |
 | Independent code or plan reviewer | Fresh GPT-5.6 Sol | High |
 | Repetitive cleanup after behavior is locked | GPT-5.6 Luna | Medium or High |
 | Visual alternative or adversarial design critique | Grok 4.5 | High |
@@ -77,7 +77,7 @@ A cheaper model never marks its own work complete. The Sol parent reads the diff
 | G04 | Strengthen composition-root injection validation | Complete | G03 |
 | G05 | Record the P0 gate decision and release deferrals | Complete | G04 |
 | U01 | Add the bounded recoverable review payload | Complete | G05 |
-| U02 | Integrate typed client state and presentation adapter | Pending | U01 |
+| U02 | Integrate typed client state and presentation adapter | Complete | U01 |
 | U03 | Build Paper + Terminal tokens and route shells | Pending | U02 |
 | U04 | Redesign the landing page | Pending | U03 |
 | U05 | Redesign repository start and gate failures | Pending | U04 |
@@ -493,44 +493,21 @@ A cheaper model never marks its own work complete. The Sol parent reads the diff
 
 ## U02 — Integrate typed client state and presentation adapter
 
+**Status:** Complete
+
 **Writer goal:** Replace stringly typed console orchestration without changing visible layout yet.
 
-**Primary files:**
+### U02 completion record
 
-- `src/app/components/assessment-app.tsx`
-- `src/app/components/assessment/presentation-state.ts`
-- New typed API client and `useAssessmentRun` modules
-- Related rendered tests
-
-**Required work:**
-
-- Consume the existing `PublicRunView` union.
-- Move fetch and mutation logic into a typed API client and run hook.
-- Integrate durable phase and local operation presentations.
-- Implement one complete reset routine.
-- Preserve valid runs after mutation, deletion, or replacement errors.
-- Connect review readiness to the acceptance action gate.
-
-**Non-goals:**
-
-- Visual redesign
-- Changing API transition semantics
-- Adding live polling, SSE, or fabricated progress
-
-**Acceptance:**
-
-- `Record<string, any>` is removed from the console path.
-- Unknown runtime phases render a blocked fallback with no mutation actions.
-- Candidate confirmation and Change Acceptance gates are enforced in rendered behavior.
-- Existing endpoint payloads are unchanged.
-
-**Validation:**
-
-- Presentation-state tests
-- Hook and API-client tests
-- Rendered console tests
-- Full Vitest
-- Build
+- Status: Complete
+- Writer: Terra High; parent verification
+- Changed areas:
+  - Exported discriminated `PublicRunView`
+  - Typed `assessment-api` client and `useAssessmentRun` hook
+  - Console wired to presentation-state action gates and review readiness
+  - Removed `Record<string, any>` from console path
+- Verification: lint, typecheck, full Vitest (200), build, Prettier, `git diff --check`
+- Next todo: U03 (implementation writer switches to Grok 4.5 High)
 
 ---
 

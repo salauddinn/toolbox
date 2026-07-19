@@ -1,7 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
+import {
+  DURABLE_RUN_PHASES,
+  presentationFor,
+  type CandidateSelectionReadiness,
+  type PresentationAction,
+  type PresentationState,
+  type ReviewReadiness,
+} from "./assessment/presentation-state";
+import { useAssessmentRun } from "./assessment/use-assessment-run";
 import { DependencyGraph, type GraphPayload } from "./dependency-graph";
 
 const SUPPORTED_CONTRACT = [
@@ -24,115 +33,21 @@ type Evidence = {
   snippet: string;
 };
 
-type PublicCandidate = {
-  id: string;
-  name: string;
-  technicalScore: number;
-  confidence: number;
-  routes: readonly {
-    method: string;
-    path: string;
-    file: string;
-    line: number;
-    mountPrefix?: string;
-  }[];
-  primaryModel?: {
-    modelName: string;
-    collectionName?: string;
-    file: string;
-    line: number;
-  };
-  files: readonly string[];
-  signals: readonly Evidence[];
-  conflictingEvidence: readonly Evidence[];
-};
-
-type PublicReadiness = {
-  ready: boolean;
-  candidateId: string;
-  rules: readonly {
-    ruleId: string;
-    passed: boolean;
-    summary: string;
-    evidence: readonly Evidence[];
-  }[];
-  failedRules?: readonly {
-    ruleId: string;
-    passed: false;
-    summary: string;
-    evidence: readonly Evidence[];
-  }[];
-};
-
-type PublicStage = {
-  id: string;
-  kind: string;
-  title: string;
-  purpose: string;
-  conditional: boolean;
-  evidence: readonly Evidence[];
-  expectedFiles: readonly string[];
-  validationCriteria: readonly {
-    id: string;
-    description: string;
-    kind: string;
-  }[];
-};
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type RunView = Record<string, any> & {
-  runId: string;
-  phase: string;
-};
-
-type StartBody = { source: "fixture"; fixtureId: string } | { source: "github"; url: string };
-
-async function postJson(
-  url: string,
-  body: unknown,
-): Promise<{ ok: boolean; status: number; data: unknown }> {
-  const response = await fetch(url, {
-    method: "POST",
-    credentials: "same-origin",
-    headers: {
-      "Content-Type": "application/json",
-      Accept: "application/json",
-    },
-    body: JSON.stringify(body),
-  });
-  const data = await response.json().catch(() => ({}));
-  return { ok: response.ok, status: response.status, data };
-}
-
-async function deleteJson(url: string): Promise<{ ok: boolean; status: number; data: unknown }> {
-  const response = await fetch(url, {
-    method: "DELETE",
-    credentials: "same-origin",
-    headers: {
-      "Content-Type": "application/json",
-      Accept: "application/json",
-    },
-    body: "{}",
-  });
-  const data = await response.json().catch(() => ({}));
-  return { ok: response.ok, status: response.status, data };
-}
-
 function EvidenceList({
   items,
   onFile,
 }: {
   items: readonly Evidence[];
-  onFile?: (f: string) => void;
+  onFile?: (file: string) => void;
 }) {
   if (items.length === 0) {
     return <p className="text-xs text-muted">No evidence attached.</p>;
   }
   return (
     <ul className="space-y-2">
-      {items.map((e, i) => (
+      {items.map((e, index) => (
         <li
-          key={`${e.ruleId}-${e.file}-${e.line}-${i}`}
+          key={`${e.ruleId}-${e.file}-${e.line}-${index}`}
           className="rounded-md border border-border bg-background p-2 text-xs"
         >
           <button
@@ -154,217 +69,110 @@ function EvidenceList({
   );
 }
 
+function reviewReadiness(
+  run: Extract<
+    NonNullable<ReturnType<typeof useAssessmentRun>["run"]>,
+    { phase: "awaiting_acceptance" }
+  >,
+): ReviewReadiness {
+  const review = run.reviewPayload;
+  if (!review) return "incomplete";
+  if (
+    review.changeSetId !== run.changeSet.id ||
+    review.attempt !== run.changeSet.attempt ||
+    review.validationReport.changeSetId !== run.changeSet.id ||
+    review.validationReport.stageId !== run.changeSet.stageId
+  ) {
+    return "stale";
+  }
+  if (
+    review.validationReport.finalOutcome !== "passed" ||
+    !review.validationReport.attempts.some(
+      (attempt) => attempt.attempt === run.changeSet.attempt && attempt.passed,
+    )
+  ) {
+    return "failed";
+  }
+  return "complete-current";
+}
+
+function presentationStateFor(
+  run: ReturnType<typeof useAssessmentRun>["run"],
+  pendingState: ReturnType<typeof useAssessmentRun>["pendingState"],
+  operationError: ReturnType<typeof useAssessmentRun>["operationError"],
+  blockedStart: ReturnType<typeof useAssessmentRun>["blockedStart"],
+  pickedCandidateId: string | null,
+): PresentationState {
+  if (pendingState) return { kind: "local", state: pendingState };
+  if (blockedStart) return { kind: "local", state: "active-run-conflict" };
+  if (operationError) {
+    return {
+      kind: "operation-error",
+      step: operationError.step,
+      operation: operationError.operation,
+      retryable: operationError.retryable,
+    };
+  }
+  if (!run) return { kind: "local", state: "no-run" };
+  if (!DURABLE_RUN_PHASES.includes(run.phase)) return { kind: "unknown-phase", phase: run.phase };
+
+  if (run.phase === "assessed") {
+    const candidateSelection: CandidateSelectionReadiness =
+      pickedCandidateId && run.readinessByCandidateId[pickedCandidateId]?.ready
+        ? "ready"
+        : pickedCandidateId
+          ? "not-ready"
+          : "none";
+    return { kind: "run", phase: run.phase, candidateSelection };
+  }
+  if (run.phase === "awaiting_acceptance") {
+    return { kind: "run", phase: run.phase, review: reviewReadiness(run) };
+  }
+  return { kind: "run", phase: run.phase };
+}
+
 export function AssessmentApp() {
   const [url, setUrl] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [run, setRun] = useState<RunView | null>(null);
-  const [blockedStart, setBlockedStart] = useState<{
-    body: StartBody;
-    activeRunId: string;
-  } | null>(null);
   const [selectedEvidenceFile, setSelectedEvidenceFile] = useState<string | null>(null);
-  const [intent, setIntent] = useState("");
-  const [pickedCandidateId, setPickedCandidateId] = useState<string | null>(null);
-  const [pendingDiff, setPendingDiff] = useState<{
-    created: number;
-    updated: number;
-    deleted: number;
-    files: { path: string; kind: string; beforePreview?: string; afterPreview?: string }[];
-  } | null>(null);
-
-  const startAssessment = useCallback(async (body: StartBody, allowRecovery = true) => {
-    setBusy(true);
-    setError(null);
-    setSelectedEvidenceFile(null);
-    setPendingDiff(null);
-    try {
-      const result = await postJson("/api/runs", body);
-      const data = result.data as {
-        ok?: boolean;
-        run?: RunView;
-        message?: string;
-        code?: string;
-        activeRunId?: string;
-      };
-      if (!result.ok || !data.ok || !data.run) {
-        if (allowRecovery && data.code === "RATE_LIMIT_ACTIVE_CLIENT" && data.activeRunId) {
-          setBlockedStart({ body, activeRunId: data.activeRunId });
-        } else {
-          setBlockedStart(null);
-        }
-        setError(data.message ?? data.code ?? `Request failed (${result.status})`);
-        setRun(null);
-        return;
-      }
-      setBlockedStart(null);
-      setRun(data.run);
-      setPickedCandidateId(data.run.ranking?.safestTechnicalCandidateId ?? null);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setBusy(false);
-    }
-  }, []);
-
-  const startFixture = useCallback(async () => {
-    await startAssessment({ source: "fixture", fixtureId: "controlled-example" });
-  }, [startAssessment]);
-
-  const startGithub = useCallback(async () => {
-    await startAssessment({ source: "github", url: url.trim() });
-  }, [startAssessment, url]);
-
-  const replacePreviousRun = useCallback(async () => {
-    if (!blockedStart) return;
-    setBusy(true);
-    setError(null);
-    try {
-      const result = await deleteJson(`/api/runs/${blockedStart.activeRunId}`);
-      const data = result.data as { message?: string; code?: string };
-      if (!result.ok && result.status !== 404) {
-        setError(data.message ?? data.code ?? `Request failed (${result.status})`);
-        return;
-      }
-      const body = blockedStart.body;
-      setBlockedStart(null);
-      await startAssessment(body, false);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setBusy(false);
-    }
-  }, [blockedStart, startAssessment]);
-
-  const endCurrentRun = useCallback(async () => {
-    if (!run) return;
-    setBusy(true);
-    setError(null);
-    try {
-      const result = await deleteJson(`/api/runs/${run.runId}`);
-      const data = result.data as { message?: string; code?: string };
-      if (!result.ok && result.status !== 404) {
-        setError(data.message ?? data.code ?? `Request failed (${result.status})`);
-        return;
-      }
-      setRun(null);
-      setBlockedStart(null);
-      setPendingDiff(null);
-      setSelectedEvidenceFile(null);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setBusy(false);
-    }
-  }, [run]);
-
-  const confirmSelection = useCallback(async () => {
-    if (!run || !pickedCandidateId) return;
-    setBusy(true);
-    setError(null);
-    try {
-      const result = await postJson(`/api/runs/${run.runId}/select`, {
-        candidateId: pickedCandidateId,
-        modernizationIntent: intent.trim() || undefined,
-      });
-      const data = result.data as { ok?: boolean; run?: RunView; message?: string; code?: string };
-      if (!result.ok || !data.ok || !data.run) {
-        setError(data.message ?? data.code ?? `Request failed (${result.status})`);
-        return;
-      }
-      setRun(data.run);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setBusy(false);
-    }
-  }, [run, pickedCandidateId, intent]);
-
-  const authorizeStage = useCallback(async () => {
-    if (!run) return;
-    setBusy(true);
-    setError(null);
-    try {
-      const result = await postJson(`/api/runs/${run.runId}/authorize`, {});
-      const data = result.data as {
-        ok?: boolean;
-        run?: RunView;
-        message?: string;
-        code?: string;
-        diff?: {
-          created: number;
-          updated: number;
-          deleted: number;
-          files: {
-            path: string;
-            kind: string;
-            beforePreview?: string;
-            afterPreview?: string;
-          }[];
-        };
-        validationReport?: unknown;
-      };
-      if (!result.ok || !data.ok || !data.run) {
-        if (data.run) setRun(data.run);
-        setError(data.message ?? data.code ?? `Request failed (${result.status})`);
-        return;
-      }
-      setRun(data.run);
-      setPendingDiff(data.diff ?? null);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setBusy(false);
-    }
-  }, [run]);
-
-  const acceptStage = useCallback(async () => {
-    if (!run) return;
-    setBusy(true);
-    setError(null);
-    try {
-      const result = await postJson(`/api/runs/${run.runId}/accept`, {});
-      const data = result.data as { ok?: boolean; run?: RunView; message?: string; code?: string };
-      if (!result.ok || !data.ok || !data.run) {
-        setError(data.message ?? data.code ?? `Request failed (${result.status})`);
-        return;
-      }
-      setRun(data.run);
-      setPendingDiff(null);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setBusy(false);
-    }
-  }, [run]);
-
-  const rejectStage = useCallback(async () => {
-    if (!run) return;
-    setBusy(true);
-    setError(null);
-    try {
-      const result = await postJson(`/api/runs/${run.runId}/reject`, {});
-      const data = result.data as { ok?: boolean; run?: RunView; message?: string; code?: string };
-      if (!result.ok || !data.ok || !data.run) {
-        setError(data.message ?? data.code ?? `Request failed (${result.status})`);
-        return;
-      }
-      setRun(data.run);
-      setPendingDiff(null);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setBusy(false);
-    }
-  }, [run]);
+  const assessment = useAssessmentRun();
+  const {
+    run,
+    busy,
+    error,
+    blockedStart,
+    pickedCandidateId,
+    setPickedCandidateId,
+    intent,
+    setIntent,
+  } = assessment;
+  const state = presentationStateFor(
+    run,
+    assessment.pendingState,
+    assessment.operationError,
+    blockedStart,
+    pickedCandidateId,
+  );
+  const presentation = presentationFor(state);
+  const can = (action: PresentationAction) => presentation.actions.includes(action);
+  const unknownPhase = state.kind === "unknown-phase";
 
   const graph: GraphPayload | null = useMemo(() => {
-    if (!run?.analysis?.graph) return null;
-    return run.analysis.graph as GraphPayload;
+    if ((run?.phase !== "assessed" && run?.phase !== "not_ready") || !run.analysis?.graph) {
+      return null;
+    }
+    return run.analysis.graph;
   }, [run]);
 
-  const candidates: PublicCandidate[] = run?.ranking?.candidates ?? [];
-  const readinessMap: Record<string, PublicReadiness> = run?.readinessByCandidateId ?? {};
+  const candidates =
+    run?.phase === "assessed" || run?.phase === "not_ready" ? run.ranking.candidates : [];
+  const readinessMap =
+    run?.phase === "assessed" || run?.phase === "not_ready" ? run.readinessByCandidateId : {};
+  const sequence = run && "sequence" in run ? run.sequence : undefined;
+  const stageIndex = run && "stageIndex" in run ? run.stageIndex : undefined;
+  const selectedDomain =
+    run && "selectedCandidate" in run ? run.selectedCandidate?.name : undefined;
+  const currentStageTitle = run && "currentStage" in run ? run.currentStage.title : undefined;
+  const validationReport = run && "validationReport" in run ? run.validationReport : undefined;
 
   return (
     <div className="space-y-4">
@@ -381,22 +189,26 @@ export function AssessmentApp() {
               <>
                 <span className="tb-chip tb-chip-accent">phase: {run.phase}</span>
                 <span className="tb-chip">run: {run.runId.slice(0, 10)}…</span>
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={() => void endCurrentRun()}
-                  className="tb-btn tb-btn-secondary h-8 px-2.5 text-[12px]"
-                >
-                  End run / Start over
-                </button>
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={() => void startFixture()}
-                  className="tb-btn tb-btn-primary h-8 px-2.5 text-[12px]"
-                >
-                  Retry example
-                </button>
+                {can("end_run") ? (
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => void assessment.endCurrentRun()}
+                    className="tb-btn tb-btn-secondary h-8 px-2.5 text-[12px]"
+                  >
+                    End run / Start over
+                  </button>
+                ) : null}
+                {!unknownPhase ? (
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => void assessment.startFixture()}
+                    className="tb-btn tb-btn-primary h-8 px-2.5 text-[12px]"
+                  >
+                    Retry example
+                  </button>
+                ) : null}
               </>
             ) : (
               <>
@@ -426,7 +238,7 @@ export function AssessmentApp() {
               <button
                 type="button"
                 disabled={busy}
-                onClick={() => void startFixture()}
+                onClick={() => void assessment.startFixture()}
                 className="tb-btn tb-btn-primary sm:shrink-0"
               >
                 {busy ? "Running…" : "Try controlled example"}
@@ -448,7 +260,7 @@ export function AssessmentApp() {
                 <button
                   type="button"
                   disabled={busy || url.trim().length === 0}
-                  onClick={() => void startGithub()}
+                  onClick={() => void assessment.startGithub(url)}
                   className="tb-btn tb-btn-secondary shrink-0"
                 >
                   Assess
@@ -467,7 +279,7 @@ export function AssessmentApp() {
               <button
                 type="button"
                 disabled={busy}
-                onClick={() => void replacePreviousRun()}
+                onClick={() => void assessment.replacePreviousRun()}
                 className="tb-btn tb-btn-secondary"
               >
                 End previous run and start new
@@ -515,7 +327,14 @@ export function AssessmentApp() {
         </ul>
       </section>
 
-      {run ? (
+      {run && unknownPhase ? (
+        <section className="tb-panel p-5 sm:p-6" role="alert">
+          <h2 className="text-[15px] font-semibold text-ink">{presentation.heading}</h2>
+          <p className="mt-2 text-sm text-muted">{presentation.explanation}</p>
+        </section>
+      ) : null}
+
+      {run && !unknownPhase ? (
         <section className="tb-panel space-y-6 p-5 sm:p-6">
           <div className="flex flex-wrap items-baseline justify-between gap-2">
             <h2 className="text-[15px] font-semibold text-ink">Assessment detail</h2>
@@ -528,19 +347,17 @@ export function AssessmentApp() {
                 Repository is not eligible
               </p>
               <ul className="space-y-2 text-sm">
-                {(run.eligibility?.rejections ?? []).map(
-                  (r: { code: string; message: string; evidence?: Evidence[] }, i: number) => (
-                    <li key={`${r.code}-${i}`} className="rounded-md border border-border p-3">
-                      <p className="font-mono text-xs text-muted">{r.code}</p>
-                      <p>{r.message}</p>
-                      {r.evidence ? (
-                        <div className="mt-2">
-                          <EvidenceList items={r.evidence} onFile={setSelectedEvidenceFile} />
-                        </div>
-                      ) : null}
-                    </li>
-                  ),
-                )}
+                {(run.eligibility?.rejections ?? []).map((r, i) => (
+                  <li key={`${r.code}-${i}`} className="rounded-md border border-border p-3">
+                    <p className="font-mono text-xs text-muted">{r.code}</p>
+                    <p>{r.message}</p>
+                    {r.evidence ? (
+                      <div className="mt-2">
+                        <EvidenceList items={r.evidence} onFile={setSelectedEvidenceFile} />
+                      </div>
+                    ) : null}
+                  </li>
+                ))}
               </ul>
             </div>
           ) : null}
@@ -554,19 +371,17 @@ export function AssessmentApp() {
                 Passing Safety Screening is not malware certification.
               </p>
               <ul className="space-y-2 text-sm">
-                {(run.safety?.rejections ?? []).map(
-                  (r: { code: string; message: string; evidence?: Evidence[] }, i: number) => (
-                    <li key={`${r.code}-${i}`} className="rounded-md border border-border p-3">
-                      <p className="font-mono text-xs text-muted">{r.code}</p>
-                      <p>{r.message}</p>
-                      {r.evidence ? (
-                        <div className="mt-2">
-                          <EvidenceList items={r.evidence} onFile={setSelectedEvidenceFile} />
-                        </div>
-                      ) : null}
-                    </li>
-                  ),
-                )}
+                {(run.safety?.rejections ?? []).map((r, i) => (
+                  <li key={`${r.code}-${i}`} className="rounded-md border border-border p-3">
+                    <p className="font-mono text-xs text-muted">{r.code}</p>
+                    <p>{r.message}</p>
+                    {r.evidence ? (
+                      <div className="mt-2">
+                        <EvidenceList items={r.evidence} onFile={setSelectedEvidenceFile} />
+                      </div>
+                    ) : null}
+                  </li>
+                ))}
               </ul>
             </div>
           ) : null}
@@ -647,7 +462,7 @@ export function AssessmentApp() {
                             {c.confidence.toFixed(2)} · {readiness?.ready ? "ready" : "not ready"}
                           </p>
                         </div>
-                        {run.phase === "assessed" && readiness?.ready ? (
+                        {run.phase === "assessed" && readiness?.ready && can("select_candidate") ? (
                           <button
                             type="button"
                             className="rounded-md border border-border px-3 py-1 text-xs font-medium"
@@ -717,8 +532,8 @@ export function AssessmentApp() {
                   />
                   <button
                     type="button"
-                    disabled={busy || !pickedCandidateId}
-                    onClick={() => void confirmSelection()}
+                    disabled={busy || !can("confirm_candidate")}
+                    onClick={() => void assessment.confirmSelection()}
                     className="tb-btn tb-btn-primary"
                   >
                     Confirm Domain Candidate
@@ -737,8 +552,7 @@ export function AssessmentApp() {
           run.phase === "stage_failed_rolled_back" ? (
             <div className="space-y-4">
               <p className="text-sm">
-                Selected domain:{" "}
-                <strong>{run.selectedCandidate?.name ?? run.currentStage?.title}</strong>
+                Selected domain: <strong>{selectedDomain ?? currentStageTitle}</strong>
               </p>
               {run.phase === "sequence_stopped" ? (
                 <p className="rounded-lg border border-red-500/40 bg-red-500/10 p-3 text-sm">
@@ -763,24 +577,24 @@ export function AssessmentApp() {
                   </p>
                 </div>
               ) : null}
-              {run.sequence?.pendingConditional ? (
+              {sequence?.pendingConditional ? (
                 <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm">
-                  Pending conditional stage: {run.sequence.pendingConditional.reason}. Final
-                  insertion is decided only after Domain Module acceptance.
+                  Pending conditional stage: {sequence.pendingConditional.reason}. Final insertion
+                  is decided only after Domain Module acceptance.
                 </p>
               ) : null}
               <ol className="space-y-3">
-                {(run.sequence?.stages as PublicStage[] | undefined)?.map((stage, index) => (
+                {sequence?.stages.map((stage, index) => (
                   <li
                     key={stage.id}
                     className={`rounded-lg border p-4 ${
-                      index === run.stageIndex ? "border-accent" : "border-border"
+                      index === stageIndex ? "border-accent" : "border-border"
                     }`}
                   >
                     <p className="text-xs text-muted">
                       Stage {index + 1}
                       {stage.conditional ? " · conditional" : ""}
-                      {index === run.stageIndex ? " · current" : ""}
+                      {index === stageIndex ? " · current" : ""}
                     </p>
                     <h4 className="font-medium">{stage.title}</h4>
                     <p className="mt-1 text-sm text-muted">{stage.purpose}</p>
@@ -806,11 +620,11 @@ export function AssessmentApp() {
                 ))}
               </ol>
 
-              {run.phase === "awaiting_authorization" ? (
+              {run.phase === "awaiting_authorization" && can("authorize_stage") ? (
                 <button
                   type="button"
                   disabled={busy}
-                  onClick={() => void authorizeStage()}
+                  onClick={() => void assessment.authorize()}
                   className="tb-btn tb-btn-primary"
                 >
                   Authorize AI generation for this stage
@@ -831,14 +645,14 @@ export function AssessmentApp() {
                       External generated tests: not executed
                     </p>
                   ) : null}
-                  {pendingDiff ? (
+                  {run.reviewPayload ? (
                     <div className="space-y-2">
                       <p className="text-xs font-medium">
-                        Candidate snapshot diff (+{pendingDiff.created} ~{pendingDiff.updated} −
-                        {pendingDiff.deleted})
+                        Candidate snapshot diff (+{run.reviewPayload.totals.created} ~
+                        {run.reviewPayload.totals.updated} −{run.reviewPayload.totals.deleted})
                       </p>
                       <ul className="max-h-56 space-y-2 overflow-auto text-xs">
-                        {pendingDiff.files.map((f) => (
+                        {run.reviewPayload.files.map((f) => (
                           <li
                             key={`${f.kind}-${f.path}`}
                             className="rounded border border-border p-2"
@@ -872,43 +686,41 @@ export function AssessmentApp() {
                     )}
                   </ul>
                   <div className="flex flex-wrap gap-2">
-                    <button
-                      type="button"
-                      disabled={busy}
-                      onClick={() => void acceptStage()}
-                      className="tb-btn tb-btn-primary"
-                    >
-                      Accept Change Set
-                    </button>
-                    <button
-                      type="button"
-                      disabled={busy}
-                      onClick={() => void rejectStage()}
-                      className="tb-btn tb-btn-secondary"
-                    >
-                      Reject and stop
-                    </button>
+                    {can("accept_change_set") ? (
+                      <button
+                        type="button"
+                        disabled={busy}
+                        onClick={() => void assessment.accept()}
+                        className="tb-btn tb-btn-primary"
+                      >
+                        Accept Change Set
+                      </button>
+                    ) : null}
+                    {can("reject_change_set") ? (
+                      <button
+                        type="button"
+                        disabled={busy}
+                        onClick={() => void assessment.reject()}
+                        className="tb-btn tb-btn-secondary"
+                      >
+                        Reject and stop
+                      </button>
+                    ) : null}
                   </div>
                 </div>
               ) : null}
 
-              {run.validationReport ? (
+              {validationReport ? (
                 <div className="rounded-lg border border-border p-3 text-xs">
                   <p className="font-medium">Validation Report</p>
-                  <p className="text-muted">final: {run.validationReport.finalOutcome}</p>
+                  <p className="text-muted">final: {validationReport.finalOutcome}</p>
                   <ul className="mt-2 space-y-1">
-                    {(run.validationReport.attempts ?? []).map(
-                      (a: {
-                        attempt: number;
-                        passed: boolean;
-                        checks: { id: string; outcome: string; detail?: string }[];
-                      }) => (
-                        <li key={a.attempt}>
-                          Attempt {a.attempt}: {a.passed ? "passed" : "failed"} (
-                          {a.checks?.filter((c) => c.outcome === "failed").length ?? 0} failures)
-                        </li>
-                      ),
-                    )}
+                    {(validationReport.attempts ?? []).map((a) => (
+                      <li key={a.attempt}>
+                        Attempt {a.attempt}: {a.passed ? "passed" : "failed"} (
+                        {a.checks?.filter((c) => c.outcome === "failed").length ?? 0} failures)
+                      </li>
+                    ))}
                   </ul>
                 </div>
               ) : null}

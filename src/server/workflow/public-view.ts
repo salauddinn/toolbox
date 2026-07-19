@@ -289,4 +289,36 @@ export function toPublicRunView(state: RunState) {
   }
 }
 
-export type PublicRunView = ReturnType<typeof toPublicRunView>;
+type PublicRunViewRaw = ReturnType<typeof toPublicRunView>;
+type PublicRunBase = Pick<PublicRunViewRaw, "runId" | "createdAt" | "lastActiveAt">;
+type WithPhase<Phase extends RunState["phase"], Shape> = Omit<Shape, "phase"> & {
+  phase: Phase;
+};
+type AssessedPublicRun = Extract<PublicRunViewRaw, { analysis: unknown }>;
+type SelectedPublicRun = Extract<PublicRunViewRaw, { selectedReadiness: unknown }>;
+type SequencedPublicRun = Extract<PublicRunViewRaw, { currentStage: unknown }>;
+type AcceptancePublicRun = Extract<PublicRunViewRaw, { changeSet: unknown }>;
+type StoppedPublicRun = Extract<PublicRunViewRaw, { reason: unknown }>;
+type CompletedPublicRun = Extract<PublicRunViewRaw, { downloadPath: unknown }>;
+type EligibilityFailurePublicRun = Extract<PublicRunViewRaw, { eligibility: unknown }>;
+type SafetyFailurePublicRun = Extract<PublicRunViewRaw, { safety: unknown }>;
+
+/** Discriminated, client-safe public projection returned by every run endpoint. */
+export type PublicRunView =
+  | WithPhase<"created" | "expired", PublicRunBase>
+  | WithPhase<"loading", PublicRunBase & { sourceLabel: string }>
+  | WithPhase<"eligibility_failed", EligibilityFailurePublicRun>
+  | WithPhase<"safety_failed", SafetyFailurePublicRun>
+  | WithPhase<"assessed" | "not_ready", AssessedPublicRun>
+  | WithPhase<"candidate_selected", SelectedPublicRun>
+  | WithPhase<
+      | "awaiting_authorization"
+      | "generating"
+      | "validating"
+      | "repairing"
+      | "stage_failed_rolled_back",
+      SequencedPublicRun
+    >
+  | WithPhase<"awaiting_acceptance", AcceptancePublicRun>
+  | WithPhase<"sequence_stopped", StoppedPublicRun>
+  | WithPhase<"completed", CompletedPublicRun>;
