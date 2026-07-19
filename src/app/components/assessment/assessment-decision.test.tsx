@@ -247,6 +247,39 @@ describe("AssessmentDecision workspace", () => {
     expect(document.activeElement).toBe(payments);
   });
 
+  it("opens evidence collections and path-only route/model context without inventing fields", async () => {
+    const user = userEvent.setup();
+    const onInspect = vi.fn();
+    const { rerender, props } = renderDecision({ onInspect });
+
+    rerender(
+      <AssessmentDecision {...props} pickedCandidateId="orders" canConfirm onInspect={onInspect} />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "routes/orders.js:40" }));
+    expect(onInspect).toHaveBeenCalledWith({
+      kind: "evidence",
+      items: candidates[0]!.signals,
+      index: 0,
+    });
+
+    await user.click(screen.getByRole("button", { name: /GET \/api\/orders/i }));
+    expect(onInspect).toHaveBeenCalledWith({
+      kind: "file-context",
+      file: "routes/orders.js",
+      line: 12,
+      origin: "route",
+    });
+
+    await user.click(screen.getByRole("button", { name: "models/order.js:4" }));
+    expect(onInspect).toHaveBeenCalledWith({
+      kind: "file-context",
+      file: "models/order.js",
+      line: 4,
+      origin: "model",
+    });
+  });
+
   it("exposes accessible names on radios and has no critical axe violations", async () => {
     const { container } = renderDecision({
       pickedCandidateId: "orders",

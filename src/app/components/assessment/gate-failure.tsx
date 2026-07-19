@@ -1,20 +1,12 @@
 "use client";
 
+import type { EvidenceRecord, InspectRequest } from "./evidence-types";
 import type { Presentation } from "./presentation-state";
-
-type Evidence = {
-  ruleId: string;
-  message: string;
-  severity: string;
-  file: string;
-  line: number;
-  snippet: string;
-};
 
 type GateRejection = {
   code: string;
   message: string;
-  evidence?: readonly Evidence[];
+  evidence?: readonly EvidenceRecord[];
 };
 
 export type GateFailureKind = "eligibility_failed" | "safety_failed" | "not_ready";
@@ -26,13 +18,17 @@ type GateFailureProps = {
   rejections?: readonly GateRejection[];
   readinessFailures?: readonly {
     candidateName: string;
-    failedRules: readonly { ruleId: string; summary: string; evidence?: readonly Evidence[] }[];
+    failedRules: readonly {
+      ruleId: string;
+      summary: string;
+      evidence?: readonly EvidenceRecord[];
+    }[];
   }[];
   busy: boolean;
   confirmingEnd: boolean;
   onConfirmingEndChange: (value: boolean) => void;
   onEndRun: () => void;
-  onFile?: (file: string) => void;
+  onInspect?: (request: InspectRequest) => void;
 };
 
 function kindMeta(kind: GateFailureKind) {
@@ -61,11 +57,11 @@ function kindMeta(kind: GateFailureKind) {
 function TerminalEvidence({
   title,
   items,
-  onFile,
+  onInspect,
 }: {
   title: string;
-  items: readonly Evidence[];
-  onFile?: (file: string) => void;
+  items: readonly EvidenceRecord[];
+  onInspect?: (request: InspectRequest) => void;
 }) {
   if (items.length === 0) {
     return <p className="tb-mono text-[11px] text-terminal-fg-muted">No evidence attached.</p>;
@@ -87,7 +83,13 @@ function TerminalEvidence({
             <button
               type="button"
               className="mt-1 tb-mono text-[12px] text-diff-change hover:underline"
-              onClick={() => onFile?.(item.file)}
+              onClick={() =>
+                onInspect?.({
+                  kind: "evidence",
+                  items,
+                  index,
+                })
+              }
             >
               {item.file}:{item.line}
             </button>
@@ -114,7 +116,7 @@ export function GateFailure({
   confirmingEnd,
   onConfirmingEndChange,
   onEndRun,
-  onFile,
+  onInspect,
 }: GateFailureProps) {
   const meta = kindMeta(kind);
 
@@ -235,7 +237,7 @@ export function GateFailure({
                 <TerminalEvidence
                   title={rejection.code}
                   items={rejection.evidence ?? []}
-                  onFile={onFile}
+                  onInspect={onInspect}
                 />
               </li>
             ))}
@@ -272,7 +274,7 @@ export function GateFailure({
                           <TerminalEvidence
                             title={rule.ruleId}
                             items={rule.evidence}
-                            onFile={onFile}
+                            onInspect={onInspect}
                           />
                         </div>
                       ) : null}

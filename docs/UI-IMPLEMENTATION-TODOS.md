@@ -82,7 +82,7 @@ A cheaper model never marks its own work complete. The Sol parent reads the diff
 | U04 | Redesign the landing page | Complete | U03 |
 | U05 | Redesign repository start and gate failures | Complete | U04 |
 | U06 | Build the assessment and candidate decision workspace | Complete | U05 |
-| U07 | Build evidence inspector and dependency file context | Pending | U06 |
+| U07 | Build evidence inspector and dependency file context | Complete | U06 |
 | U08 | Build Stage Plan and honest operation-status views | Pending | U07 |
 | U09 | Build the Change Set review workspace | Pending | U08 |
 | U10 | Build rollback, stop, and completion experiences | Pending | U09 |
@@ -620,11 +620,13 @@ A cheaper model never marks its own work complete. The Sol parent reads the diff
 - Writer: Grok 4.5 High; parent verification + independent review
 - Verification: focused decision/keyboard tests, lint, typecheck, full Vitest (220), build, Prettier, `git diff --check` — passed
 - Independent review: CLEAN
-- Next todo: U07
+- Next todo: U07 (complete)
 
 ---
 
 ## U07 — Build evidence inspector and dependency file context
+
+**Status:** Complete
 
 **Writer goal:** Make evidence navigation real without fabricating graph evidence.
 
@@ -649,6 +651,23 @@ A cheaper model never marks its own work complete. The Sol parent reads the diff
 - Graph/file-context tests
 - Keyboard and reduced-motion tests
 - Axe scan
+
+### U07 completion record
+
+- Status: Complete
+- Writer: Grok 4.5 High; no commit (parent owns commit)
+- Changed areas:
+  - Shared `EvidenceInspector` dialog with evidence vs file-context modes
+  - Assessment decision / gate failure / stage evidence open real collections
+  - Dependency graph node/edge file-context, cycle text labels, reduced-motion
+  - Dependency list deferred (G05 does not authorize optional rich-graph enhancement)
+- Verification:
+  - Focused inspector/graph/decision/app tests — passed
+  - Full Vitest — 238 passed
+  - lint, typecheck, build, Prettier (touched files), `git diff --check` — passed
+- Residual risks:
+  - React Flow a11y remains limited to mocked node/edge controls in unit tests; full browser graph keyboard coverage stays for later e2e
+- Next todo: U08
 
 ---
 

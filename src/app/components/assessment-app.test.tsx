@@ -118,4 +118,126 @@ describe("AssessmentApp active-run recovery", () => {
     ]);
     expect(container.textContent).toContain("no active run");
   });
+
+  it("opens evidence inspector without losing candidate selection context", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      jsonResponse(200, {
+        ok: true,
+        run: {
+          runId: "assessed-run",
+          phase: "assessed",
+          sourceLabel: "fixture:controlled-example",
+          analysis: {
+            entryPath: "app.js",
+            routeCount: 2,
+            modelCount: 1,
+            graph: {
+              entryPath: "app.js",
+              nodes: ["app.js"],
+              edges: [],
+              cycles: [],
+            },
+          },
+          ranking: {
+            safestTechnicalCandidateId: "orders",
+            candidates: [
+              {
+                id: "orders",
+                name: "Orders",
+                technicalScore: 0.9,
+                confidence: 0.8,
+                routes: [
+                  {
+                    method: "get",
+                    path: "/orders",
+                    file: "routes/orders.js",
+                    line: 12,
+                  },
+                ],
+                primaryModel: {
+                  modelName: "Order",
+                  collectionName: "orders",
+                  file: "models/order.js",
+                  line: 4,
+                },
+                files: ["routes/orders.js"],
+                signals: [
+                  {
+                    ruleId: "SIGNAL_EXCLUSIVE_WRITE",
+                    message: "Exclusive write ownership on Order",
+                    severity: "info",
+                    file: "routes/orders.js",
+                    line: 40,
+                    snippet: "Order.create(body)",
+                  },
+                  {
+                    ruleId: "SIGNAL_ROUTE_CLUSTER",
+                    message: "Route cluster for Orders",
+                    severity: "info",
+                    file: "routes/orders.js",
+                    line: 12,
+                    snippet: "router.get('/orders'",
+                  },
+                ],
+                conflictingEvidence: [],
+              },
+            ],
+          },
+          readinessByCandidateId: {
+            orders: {
+              ready: true,
+              candidateId: "orders",
+              rules: [],
+            },
+          },
+        },
+      }),
+    );
+
+    await act(async () => root.render(<AssessmentApp />));
+    await act(async () => buttonByText(container, "Try controlled example")!.click());
+
+    const ordersRadio = container.querySelector(
+      'input[type="radio"][value="orders"]',
+    ) as HTMLInputElement | null;
+    expect(ordersRadio).not.toBeNull();
+    await act(async () => {
+      ordersRadio!.click();
+    });
+    expect(ordersRadio!.checked).toBe(true);
+
+    const evidenceButton = [...container.querySelectorAll("button")].find(
+      (button) => button.textContent?.trim() === "routes/orders.js:40",
+    );
+    expect(evidenceButton).toBeDefined();
+    await act(async () => evidenceButton!.click());
+
+    const dialog = container.querySelector('[data-testid="evidence-inspector"]');
+    expect(dialog).not.toBeNull();
+    expect(dialog?.textContent).toContain("Evidence inspector");
+    expect(dialog?.textContent).toContain("SIGNAL_EXCLUSIVE_WRITE");
+    expect(dialog?.textContent).toContain("Order.create(body)");
+    expect(dialog?.textContent).toContain("1 of 2");
+
+    // Candidate decision context remains under the inert workspace.
+    expect(ordersRadio!.checked).toBe(true);
+    expect(container.textContent).toContain("Selected candidate detail");
+    expect(container.textContent).toContain("Orders");
+
+    const next = container.querySelector(
+      '[data-testid="evidence-inspector-next"]',
+    ) as HTMLButtonElement | null;
+    expect(next).not.toBeNull();
+    await act(async () => next!.click());
+    expect(dialog?.textContent).toContain("SIGNAL_ROUTE_CLUSTER");
+    expect(dialog?.textContent).toContain("2 of 2");
+    expect(ordersRadio!.checked).toBe(true);
+
+    const close = container.querySelector(
+      '[data-testid="evidence-inspector-close"]',
+    ) as HTMLButtonElement | null;
+    await act(async () => close!.click());
+    expect(container.querySelector('[data-testid="evidence-inspector"]')).toBeNull();
+    expect(ordersRadio!.checked).toBe(true);
+  });
 });

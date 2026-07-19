@@ -1,13 +1,6 @@
 "use client";
 
-type Evidence = {
-  ruleId: string;
-  message: string;
-  severity: string;
-  file: string;
-  line: number;
-  snippet: string;
-};
+import type { EvidenceRecord, InspectRequest } from "./evidence-types";
 
 type CandidateRoute = {
   method: string;
@@ -30,14 +23,14 @@ type DecisionCandidate = {
     line: number;
   };
   files?: readonly string[];
-  signals: readonly Evidence[];
-  conflictingEvidence: readonly Evidence[];
+  signals: readonly EvidenceRecord[];
+  conflictingEvidence: readonly EvidenceRecord[];
 };
 
 type FailedReadinessRule = {
   ruleId: string;
   summary: string;
-  evidence?: readonly Evidence[];
+  evidence?: readonly EvidenceRecord[];
 };
 
 type DecisionReadiness = {
@@ -61,7 +54,7 @@ export type AssessmentDecisionProps = {
   canConfirm: boolean;
   busy: boolean;
   onConfirm: () => void;
-  onFile?: (file: string) => void;
+  onInspect?: (request: InspectRequest) => void;
 };
 
 function routeLabel(route: CandidateRoute): string {
@@ -72,11 +65,11 @@ function routeLabel(route: CandidateRoute): string {
 function CompactEvidenceList({
   items,
   emptyLabel,
-  onFile,
+  onInspect,
 }: {
-  items: readonly Evidence[];
+  items: readonly EvidenceRecord[];
   emptyLabel: string;
-  onFile?: (file: string) => void;
+  onInspect?: (request: InspectRequest) => void;
 }) {
   if (items.length === 0) {
     return <p className="text-[12px] text-text-quiet">{emptyLabel}</p>;
@@ -98,7 +91,13 @@ function CompactEvidenceList({
             <button
               type="button"
               className="mt-1 tb-mono text-[12px] text-accent hover:underline"
-              onClick={() => onFile?.(item.file)}
+              onClick={() =>
+                onInspect?.({
+                  kind: "evidence",
+                  items,
+                  index,
+                })
+              }
             >
               {item.file}:{item.line}
             </button>
@@ -131,7 +130,7 @@ export function AssessmentDecision({
   canConfirm,
   busy,
   onConfirm,
-  onFile,
+  onInspect,
 }: AssessmentDecisionProps) {
   const selected = candidates.find((candidate) => candidate.id === pickedCandidateId) ?? null;
   const selectedReadiness = selected ? readinessByCandidateId[selected.id] : undefined;
@@ -363,7 +362,14 @@ export function AssessmentDecision({
                         <button
                           type="button"
                           className="tb-mono text-[12px] text-accent hover:underline"
-                          onClick={() => onFile?.(route.file)}
+                          onClick={() =>
+                            onInspect?.({
+                              kind: "file-context",
+                              file: route.file,
+                              line: route.line,
+                              origin: "route",
+                            })
+                          }
                         >
                           {routeLabel(route)}
                         </button>
@@ -388,7 +394,14 @@ export function AssessmentDecision({
                     <button
                       type="button"
                       className="tb-mono text-accent hover:underline"
-                      onClick={() => onFile?.(selected.primaryModel!.file)}
+                      onClick={() =>
+                        onInspect?.({
+                          kind: "file-context",
+                          file: selected.primaryModel!.file,
+                          line: selected.primaryModel!.line,
+                          origin: "model",
+                        })
+                      }
                     >
                       {selected.primaryModel.file}:{selected.primaryModel.line}
                     </button>
@@ -407,7 +420,7 @@ export function AssessmentDecision({
                 <CompactEvidenceList
                   items={selected.signals}
                   emptyLabel="No supporting signals."
-                  onFile={onFile}
+                  onInspect={onInspect}
                 />
               </div>
               <div>
@@ -417,7 +430,7 @@ export function AssessmentDecision({
                 <CompactEvidenceList
                   items={selected.conflictingEvidence}
                   emptyLabel="No conflicting evidence."
-                  onFile={onFile}
+                  onInspect={onInspect}
                 />
               </div>
             </div>
@@ -434,15 +447,27 @@ export function AssessmentDecision({
                 </p>
               ) : (
                 <ul className="space-y-2">
-                  {selectedBlockers.map((rule) => (
-                    <li
-                      key={rule.ruleId}
-                      className="rounded-md border border-border-subtle bg-surface-inset/50 px-2.5 py-2 text-[12px]"
-                    >
-                      <p className="tb-mono text-[11px] text-danger">{rule.ruleId}</p>
-                      <p className="mt-1 text-text-secondary">{rule.summary}</p>
-                    </li>
-                  ))}
+                  {selectedBlockers.map((rule) => {
+                    const blockerEvidence = rule.evidence ?? [];
+                    return (
+                      <li
+                        key={rule.ruleId}
+                        className="rounded-md border border-border-subtle bg-surface-inset/50 px-2.5 py-2 text-[12px]"
+                      >
+                        <p className="tb-mono text-[11px] text-danger">{rule.ruleId}</p>
+                        <p className="mt-1 text-text-secondary">{rule.summary}</p>
+                        {blockerEvidence.length > 0 ? (
+                          <div className="mt-2">
+                            <CompactEvidenceList
+                              items={blockerEvidence}
+                              emptyLabel="No evidence attached."
+                              onInspect={onInspect}
+                            />
+                          </div>
+                        ) : null}
+                      </li>
+                    );
+                  })}
                 </ul>
               )}
             </div>
