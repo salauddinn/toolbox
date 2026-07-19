@@ -1,11 +1,13 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { globalRateLimiter } from "@/server/ai/rate-limit";
+import { selectDomainCandidate } from "@/server/workflow/select";
+import { authorizeAndGenerate } from "@/server/workflow/stage-runner";
 import { clientKeyFromRequest } from "@/server/ai/client-key";
 import { serializeSessionCookie } from "@/server/http/session";
 import { globalRunStore } from "@/server/run-store";
 import { startAssessment } from "@/server/workflow/assess";
 import { POST } from "../route";
-import { DELETE } from "./route";
+import { DELETE, GET } from "./route";
 
 const ownerSession = "owner-session-1234567890";
 const otherSession = "other-session-1234567890";
@@ -46,6 +48,50 @@ describe("/api/runs/:runId", () => {
   beforeEach(() => {
     globalRunStore.clear();
     globalRateLimiter.reset();
+  });
+
+  it("recovers the bounded review payload while awaiting acceptance", async () => {
+    const { cookie, run } = await createOwnerRun();
+    if (run.phase !== "assessed") throw new Error("expected assessed run");
+    const candidate = run.ranking.candidates.find(
+      (item) => run.readinessByCandidateId.get(item.id)?.ready,
+    );
+    if (!candidate) throw new Error("expected ready candidate");
+    const clientKeyHash = clientKeyFromRequest(new Headers({ cookie }), ownerSession);
+    const selected = selectDomainCandidate({
+      runId: run.runId,
+      candidateId: candidate.id,
+      clientKeyHash,
+    });
+    expect(selected.ok).toBe(true);
+    const generated = await authorizeAndGenerate({
+      runId: run.runId,
+      clientKeyHash,
+      forceDeterministic: true,
+    });
+    expect(generated.ok).toBe(true);
+    if (!generated.ok || generated.run.phase !== "awaiting_acceptance") {
+      throw new Error("expected awaiting acceptance");
+    }
+    const generatedRun = generated.run;
+
+    const response = await GET(
+      new Request(`http://localhost/api/runs/${run.runId}`, { headers: { cookie } }),
+      {
+        params: Promise.resolve({ runId: run.runId }),
+      },
+    );
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as {
+      ok: boolean;
+      run: { phase: string; reviewPayload?: { changeSetId: string; files: unknown[] } | null };
+    };
+    expect(body.ok).toBe(true);
+    expect(body.run.phase).toBe("awaiting_acceptance");
+    expect(body.run.reviewPayload).toMatchObject({
+      changeSetId: generatedRun.changeSet.id,
+    });
+    expect(body.run.reviewPayload?.files.length).toBeGreaterThan(0);
   });
 
   it("rejects cross-origin run deletion", async () => {

@@ -5,6 +5,7 @@ import type { TransformationReadiness } from "@/core/readiness";
 import type { RunState } from "@/core/run-state";
 import { orderedStages } from "@/core/run-state";
 import type { ModernizationSequencePlan, StagePlan } from "@/core/stages";
+import { buildReviewPayload } from "./review-payload";
 
 function publicEvidence(e: Evidence) {
   return {
@@ -219,7 +220,8 @@ export function toPublicRunView(state: RunState) {
         validationReport:
           state.phase === "stage_failed_rolled_back" ? state.validationReport : undefined,
       };
-    case "awaiting_acceptance":
+    case "awaiting_acceptance": {
+      const reviewPayload = buildReviewPayload(state);
       return {
         ...base,
         sourceLabel: state.snapshot.sourceLabel,
@@ -234,15 +236,19 @@ export function toPublicRunView(state: RunState) {
           stageKind: state.changeSet.stageKind,
           status: state.changeSet.status,
           attempt: state.changeSet.attempt,
-          operations: state.changeSet.operations.map((op) =>
-            op.type === "delete"
-              ? { type: op.type, path: op.path }
-              : { type: op.type, path: op.path, bytes: Buffer.byteLength(op.content, "utf8") },
-          ),
+          // Only allowlisted paths from the bounded review projection are public.
+          operations:
+            reviewPayload?.files.map((file) =>
+              file.bytes === undefined
+                ? { type: file.kind, path: file.path }
+                : { type: file.kind, path: file.path, bytes: file.bytes },
+            ) ?? [],
         },
-        validationReport: state.validationReport,
+        reviewPayload,
+        validationReport: reviewPayload?.validationReport,
         candidateFileCount: state.candidateSnapshot.files.size,
       };
+    }
     case "sequence_stopped":
       return {
         ...base,

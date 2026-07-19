@@ -24,6 +24,7 @@ import { globalRunStore, type RunStore } from "@/server/run-store";
 import { resolveConditionalStage } from "@/server/sequence/plan";
 import { validateChangeSetStatic } from "@/server/validation/static";
 import { releaseRunCapacity } from "@/server/workflow/assess";
+import { hasCurrentValidatedReview } from "@/server/workflow/review-payload";
 
 function changeSetId(): string {
   return `cs_${randomBytes(8).toString("hex")}`;
@@ -530,6 +531,17 @@ export function acceptCurrentChangeSet(input: {
       ok: false,
       code: "INVALID_PHASE",
       message: `Cannot accept from phase ${run.phase}`,
+      status: 409,
+      run,
+    };
+  }
+  // Acceptance is server-gated by the current Change Set and report. The
+  // browser never supplies a review payload that could satisfy this check.
+  if (!hasCurrentValidatedReview(run)) {
+    return {
+      ok: false,
+      code: "STALE_REVIEW",
+      message: "Current Change Set review is stale or incomplete",
       status: 409,
       run,
     };

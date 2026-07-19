@@ -76,7 +76,7 @@ A cheaper model never marks its own work complete. The Sol parent reads the diff
 | G03 | Enforce AI provider token budgets | Complete | G02 |
 | G04 | Strengthen composition-root injection validation | Complete | G03 |
 | G05 | Record the P0 gate decision and release deferrals | Complete | G04 |
-| U01 | Add the bounded recoverable review payload | Pending | G05 |
+| U01 | Add the bounded recoverable review payload | Complete | G05 |
 | U02 | Integrate typed client state and presentation adapter | Pending | U01 |
 | U03 | Build Paper + Terminal tokens and route shells | Pending | U02 |
 | U04 | Redesign the landing page | Pending | U03 |
@@ -458,50 +458,36 @@ A cheaper model never marks its own work complete. The Sol parent reads the diff
 
 ## U01 — Add the bounded recoverable review payload
 
+**Status:** Complete
+
 **Writer goal:** Make the validated Change Set review recoverable after refresh without exposing unrestricted snapshot content.
 
 **Primary files:**
 
+- `src/server/workflow/review-payload.ts`
 - `src/server/workflow/public-view.ts`
 - `src/server/workflow/stage-runner.ts`
-- `src/server/run-store.ts`
-- `src/app/api/runs/[runId]/*`
+- `src/app/api/runs/[runId]/authorize/route.ts`
 - Related workflow, API, and security tests
 
-**Required work:**
+### U01 completion record
 
-- Define a typed `ReviewPayload` containing:
-  - Change Set ID and attempt
-  - Created, updated, and deleted totals
-  - Allowlisted changed paths and operation kinds
-  - Operation bytes when available
-  - Size-limited before/after previews or unified hunks
-  - Client-safe Validation Report checks and details
-  - Explicit truncation labels
-- Return the payload from authorization success.
-- Add a same-origin, run-bound, read-only recovery path for `awaiting_acceptance`.
-- Reject stale payloads that do not match the current Change Set.
-
-**Non-goals:**
-
-- Returning the full repository snapshot
-- Changing acceptance or rejection transitions
-- Exposing secrets, ignored files, or protected content
-
-**Acceptance:**
-
-- Review survives browser refresh.
-- Missing, partial, failed, or stale review data cannot enable acceptance.
-- Byte limits and allowlists are enforced and tested.
-- Existing mutation endpoints remain unchanged.
-
-**Validation:**
-
-- API route tests
-- Workflow tests
-- Request-guard and session tests
-- Secrets-boundary tests
-- Full Vitest
+- Status: Complete
+- Writer: Terra High; parent verification + GLM-5.2 review
+- Changed areas:
+  - Typed bounded `ReviewPayload` with path/preview/check limits and truncation labels
+  - Secret redaction and ignored/protected/envelope allowlisting
+  - Authorize response uses shared builder; legacy `diff` fields remain but are bounded
+  - GET/`toPublicRunView` recovers review only in `awaiting_acceptance`
+  - Accept refuses stale/incomplete review with `STALE_REVIEW`
+- Verification:
+  - Focused review/API/workflow/security tests — passed
+  - Full Vitest — passed
+  - ESLint, TypeScript, Prettier, `git diff --check` — passed
+- Independent review: CLEAN (GLM-5.2)
+- Residual risks:
+  - Secret redaction is heuristic, mitigated by preview caps and always-partial previews
+- Next todo: U02
 
 ---
 
