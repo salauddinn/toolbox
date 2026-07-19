@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import { AssessmentDecision } from "./assessment/assessment-decision";
 import { GateFailure } from "./assessment/gate-failure";
 import {
   DURABLE_RUN_PHASES,
@@ -128,16 +129,7 @@ export function AssessmentApp() {
   const [confirmingEnd, setConfirmingEnd] = useState(false);
   const [confirmingReplace, setConfirmingReplace] = useState(false);
   const assessment = useAssessmentRun();
-  const {
-    run,
-    busy,
-    error,
-    blockedStart,
-    pickedCandidateId,
-    setPickedCandidateId,
-    intent,
-    setIntent,
-  } = assessment;
+  const { run, busy, error, blockedStart, pickedCandidateId, setPickedCandidateId } = assessment;
   const state = presentationStateFor(
     run,
     assessment.pendingState,
@@ -383,22 +375,23 @@ export function AssessmentApp() {
               <p className="tb-mono text-[11px] text-muted">phase={run.phase}</p>
             </div>
 
-            <div className="grid gap-4 sm:grid-cols-3">
-              <div className="rounded-lg border border-border p-3">
-                <p className="text-xs text-muted">Source</p>
-                <p className="truncate text-sm font-medium">{run.sourceLabel}</p>
-              </div>
-              <div className="rounded-lg border border-border p-3">
-                <p className="text-xs text-muted">Routes / models</p>
-                <p className="text-sm font-medium">
-                  {run.analysis.routeCount} / {run.analysis.modelCount}
-                </p>
-              </div>
-              <div className="rounded-lg border border-border p-3">
-                <p className="text-xs text-muted">Entry</p>
-                <p className="font-mono text-sm">{run.analysis.entryPath}</p>
-              </div>
-            </div>
+            <AssessmentDecision
+              sourceLabel={run.sourceLabel}
+              entryPath={run.analysis.entryPath}
+              routeCount={run.analysis.routeCount}
+              modelCount={run.analysis.modelCount}
+              cycleCount={graph?.cycles.length ?? 0}
+              candidates={candidates}
+              readinessByCandidateId={readinessMap}
+              safestTechnicalCandidateId={run.ranking.safestTechnicalCandidateId}
+              pickedCandidateId={pickedCandidateId}
+              onPickCandidate={setPickedCandidateId}
+              allowConfirmation={false}
+              canConfirm={false}
+              busy={busy}
+              onConfirm={() => undefined}
+              onFile={setSelectedEvidenceFile}
+            />
 
             {graph ? (
               <div className="min-w-0 space-y-2">
@@ -416,64 +409,6 @@ export function AssessmentApp() {
                 <span className="font-mono text-foreground">{selectedEvidenceFile}</span>
               </p>
             ) : null}
-
-            <div className="space-y-4">
-              <h3 className="text-sm font-medium">Domain Candidates (not ready)</h3>
-              {candidates.map((c) => {
-                const readiness = readinessMap[c.id];
-                const safest = run.ranking.safestTechnicalCandidateId === c.id;
-                return (
-                  <article
-                    key={c.id}
-                    className={`rounded-lg border p-4 ${
-                      safest ? "border-accent" : "border-border"
-                    }`}
-                  >
-                    <div>
-                      <h4 className="font-medium">
-                        {c.name}{" "}
-                        {safest ? (
-                          <span className="ml-2 text-xs font-normal text-accent">
-                            safest technical candidate
-                          </span>
-                        ) : null}
-                      </h4>
-                      <p className="text-xs text-muted">
-                        technical score {c.technicalScore.toFixed(2)} · evidence strength{" "}
-                        {c.confidence.toFixed(2)} · {readiness?.ready ? "ready" : "not ready"}
-                      </p>
-                    </div>
-                    <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                      <div>
-                        <p className="mb-1 text-xs font-medium">Signals</p>
-                        <EvidenceList items={c.signals} onFile={setSelectedEvidenceFile} />
-                      </div>
-                      <div>
-                        <p className="mb-1 text-xs font-medium">Conflicting evidence</p>
-                        <EvidenceList
-                          items={c.conflictingEvidence}
-                          onFile={setSelectedEvidenceFile}
-                        />
-                      </div>
-                    </div>
-                    {readiness && !readiness.ready ? (
-                      <div className="mt-3">
-                        <p className="mb-1 text-xs font-medium text-red-600 dark:text-red-400">
-                          Failed readiness rules
-                        </p>
-                        <ul className="space-y-1 text-xs">
-                          {(readiness.failedRules ?? []).map((rule) => (
-                            <li key={rule.ruleId}>
-                              <span className="font-mono">{rule.ruleId}</span>: {rule.summary}
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    ) : null}
-                  </article>
-                );
-              })}
-            </div>
           </section>
         </>
       ) : null}
@@ -487,33 +422,30 @@ export function AssessmentApp() {
 
           {run.phase === "assessed" ? (
             <>
-              <div className="grid gap-4 sm:grid-cols-3">
-                <div className="rounded-lg border border-border p-3">
-                  <p className="text-xs text-muted">Source</p>
-                  <p className="truncate text-sm font-medium">{run.sourceLabel}</p>
-                </div>
-                <div className="rounded-lg border border-border p-3">
-                  <p className="text-xs text-muted">Routes / models</p>
-                  <p className="text-sm font-medium">
-                    {run.analysis?.routeCount ?? 0} / {run.analysis?.modelCount ?? 0}
-                  </p>
-                </div>
-                <div className="rounded-lg border border-border p-3">
-                  <p className="text-xs text-muted">Entry</p>
-                  <p className="font-mono text-sm">{run.analysis?.entryPath}</p>
-                </div>
-              </div>
-
-              <p className="text-sm text-muted">
-                Up to three technical Domain Candidates. The highlighted candidate is the safest
-                technical start; it is not a business priority ranking.
-              </p>
+              <AssessmentDecision
+                sourceLabel={run.sourceLabel}
+                entryPath={run.analysis?.entryPath ?? "—"}
+                routeCount={run.analysis?.routeCount ?? 0}
+                modelCount={run.analysis?.modelCount ?? 0}
+                cycleCount={graph?.cycles.length ?? 0}
+                candidates={candidates}
+                readinessByCandidateId={readinessMap}
+                safestTechnicalCandidateId={run.ranking?.safestTechnicalCandidateId}
+                pickedCandidateId={pickedCandidateId}
+                onPickCandidate={setPickedCandidateId}
+                allowConfirmation={can("select_candidate") || can("confirm_candidate")}
+                canConfirm={can("confirm_candidate")}
+                busy={busy}
+                onConfirm={() => void assessment.confirmSelection()}
+                onFile={setSelectedEvidenceFile}
+              />
 
               {graph ? (
                 <div className="min-w-0 space-y-2">
                   <h3 className="text-sm font-medium">Entry-reachable dependency graph</h3>
                   <p className="text-xs text-muted">
-                    Red animated edges are entry-reachable cycles. Click a node to focus evidence.
+                    Supporting evidence only. Click a node to focus a file path. Graph context is
+                    not the primary decision surface.
                   </p>
                   <DependencyGraph graph={graph} onSelectFile={setSelectedEvidenceFile} />
                 </div>
@@ -525,112 +457,24 @@ export function AssessmentApp() {
                   <span className="font-mono text-foreground">{selectedEvidenceFile}</span>
                 </p>
               ) : null}
-
-              <div className="space-y-4">
-                <h3 className="text-sm font-medium">Domain Candidates</h3>
-                {candidates.map((c) => {
-                  const readiness = readinessMap[c.id];
-                  const safest = run.ranking?.safestTechnicalCandidateId === c.id;
-                  const selected = pickedCandidateId === c.id;
-                  return (
-                    <article
-                      key={c.id}
-                      className={`rounded-lg border p-4 ${
-                        safest ? "border-accent" : "border-border"
-                      } ${selected ? "ring-2 ring-accent/40" : ""}`}
-                    >
-                      <div className="flex flex-wrap items-start justify-between gap-2">
-                        <div>
-                          <h4 className="font-medium">
-                            {c.name}{" "}
-                            {safest ? (
-                              <span className="ml-2 text-xs font-normal text-accent">
-                                safest technical candidate
-                              </span>
-                            ) : null}
-                          </h4>
-                          <p className="text-xs text-muted">
-                            technical score {c.technicalScore.toFixed(2)} · evidence strength{" "}
-                            {c.confidence.toFixed(2)} · {readiness?.ready ? "ready" : "not ready"}
-                          </p>
-                        </div>
-                        {readiness?.ready && can("select_candidate") ? (
-                          <button
-                            type="button"
-                            className="rounded-md border border-border px-3 py-1 text-xs font-medium"
-                            onClick={() => setPickedCandidateId(c.id)}
-                          >
-                            {selected ? "Selected" : "Select"}
-                          </button>
-                        ) : null}
-                      </div>
-
-                      <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                        <div>
-                          <p className="mb-1 text-xs font-medium">Signals</p>
-                          <EvidenceList items={c.signals} onFile={setSelectedEvidenceFile} />
-                        </div>
-                        <div>
-                          <p className="mb-1 text-xs font-medium">Conflicting evidence</p>
-                          <EvidenceList
-                            items={c.conflictingEvidence}
-                            onFile={setSelectedEvidenceFile}
-                          />
-                        </div>
-                      </div>
-
-                      {readiness && !readiness.ready ? (
-                        <div className="mt-3">
-                          <p className="mb-1 text-xs font-medium text-red-600 dark:text-red-400">
-                            Failed readiness rules
-                          </p>
-                          <ul className="space-y-1 text-xs">
-                            {(readiness.failedRules ?? []).map((rule) => (
-                              <li key={rule.ruleId}>
-                                <span className="font-mono">{rule.ruleId}</span>: {rule.summary}
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      ) : null}
-
-                      {c.routes.length > 0 ? (
-                        <p className="mt-2 text-xs text-muted">
-                          Routes:{" "}
-                          {c.routes
-                            .slice(0, 6)
-                            .map((r) => `${r.method.toUpperCase()} ${r.mountPrefix ?? ""}${r.path}`)
-                            .join(", ")}
-                        </p>
-                      ) : null}
-                    </article>
-                  );
-                })}
-              </div>
-
-              <div className="space-y-3 border-t border-border pt-4">
-                <label className="block text-sm font-medium" htmlFor="intent">
-                  Modernization Intent (optional)
-                </label>
-                <textarea
-                  id="intent"
-                  value={intent}
-                  onChange={(e) => setIntent(e.target.value)}
-                  rows={2}
-                  maxLength={500}
-                  placeholder="Optional constraints for the selected domain (not a free-form AI prompt)"
-                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
-                />
-                <button
-                  type="button"
-                  disabled={busy || !can("confirm_candidate")}
-                  onClick={() => void assessment.confirmSelection()}
-                  className="tb-btn tb-btn-primary"
-                >
-                  Confirm Domain Candidate
-                </button>
-              </div>
             </>
+          ) : null}
+
+          {run.phase === "candidate_selected" ? (
+            <div className="space-y-3 rounded-lg border border-border-subtle bg-surface-inset/40 p-4">
+              <h3 className="text-[14px] font-semibold text-ink">{presentation.heading}</h3>
+              <p className="text-[13px] leading-relaxed text-text-secondary">
+                {presentation.explanation}
+              </p>
+              {"selectedCandidate" in run && run.selectedCandidate ? (
+                <p className="text-[13px] text-text-primary">
+                  Confirmed Domain Candidate: <strong>{run.selectedCandidate.name}</strong>
+                </p>
+              ) : null}
+              <p className="text-[12px] text-text-quiet">
+                No Stage Plan is assumed until the server exposes a sequence for this decision.
+              </p>
+            </div>
           ) : null}
 
           {run.phase === "awaiting_authorization" ||

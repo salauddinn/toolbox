@@ -81,7 +81,7 @@ A cheaper model never marks its own work complete. The Sol parent reads the diff
 | U03 | Build Paper + Terminal tokens and route shells | Complete | U02 |
 | U04 | Redesign the landing page | Complete | U03 |
 | U05 | Redesign repository start and gate failures | Complete | U04 |
-| U06 | Build the assessment and candidate decision workspace | Pending | U05 |
+| U06 | Build the assessment and candidate decision workspace | Complete | U05 |
 | U07 | Build evidence inspector and dependency file context | Pending | U06 |
 | U08 | Build Stage Plan and honest operation-status views | Pending | U07 |
 | U09 | Build the Change Set review workspace | Pending | U08 |
@@ -588,6 +588,8 @@ A cheaper model never marks its own work complete. The Sol parent reads the diff
 
 ## U06 — Build assessment and candidate decision workspace
 
+**Status:** Complete
+
 **Writer goal:** Replace long candidate cards with a scan-and-inspect decision workflow.
 
 **Required work:**
@@ -612,6 +614,13 @@ A cheaper model never marks its own work complete. The Sol parent reads the diff
 - Keyboard radio tests
 - Rendered assessment fixtures
 - Axe scan
+
+### U06 completion record
+
+- Writer: Grok 4.5 High; parent verification + independent review
+- Verification: focused decision/keyboard tests, lint, typecheck, full Vitest (220), build, Prettier, `git diff --check` — passed
+- Independent review: CLEAN
+- Next todo: U07
 
 ---
 

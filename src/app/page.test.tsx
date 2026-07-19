@@ -441,4 +441,163 @@ describe("assessment gate failures", () => {
     ).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Retry example" })).not.toBeInTheDocument();
   });
+
+  it("renders assessed decision workspace unselected without preselecting safest or intent", async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      jsonResponse(200, {
+        ok: true,
+        run: {
+          runId: "assessed-run",
+          phase: "assessed",
+          sourceLabel: "fixture:controlled-example",
+          analysis: {
+            entryPath: "app.js",
+            runtime: "node",
+            routeCount: 4,
+            modelCount: 2,
+            findings: [],
+            graph: {
+              nodes: ["app.js"],
+              edges: [],
+              cycles: [{ files: ["a.js", "b.js"], edges: [] }],
+              entryPath: "app.js",
+            },
+          },
+          ranking: {
+            candidates: [
+              {
+                id: "orders",
+                name: "Orders",
+                technicalScore: 0.9,
+                confidence: 0.8,
+                routes: [
+                  {
+                    method: "get",
+                    path: "/orders",
+                    file: "routes/orders.js",
+                    line: 10,
+                  },
+                ],
+                primaryModel: {
+                  modelName: "Order",
+                  collectionName: "orders",
+                  file: "models/order.js",
+                  line: 1,
+                },
+                files: ["routes/orders.js"],
+                signals: [
+                  {
+                    ruleId: "SIGNAL_EXCLUSIVE_WRITE",
+                    message: "Exclusive write",
+                    severity: "info",
+                    file: "routes/orders.js",
+                    line: 10,
+                    snippet: "Order.create",
+                  },
+                ],
+                conflictingEvidence: [],
+              },
+              {
+                id: "users",
+                name: "Users",
+                technicalScore: 0.4,
+                confidence: 0.3,
+                routes: [],
+                files: [],
+                signals: [],
+                conflictingEvidence: [],
+              },
+            ],
+            safestTechnicalCandidateId: "orders",
+          },
+          readinessByCandidateId: {
+            orders: { ready: true, candidateId: "orders", rules: [] },
+            users: {
+              ready: false,
+              candidateId: "users",
+              rules: [],
+              failedRules: [
+                {
+                  ruleId: "READINESS_NO_PRIMARY_MODEL",
+                  passed: false,
+                  summary: "Missing primary model",
+                  evidence: [],
+                },
+              ],
+            },
+          },
+        },
+      }),
+    );
+    render(<AssessmentApp />);
+
+    await user.click(screen.getByRole("button", { name: "Try controlled example" }));
+
+    expect(await screen.findByRole("heading", { name: "Assessment facts" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("radiogroup", { name: /Domain Candidate decision/i }),
+    ).toBeInTheDocument();
+    const radios = screen.getAllByRole("radio");
+    expect(radios).toHaveLength(2);
+    expect(radios.every((radio) => !(radio as HTMLInputElement).checked)).toBe(true);
+    expect(screen.getByText(/Safest technical candidate \(advisory\)/i)).toBeInTheDocument();
+    expect(screen.getByText(/not a business-priority order/i)).toBeInTheDocument();
+    expect(screen.queryByLabelText(/modernization intent/i)).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Confirm Domain Candidate" })).toBeDisabled();
+
+    // Detail stays collapsed until selection — no forced expansion of every candidate card.
+    expect(screen.queryByText("Exclusive write")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("radio", { name: /Users/i }));
+    expect(await screen.findByText("READINESS_NO_PRIMARY_MODEL")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Confirm Domain Candidate" })).toBeDisabled();
+
+    await user.click(screen.getByRole("radio", { name: /Orders/i }));
+    expect(await screen.findByText("Exclusive write")).toBeInTheDocument();
+    const confirm = screen.getByRole("button", { name: "Confirm Domain Candidate" });
+    expect(confirm).toBeEnabled();
+
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse(200, {
+        ok: true,
+        run: {
+          runId: "assessed-run",
+          phase: "candidate_selected",
+          sourceLabel: "fixture:controlled-example",
+          ranking: { candidates: [], safestTechnicalCandidateId: "orders" },
+          readinessByCandidateId: {},
+          selectedCandidate: {
+            id: "orders",
+            name: "Orders",
+            technicalScore: 0.9,
+            confidence: 0.8,
+            routes: [],
+            files: [],
+            signals: [],
+            conflictingEvidence: [],
+          },
+          selectedReadiness: { ready: true, candidateId: "orders", rules: [] },
+        },
+      }),
+    );
+
+    await user.click(confirm);
+    expect(fetchMock).toHaveBeenLastCalledWith(
+      "/api/runs/assessed-run/select",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ candidateId: "orders" }),
+      }),
+    );
+    expect(await screen.findByText(/phase:\s*candidate_selected/i)).toBeInTheDocument();
+    expect(
+      await screen.findByRole("heading", { name: "Modernization Decision confirmed" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/Confirmed Domain Candidate:/i)).toHaveTextContent("Orders");
+    expect(screen.queryByRole("radiogroup")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Confirm Domain Candidate" }),
+    ).not.toBeInTheDocument();
+  });
 });

@@ -80,8 +80,12 @@ export function useAssessmentRun() {
 
   const applyRun = useCallback((nextRun: PublicRunView) => {
     setRun(nextRun);
+    // Candidate radios begin unselected. Never auto-pick the safest technical candidate
+    // (advisory ranking only). Preserve a still-valid local pick across failed confirms.
     if (nextRun.phase === "assessed" || nextRun.phase === "not_ready") {
-      setPickedCandidateId(nextRun.ranking.safestTechnicalCandidateId ?? null);
+      setPickedCandidateId((prev) =>
+        prev && nextRun.ranking.candidates.some((candidate) => candidate.id === prev) ? prev : null,
+      );
     } else {
       setPickedCandidateId(null);
       setIntent("");
@@ -103,6 +107,8 @@ export function useAssessmentRun() {
       setPendingState("start-request-pending");
       setError(null);
       setOperationError(null);
+      setPickedCandidateId(null);
+      setIntent("");
       try {
         const result = await startAssessment(body);
         if (!result.ok) {
