@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { SiteFooter } from "./components/shell/site-footer";
 import { SiteHeader } from "./components/shell/site-header";
+import { ThemeBootScript } from "./components/shell/theme-boot-script";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -26,8 +27,9 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" data-theme="light" suppressHydrationWarning>
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
+        <ThemeBootScript />
         <a href="#main-content" className="tb-skip-link">
           Skip to main content
         </a>

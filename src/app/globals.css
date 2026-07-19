@@ -2,10 +2,13 @@
 
 /*
   Paper + Terminal tokens
-  Paper stays warm and terminal stays dark regardless of prefers-color-scheme.
+  Default is warm light paper. Dark paper is an explicit user choice via data-theme
+  (never automatic prefers-color-scheme inversion). Terminal insets stay cooler/darker
+  than surrounding paper in both themes so the distinction survives.
   Legacy aliases keep existing utility classes working during the redesign.
 */
-:root {
+:root,
+html[data-theme="light"] {
   /* Paper surfaces */
   --canvas-paper: #f3eee4;
   --surface-paper: #fffdf8;
@@ -68,6 +71,70 @@
   --panel-head: color-mix(in srgb, var(--surface-inset) 72%, var(--surface-paper));
   --code-bg: var(--surface-terminal);
   --code-fg: var(--terminal-fg);
+  color-scheme: light;
+}
+
+/*
+  Explicit dark-paper theme — warm dark shell, cooler near-black terminal.
+  Opt-in only through data-theme="dark" (user toggle + localStorage).
+*/
+html[data-theme="dark"] {
+  /* Warm dark paper stays clearly above near-black terminal */
+  --canvas-paper: #1d1813;
+  --surface-paper: #2b241c;
+  --surface-inset: #3a3126;
+
+  --text-primary: #f6eee3;
+  --text-secondary: #d0c0ab;
+  --text-quiet: #b0a08c;
+
+  --border-subtle: #4a3f32;
+  --border-strong: #7a6850;
+  --focus: #8bb8ff;
+
+  --accent-action: #d7e6ff;
+  --accent-action-hover: #eaf2ff;
+  --accent-action-foreground: #071018;
+  --accent-action-soft: rgba(215, 230, 255, 0.18);
+  --success: #3dcf8e;
+  --warning: #e0a84a;
+  --danger: #f0718b;
+
+  /* Cool near-black terminal inset — keep a strong paper/terminal split */
+  --surface-terminal: #05080c;
+  --surface-terminal-raised: #0b1118;
+  --terminal-fg: #eaf0f7;
+  --terminal-fg-muted: #9eb0c2;
+  --terminal-border: #3a4b60;
+
+  --diff-add: #3dd68c;
+  --diff-add-bg: rgba(61, 214, 140, 0.16);
+  --diff-change: #e0b44d;
+  --diff-change-bg: rgba(224, 180, 77, 0.16);
+  --diff-delete: #f0718b;
+  --diff-delete-bg: rgba(240, 113, 139, 0.16);
+
+  --shadow-soft: 0 1px 0 rgba(0, 0, 0, 0.28), 0 1px 2px rgba(0, 0, 0, 0.32);
+  --shadow-lift: 0 1px 0 rgba(0, 0, 0, 0.3), 0 12px 28px rgba(0, 0, 0, 0.42);
+  --grid: rgba(243, 235, 224, 0.045);
+
+  --background: var(--canvas-paper);
+  --foreground: var(--text-primary);
+  --surface: var(--surface-paper);
+  --surface-raised: var(--surface-paper);
+  --surface-muted: var(--surface-inset);
+  --border: var(--border-subtle);
+  --muted: var(--text-secondary);
+  --muted-soft: var(--text-quiet);
+  --accent: var(--accent-action);
+  --accent-hover: var(--accent-action-hover);
+  --accent-foreground: var(--accent-action-foreground);
+  --accent-soft: var(--accent-action-soft);
+  --ink: var(--text-primary);
+  --panel-head: color-mix(in srgb, var(--surface-inset) 72%, var(--surface-paper));
+  --code-bg: var(--surface-terminal);
+  --code-fg: var(--terminal-fg);
+  color-scheme: dark;
 }
 
 @theme inline {
@@ -125,6 +192,11 @@
   --shadow-lift: var(--shadow-lift);
 }
 
+html {
+  /* Prefer clip over hidden so sticky header still works while blocking page overflow. */
+  overflow-x: clip;
+}
+
 body {
   background: var(--canvas-paper);
   color: var(--text-primary);
@@ -132,6 +204,7 @@ body {
   font-feature-settings:
     "ss01" on,
     "cv11" on;
+  overflow-x: clip;
 }
 
 /* Keyboard focus — high contrast on paper and terminal */
@@ -232,8 +305,15 @@ body {
 }
 
 .tb-chip-accent {
-  border-color: color-mix(in srgb, var(--accent-action) 30%, var(--border-subtle));
-  background: var(--accent-action-soft);
+  border-color: color-mix(in srgb, var(--accent-action) 40%, var(--border-subtle));
+  background: color-mix(in srgb, var(--accent-action-soft) 88%, var(--surface-paper));
+  color: var(--accent-action);
+}
+
+html[data-theme="dark"] .tb-chip-accent {
+  /* Keep small mono chips above AA on dark paper insets */
+  background: color-mix(in srgb, var(--surface-terminal) 55%, var(--surface-paper));
+  border-color: color-mix(in srgb, var(--accent-action) 45%, var(--terminal-border));
   color: var(--accent-action);
 }
 
@@ -254,6 +334,31 @@ body {
     opacity 120ms ease;
 }
 
+.tb-theme-toggle {
+  border: 1px solid var(--border-subtle);
+  background: var(--surface-inset);
+  color: var(--text-primary);
+}
+
+.tb-theme-toggle:hover:not(:disabled) {
+  border-color: var(--border-strong);
+  background: var(--surface-paper);
+  color: var(--text-primary);
+}
+
+.tb-theme-toggle[aria-pressed="true"] {
+  border-color: var(--border-strong);
+  background: var(--surface-inset);
+  color: var(--text-primary);
+}
+
+html[data-theme="dark"] .tb-theme-toggle,
+html[data-theme="dark"] .tb-theme-toggle[aria-pressed="true"] {
+  border-color: var(--border-strong);
+  background: var(--surface-inset);
+  color: var(--text-primary);
+}
+
 .tb-btn:disabled {
   opacity: 0.55;
   cursor: not-allowed;
@@ -268,6 +373,16 @@ body {
   background: var(--accent-action-hover);
 }
 
+html[data-theme="dark"] .tb-btn-primary {
+  background: #d7e6ff;
+  color: #071018;
+}
+
+html[data-theme="dark"] .tb-btn-primary:hover:not(:disabled) {
+  background: #eaf2ff;
+  color: #071018;
+}
+
 .tb-btn-secondary {
   border: 1px solid var(--border-strong);
   background: var(--surface-paper);
@@ -275,8 +390,15 @@ body {
 }
 
 .tb-btn-secondary:hover:not(:disabled) {
-  border-color: var(--accent-action);
-  color: var(--accent-action);
+  border-color: var(--border-strong);
+  background: var(--surface-inset);
+  color: var(--text-primary);
+}
+
+html[data-theme="dark"] .tb-btn-secondary {
+  border-color: var(--border-strong);
+  background: var(--surface-inset);
+  color: var(--text-primary);
 }
 
 .tb-btn-ghost {
@@ -338,6 +460,45 @@ body {
 .tb-rule {
   height: 1px;
   background: var(--border-subtle);
+}
+
+/* Coarse pointers: practical 44px minimum targets for primary actions */
+@media (pointer: coarse) {
+  .tb-btn {
+    height: auto;
+    min-height: 2.75rem;
+    min-width: 2.75rem;
+    padding-inline: 0.9rem;
+  }
+
+  .tb-input {
+    height: auto;
+    min-height: 2.75rem;
+  }
+
+  .tb-theme-toggle {
+    min-height: 2.75rem;
+    min-width: 2.75rem;
+  }
+
+  .tb-header-nav a,
+  .tb-header-brand {
+    min-height: 2.75rem;
+    display: inline-flex;
+    align-items: center;
+  }
+
+  .tb-header-nav a {
+    padding-inline: 0.75rem;
+  }
+}
+
+/* Narrow viewports and high zoom: keep console chrome from forcing page scroll */
+@media (max-width: 360px) {
+  .tb-chip {
+    max-width: 100%;
+    overflow-wrap: anywhere;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

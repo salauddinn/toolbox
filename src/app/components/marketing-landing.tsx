@@ -314,16 +314,16 @@ export function MarketingLanding() {
           </div>
         </div>
         <div className="tb-terminal overflow-hidden">
-          <div className="grid grid-cols-[minmax(0,1.4fr)_6.5rem_minmax(0,1.6fr)] gap-2 border-b border-terminal-border bg-surface-terminal-raised px-3 py-2 tb-mono text-[10px] uppercase tracking-wide text-terminal-fg-muted sm:grid-cols-[minmax(0,1.5fr)_7.5rem_minmax(0,1.8fr)]">
+          <div className="hidden grid-cols-[minmax(0,1.5fr)_7.5rem_minmax(0,1.8fr)] gap-2 border-b border-terminal-border bg-surface-terminal-raised px-3 py-2 tb-mono text-[10px] uppercase tracking-wide text-terminal-fg-muted sm:grid">
             <span>Concern</span>
             <span>Owner</span>
-            <span className="hidden sm:inline">Boundary</span>
+            <span>Boundary</span>
           </div>
           <ul className="divide-y divide-terminal-border">
             {RESPONSIBILITY.map((row) => (
               <li
                 key={row.concern}
-                className="grid grid-cols-1 gap-1 px-3 py-2.5 sm:grid-cols-[minmax(0,1.5fr)_7.5rem_minmax(0,1.8fr)] sm:items-baseline sm:gap-2"
+                className="grid min-w-0 grid-cols-1 gap-1 px-3 py-2.5 sm:grid-cols-[minmax(0,1.5fr)_7.5rem_minmax(0,1.8fr)] sm:items-baseline sm:gap-2"
               >
                 <p className="tb-mono text-[12px] text-terminal-fg">{row.concern}</p>
                 <p

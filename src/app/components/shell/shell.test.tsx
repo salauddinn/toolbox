@@ -91,4 +91,14 @@ describe("route shells", () => {
     expect(screen.getByRole("link", { name: "Open console" })).toHaveAttribute("href", "/app");
     expect(screen.getByText(/Secrets stay server-side/i)).toBeInTheDocument();
   });
+
+  it("places an accessible theme toggle in the shared header", () => {
+    render(<SiteHeader />);
+
+    const toggle = screen.getByTestId("theme-toggle");
+    expect(toggle.tagName).toBe("BUTTON");
+    expect(toggle).toHaveAttribute("type", "button");
+    expect(toggle).toHaveAccessibleName(/dark mode|light mode/i);
+    expect(toggle).toHaveAttribute("aria-pressed");
+  });
 });

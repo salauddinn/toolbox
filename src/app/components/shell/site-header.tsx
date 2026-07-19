@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { ThemeToggle } from "./theme-toggle";
 
 const NAV = [
   { href: "/", label: "Product", match: (path: string) => path === "/" },
@@ -15,9 +16,9 @@ export function SiteHeader() {
 
   return (
     <header className="sticky top-0 z-30 border-b border-border-subtle bg-surface-paper/95 backdrop-blur">
-      <div className="tb-shell-console flex h-12 items-center justify-between gap-4 px-4 sm:px-6">
-        <div className="flex items-center gap-6">
-          <Link href="/" className="flex items-center gap-2.5 rounded-sm">
+      <div className="tb-shell-console flex min-h-12 items-center justify-between gap-3 px-4 py-1.5 sm:gap-4 sm:px-6">
+        <div className="flex min-w-0 items-center gap-3 sm:gap-6">
+          <Link href="/" className="tb-header-brand flex shrink-0 items-center gap-2.5 rounded-sm">
             <span className="tb-mono flex h-6 w-6 items-center justify-center rounded border border-border-strong bg-surface-inset text-[10px] font-semibold text-accent-action">
               TB
             </span>
@@ -27,7 +28,7 @@ export function SiteHeader() {
           </Link>
           <nav
             aria-label="Primary"
-            className="hidden items-center gap-1 text-[12px] text-text-secondary md:flex"
+            className="tb-header-nav hidden items-center gap-1 text-[12px] text-text-secondary md:flex"
           >
             {NAV.map((item) => {
               const current = item.match(pathname);
@@ -44,8 +45,9 @@ export function SiteHeader() {
             })}
           </nav>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
           <span className="tb-chip hidden sm:inline-flex">public github only</span>
+          <ThemeToggle />
           <Link href="/app" className="tb-btn tb-btn-primary h-8 px-3 text-[12px]">
             Open console
           </Link>
