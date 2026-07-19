@@ -159,7 +159,7 @@ export function AssessmentApp() {
   }, [run]);
 
   const candidates =
-    run?.phase === "assessed" || run?.phase === "not_ready" ? run.ranking.candidates : [];
+    run?.phase === "assessed" || run?.phase === "not_ready" ? run.ranking?.candidates ?? [] : [];
   const readinessMap =
     run?.phase === "assessed" || run?.phase === "not_ready" ? run.readinessByCandidateId : {};
   const sequence = run && "sequence" in run ? run.sequence : undefined;
@@ -477,13 +477,13 @@ export function AssessmentApp() {
 
                 <AssessmentDecision
                   sourceLabel={run.sourceLabel}
-                  entryPath={run.analysis.entryPath}
-                  routeCount={run.analysis.routeCount}
-                  modelCount={run.analysis.modelCount}
+                  entryPath={run.analysis?.entryPath ?? "—"}
+                  routeCount={run.analysis?.routeCount ?? 0}
+                  modelCount={run.analysis?.modelCount ?? 0}
                   cycleCount={graph?.cycles.length ?? 0}
                   candidates={candidates}
                   readinessByCandidateId={readinessMap}
-                  safestTechnicalCandidateId={run.ranking.safestTechnicalCandidateId}
+                  safestTechnicalCandidateId={run.ranking?.safestTechnicalCandidateId}
                   pickedCandidateId={pickedCandidateId}
                   onPickCandidate={setPickedCandidateId}
                   allowConfirmation={false}

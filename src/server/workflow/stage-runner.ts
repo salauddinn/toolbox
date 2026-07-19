@@ -445,7 +445,20 @@ async function handleValidationFailure(input: {
   provider: AiProvider;
   deterministic: boolean;
 }): Promise<StageActionResult> {
-  const { run, store, changeSet, report } = input;
+  const { store, changeSet, report } = input;
+  let run: GenRun | ValidatingRun = input.run;
+
+  // Apply failures arrive in "generating"/"repairing" phase — transition to
+  // "validating" first so the normal repair and rollback paths can proceed.
+  if (run.phase === "generating" || run.phase === "repairing") {
+    const forced = beginValidation(run, {
+      candidateSnapshot: run.snapshot,
+      changeSet,
+    });
+    if (forced.ok) {
+      run = forced.state as ValidatingRun;
+    }
+  }
 
   if (changeSet.attempt === 1 && run.phase === "validating") {
     const repairing = beginRepair(run, {
@@ -470,20 +483,7 @@ async function handleValidationFailure(input: {
     });
   }
 
-  // Need validating or repairing for rollback — if still generating apply-fail path:
-  let rollbackSource = run;
-  if (run.phase === "generating" || run.phase === "repairing") {
-    // Move to validating-like rollback via beginValidation with empty candidate? Use snapshot as candidate.
-    const forced = beginValidation(run, {
-      candidateSnapshot: run.snapshot,
-      changeSet,
-    });
-    if (forced.ok) {
-      rollbackSource = forced.state as ValidatingRun;
-    }
-  }
-
-  if (rollbackSource.phase !== "validating" && rollbackSource.phase !== "repairing") {
+  if (run.phase !== "validating" && run.phase !== "repairing") {
     return {
       ok: false,
       code: "INVALID_PHASE",
@@ -494,7 +494,7 @@ async function handleValidationFailure(input: {
   }
 
   const finalReport: ValidationReport = { ...report, finalOutcome: "failed_rolled_back" };
-  const rolled = rollbackStage(rollbackSource, finalReport);
+  const rolled = rollbackStage(run, finalReport);
   if (!rolled.ok) {
     return {
       ok: false,

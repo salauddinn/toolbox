@@ -244,7 +244,7 @@ export function EvidenceInspector({
       return;
     }
 
-    if (active === last) {
+    if (active === last || !panelRef.current.contains(active)) {
       event.preventDefault();
       first.focus();
     }
