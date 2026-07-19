@@ -6,6 +6,7 @@ import {
   deleteRun,
   getRun,
   rejectChangeSet,
+  retryRolledBackStage,
   selectCandidate,
   startAssessment,
   type ApiFailure,
@@ -58,6 +59,7 @@ export function useAssessmentRun(options: { demo?: boolean } = {}) {
   const [pendingState, setPendingState] = useState<PendingState | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [operationError, setOperationError] = useState<OperationError | null>(null);
+  const [runExpired, setRunExpired] = useState(false);
   const [blockedStart, setBlockedStart] = useState<BlockedStart | null>(null);
   const [pickedCandidateId, setPickedCandidateId] = useState<string | null>(null);
   const [intent, setIntent] = useState("");
@@ -67,6 +69,7 @@ export function useAssessmentRun(options: { demo?: boolean } = {}) {
     setPendingState(null);
     setError(null);
     setOperationError(null);
+    setRunExpired(false);
     setBlockedStart(null);
     setPickedCandidateId(null);
     setIntent("");
@@ -97,6 +100,17 @@ export function useAssessmentRun(options: { demo?: boolean } = {}) {
   const fail = useCallback(
     (result: ApiFailure, operation: PresentationOperation, retryable: boolean) => {
       if (result.run) applyRun(result.run);
+      if (result.code === "RUN_NOT_FOUND" || result.status === 404) {
+        setRun(null);
+        setPendingState(null);
+        setError(null);
+        setOperationError(null);
+        setBlockedStart(null);
+        setPickedCandidateId(null);
+        setIntent("");
+        setRunExpired(true);
+        return;
+      }
       const message = errorMessage(result);
       setError(message);
       setOperationError({ message, operation, step: phaseStep(result.run ?? run), retryable });
@@ -109,6 +123,7 @@ export function useAssessmentRun(options: { demo?: boolean } = {}) {
       setPendingState("start-request-pending");
       setError(null);
       setOperationError(null);
+      setRunExpired(false);
       setPickedCandidateId(null);
       setIntent("");
       try {
@@ -234,7 +249,7 @@ export function useAssessmentRun(options: { demo?: boolean } = {}) {
       pending: PendingState,
       operation: Extract<
         PresentationOperation,
-        "authorize-stage" | "accept-change-set" | "reject-change-set"
+        "authorize-stage" | "accept-change-set" | "reject-change-set" | "retry-stage"
       >,
       request: (runId: string) => ReturnType<typeof authorizeStage>,
     ) => {
@@ -272,6 +287,10 @@ export function useAssessmentRun(options: { demo?: boolean } = {}) {
     () => mutateStage("reject-request-pending", "reject-change-set", rejectChangeSet),
     [mutateStage],
   );
+  const retryStage = useCallback(
+    () => mutateStage("authorize-request-pending", "retry-stage", retryRolledBackStage),
+    [mutateStage],
+  );
 
   const refresh = useCallback(async () => {
     if (!run) return;
@@ -286,6 +305,7 @@ export function useAssessmentRun(options: { demo?: boolean } = {}) {
     pendingState,
     error,
     operationError,
+    runExpired,
     blockedStart,
     pickedCandidateId,
     setPickedCandidateId,
@@ -301,6 +321,7 @@ export function useAssessmentRun(options: { demo?: boolean } = {}) {
     authorize,
     accept,
     reject,
+    retryStage,
     refresh,
   };
 }

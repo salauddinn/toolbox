@@ -11,6 +11,7 @@ import {
   acceptCurrentChangeSet,
   authorizeAndGenerate,
   rejectCurrentChangeSet,
+  retryRolledBackStageGeneration,
   validateInjectedOperations,
 } from "./stage-runner";
 
@@ -247,9 +248,8 @@ describe("stage runner", () => {
 
     expect(calls).toBe(2);
     expect(result).toMatchObject({ ok: false, code: "PROVIDER_SCHEMA", status: 502 });
-    expect(result.run?.phase).toBe("sequence_stopped");
-    if (result.run?.phase === "sequence_stopped") {
-      expect(result.run.reason).toBe("validation_rollback");
+    expect(result.run?.phase).toBe("stage_failed_rolled_back");
+    if (result.run?.phase === "stage_failed_rolled_back") {
       expect(snapshotFingerprint(result.run)).toEqual(before);
       expect(result.run.validationReport?.finalOutcome).toBe("failed_rolled_back");
       expect(result.run.validationReport?.attempts).toHaveLength(2);
@@ -312,7 +312,7 @@ describe("stage runner", () => {
     expect(calls).toBe(3);
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.run.phase).toBe("sequence_stopped");
+    expect(result.run.phase).toBe("stage_failed_rolled_back");
     expect(result.validationReport?.attempts).toHaveLength(2);
     expect(requestBodies[1]?.messages?.[1]?.content).toContain("Previous validation errors");
     expect(requestBodies[2]?.messages?.[1]?.content).toContain("Previous validation errors");
@@ -462,9 +462,8 @@ describe("stage runner", () => {
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.run.phase).toBe("sequence_stopped");
-    if (result.run.phase === "sequence_stopped") {
-      expect(result.run.reason).toBe("validation_rollback");
+    expect(result.run.phase).toBe("stage_failed_rolled_back");
+    if (result.run.phase === "stage_failed_rolled_back") {
       expect(result.validationReport?.attempts.length).toBeGreaterThanOrEqual(2);
       expect(result.validationReport?.finalOutcome).toBe("failed_rolled_back");
       // Rollback restores the complete path-and-content snapshot, not only one expected file.
@@ -480,6 +479,48 @@ describe("stage runner", () => {
       forceDeterministic: true,
     });
     expect(blocked.ok).toBe(false);
+  });
+
+  it("rate limits a manual retry before it can leave the rolled-back state", async () => {
+    const store = new RunStore();
+    const run = await readyRun(store, "stage-retry-rate-limit");
+    const badOperations = [
+      {
+        type: "update" as const,
+        path: assertNormalizedPath("package.json"),
+        content: '{ "name": "must-fail-static-validation" }',
+      },
+    ];
+    const provider = {
+      async generate() {
+        return {
+          ok: true as const,
+          operations: badOperations,
+          rawText: "{}",
+          attempt: 1 as const,
+        };
+      },
+    };
+    const generated = await authorizeAndGenerate({
+      runId: run.runId,
+      clientKeyHash: "stage-retry-rate-limit",
+      store,
+      provider,
+      forceDeterministic: false,
+    });
+    expect(generated.run?.phase).toBe("stage_failed_rolled_back");
+
+    // The initial authorization consumed one of the 12 hourly slots.
+    for (let index = 0; index < 11; index += 1) {
+      expect(globalRateLimiter.tryAuthorize("stage-retry-rate-limit").ok).toBe(true);
+    }
+    const retried = await retryRolledBackStageGeneration({
+      runId: run.runId,
+      clientKeyHash: "stage-retry-rate-limit",
+      store,
+    });
+    expect(retried).toMatchObject({ ok: false, code: "RATE_LIMIT_AUTHORIZE", status: 429 });
+    expect(retried.run?.phase).toBe("stage_failed_rolled_back");
   });
 
   it("runs domain_module deterministic generation after behaviour capture accept", async () => {

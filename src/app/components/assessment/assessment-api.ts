@@ -79,6 +79,10 @@ export function authorizeStage(runId: string): Promise<ApiResult<AuthorizeRespon
   return requestJson<AuthorizeResponse>(`/api/runs/${runId}/authorize`, "POST", {});
 }
 
+export function retryRolledBackStage(runId: string): Promise<ApiResult<AuthorizeResponse>> {
+  return requestJson<AuthorizeResponse>(`/api/runs/${runId}/retry`, "POST", {});
+}
+
 export function acceptChangeSet(runId: string): Promise<ApiResult<RunResponse>> {
   return requestJson<RunResponse>(`/api/runs/${runId}/accept`, "POST", {});
 }

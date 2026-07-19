@@ -12,6 +12,7 @@ export type OutcomeValidationAttempt = {
     kind?: string;
     title?: string;
     outcome?: string;
+    detail?: string;
   }[];
 };
 
@@ -114,6 +115,14 @@ function ValidationSummary({ report }: { report: OutcomeValidationReport }) {
         {[
           `final_outcome: ${report.finalOutcome}`,
           ...attempts.map(attemptSummary),
+          ...attempts.flatMap((attempt) =>
+            (attempt.checks ?? [])
+              .filter((check) => check.outcome === "failed")
+              .map(
+                (check) =>
+                  `failed_check: ${check.id ?? check.title ?? "unknown"}${check.detail ? ` — ${check.detail}` : ""}`,
+              ),
+          ),
           report.externalTestsLabel
             ? `external_generated_tests: ${report.externalTestsLabel}`
             : null,

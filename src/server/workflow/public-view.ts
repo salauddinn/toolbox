@@ -145,6 +145,7 @@ export function toPublicRunView(state: RunState) {
     phase: state.phase,
     createdAt: state.createdAt,
     lastActiveAt: state.lastActiveAt,
+    manualRepairRetries: state.manualRepairRetries ?? 0,
   };
 
   switch (state.phase) {

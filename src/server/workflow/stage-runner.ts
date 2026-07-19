@@ -8,8 +8,8 @@ import {
   beginValidation,
   markValidated,
   rejectChangeSet,
+  retryRolledBackStage,
   rollbackStage,
-  stopAfterRollback,
 } from "@/core/run-state";
 import { assertNormalizedPath } from "@/core/paths";
 import type { ValidationReport } from "@/core/validation";
@@ -213,6 +213,57 @@ export async function authorizeAndGenerate(
   });
 }
 
+/** One explicit repair-context retry after an automatic repair rolled back. */
+export async function retryRolledBackStageGeneration(input: {
+  runId: RunId;
+  clientKeyHash: string;
+  store?: RunStore;
+}): Promise<StageActionResult> {
+  const store = input.store ?? globalRunStore;
+  const bound = getBoundRun(store, input.runId, input.clientKeyHash);
+  if (!bound.ok) return bound;
+
+  const retried = retryRolledBackStage(bound.run);
+  if (!retried.ok) {
+    return {
+      ok: false,
+      code: retried.error.code,
+      message: retried.error.message,
+      status: 409,
+      run: bound.run,
+    };
+  }
+
+  // A manual retry is another provider generation request, so it consumes the
+  // same per-client spend allowance as an initial stage authorization. Validate
+  // the transition first so invalid/repeated requests cannot consume allowance.
+  const authorizeLimit = globalRateLimiter.tryAuthorize(input.clientKeyHash);
+  if (!authorizeLimit.ok) {
+    return {
+      ok: false,
+      code: authorizeLimit.code,
+      message: authorizeLimit.message,
+      status: 429,
+      run: bound.run,
+    };
+  }
+
+  const retrying = retried.state as Extract<RunState, { phase: "repairing" }>;
+  const priorReport = retrying.validationReport;
+  const run = retrying as GenRun;
+  store.set(run);
+  const deterministic =
+    shouldUseDeterministicGeneration() || run.snapshot.sourceLabel === "demo:controlled-example";
+  const provider = deterministic ? new OpenAiCompatibleProvider() : createConfiguredAiProvider();
+  return runGenerateValidateLoop({
+    run,
+    store,
+    provider,
+    deterministic,
+    priorReport,
+  });
+}
+
 async function runGenerateValidateLoop(input: {
   run: GenRun;
   store: RunStore;
@@ -293,25 +344,13 @@ async function runGenerateValidateLoop(input: {
         run: genRun,
       };
     }
-    const stopped = stopAfterRollback(rolled.state);
-    if (!stopped.ok) {
-      input.store.set(rolled.state);
-      return {
-        ok: false,
-        code: produced.code,
-        message: "Provider repair generation failed; stage rolled back",
-        status: 502,
-        run: rolled.state,
-      };
-    }
-    input.store.set(stopped.state);
-    releaseRunCapacity(stopped.state.clientKeyHash);
+    input.store.set(rolled.state);
     return {
       ok: false,
       code: produced.code,
       message: "Provider repair generation failed; stage rolled back",
       status: 502,
-      run: stopped.state,
+      run: rolled.state,
     };
   }
 
@@ -510,14 +549,8 @@ async function handleValidationFailure(input: {
       status: 500,
     };
   }
-  const stopped = stopAfterRollback(rolled.state);
-  if (!stopped.ok) {
-    store.set(rolled.state);
-    return { ok: true, run: rolled.state, validationReport: finalReport };
-  }
-  store.set(stopped.state);
-  releaseRunCapacity(stopped.state.clientKeyHash);
-  return { ok: true, run: stopped.state, validationReport: finalReport };
+  store.set(rolled.state);
+  return { ok: true, run: rolled.state, validationReport: finalReport };
 }
 
 /**

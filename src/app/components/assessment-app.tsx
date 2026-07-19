@@ -65,6 +65,7 @@ function presentationStateFor(
   operationError: ReturnType<typeof useAssessmentRun>["operationError"],
   blockedStart: ReturnType<typeof useAssessmentRun>["blockedStart"],
   pickedCandidateId: string | null,
+  runExpired: boolean,
   refreshingReview = false,
 ): PresentationState {
   if (pendingState) return { kind: "local", state: pendingState };
@@ -77,7 +78,7 @@ function presentationStateFor(
       retryable: operationError.retryable,
     };
   }
-  if (!run) return { kind: "local", state: "no-run" };
+  if (!run) return { kind: "local", state: runExpired ? "run-expired" : "no-run" };
   if (!DURABLE_RUN_PHASES.includes(run.phase)) return { kind: "unknown-phase", phase: run.phase };
 
   if (run.phase === "assessed") {
@@ -118,6 +119,7 @@ export function AssessmentApp({ demo = false }: { demo?: boolean }) {
     assessment.operationError,
     blockedStart,
     pickedCandidateId,
+    assessment.runExpired,
     refreshingReview,
   );
   const presentation = presentationFor(state);
@@ -264,13 +266,22 @@ export function AssessmentApp({ demo = false }: { demo?: boolean }) {
   const currentStep = resolveGuidedStep({
     phase: run?.phase ?? null,
     localState:
-      assessment.pendingState ?? (blockedStart ? "active-run-conflict" : !run ? "no-run" : null),
+      assessment.pendingState ??
+      (blockedStart
+        ? "active-run-conflict"
+        : !run
+          ? assessment.runExpired
+            ? "run-expired"
+            : "no-run"
+          : null),
     unknownPhase,
   });
   const guidedOutcome = resolveGuidedOutcome(run?.phase ?? null);
 
   const guidedSubtitle = !run
-    ? "Choose how to begin. We’ll guide you one step at a time."
+    ? assessment.runExpired
+      ? presentation.explanation
+      : "Choose how to begin. We’ll guide you one step at a time."
     : gatePhase
       ? "This run stopped before modernization. Review the reason, then start over."
       : guidedOutcome === "rolled_back"
@@ -378,7 +389,7 @@ export function AssessmentApp({ demo = false }: { demo?: boolean }) {
         <GuidedShell
           currentStep={currentStep}
           outcome={guidedOutcome}
-          title={unknownPhase ? presentation.heading : undefined}
+          title={unknownPhase || assessment.runExpired ? presentation.heading : undefined}
           subtitle={guidedSubtitle}
           actions={headerActions}
           footer={outcomeFooter}
@@ -696,20 +707,32 @@ export function AssessmentApp({ demo = false }: { demo?: boolean }) {
                   ) : null}
 
                   {!authorizePending && run.phase === "stage_failed_rolled_back" ? (
-                    <SequenceOutcome
-                      kind="stage_failed_rolled_back"
-                      presentation={presentation}
-                      sourceLabel={"sourceLabel" in run ? run.sourceLabel : undefined}
-                      selectedCandidateName={selectedDomain}
-                      currentStageTitle={currentStageTitle}
-                      acceptedChangeSetCount={run.acceptedChangeSetCount}
-                      validationReport={validationReport}
-                      busy={busy}
-                      confirmingEnd={confirmingEnd}
-                      onConfirmingEndChange={setConfirmingEnd}
-                      onEndRun={performEndRun}
-                      endError={assessment.operationError?.operation === "end-run" ? error : null}
-                    />
+                    <div className="space-y-3">
+                      <SequenceOutcome
+                        kind="stage_failed_rolled_back"
+                        presentation={presentation}
+                        sourceLabel={"sourceLabel" in run ? run.sourceLabel : undefined}
+                        selectedCandidateName={selectedDomain}
+                        currentStageTitle={currentStageTitle}
+                        acceptedChangeSetCount={run.acceptedChangeSetCount}
+                        validationReport={validationReport}
+                        busy={busy}
+                        confirmingEnd={confirmingEnd}
+                        onConfirmingEndChange={setConfirmingEnd}
+                        onEndRun={performEndRun}
+                        endError={assessment.operationError?.operation === "end-run" ? error : null}
+                      />
+                      {run.manualRepairRetries < 2 ? (
+                        <button
+                          type="button"
+                          disabled={busy}
+                          onClick={() => void assessment.retryStage()}
+                          className="tb-btn tb-btn-secondary"
+                        >
+                          Retry failed stage ({2 - run.manualRepairRetries} remaining)
+                        </button>
+                      ) : null}
+                    </div>
                   ) : null}
 
                   {!authorizePending && run.phase === "sequence_stopped" ? (

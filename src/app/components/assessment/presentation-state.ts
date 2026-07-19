@@ -46,6 +46,7 @@ export type PresentationOperation =
   | "authorize-stage"
   | "accept-change-set"
   | "reject-change-set"
+  | "retry-stage"
   | "end-run"
   | "replace-run";
 
@@ -63,6 +64,7 @@ export type Presentation = Readonly<{
 
 export type LocalPresentationState =
   | "no-run"
+  | "run-expired"
   | "start-request-pending"
   | "candidate-confirm-request-pending"
   | "authorize-request-pending"
@@ -255,6 +257,17 @@ const localPresentation = {
     busy: false,
     actions: ["start_fixture", "start_github"],
   },
+  "run-expired": {
+    step: "repository",
+    heading: "This run is no longer available",
+    explanation:
+      "The in-memory run expired, the server restarted, or this browser session changed. Start a new assessment to continue.",
+    screen: "repository-start",
+    tone: "warning",
+    busy: false,
+    actions: ["start_fixture", "start_github"],
+    recoveryAction: "start_fixture",
+  },
   "start-request-pending": {
     step: "repository",
     heading: "Loading, screening, and assessing the repository",
@@ -360,6 +373,11 @@ const operationErrorCopy: Readonly<
   "reject-change-set": {
     heading: "The Change Set was not rejected",
     explanation: "The run remains at the current Change Acceptance decision.",
+  },
+  "retry-stage": {
+    heading: "Retrying failed stage",
+    explanation:
+      "ToolBox is applying the recorded Static Validation failures within the same Stage Plan.",
   },
   "end-run": {
     heading: "The current run could not be ended",

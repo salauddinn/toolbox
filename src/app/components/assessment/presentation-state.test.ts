@@ -42,6 +42,7 @@ const consequentialActions = [
 
 const localStates = [
   "no-run",
+  "run-expired",
   "start-request-pending",
   "candidate-confirm-request-pending",
   "authorize-request-pending",
@@ -156,6 +157,15 @@ describe("presentation state", () => {
       busy: false,
       actions: ["replace_active_run", "dismiss_error"],
       recoveryAction: "replace_active_run",
+    });
+  });
+
+  it("explains missing in-memory run recovery without offering a stale retry", () => {
+    expect(presentationFor({ kind: "local", state: "run-expired" })).toMatchObject({
+      step: "repository",
+      heading: "This run is no longer available",
+      actions: ["start_fixture", "start_github"],
+      recoveryAction: "start_fixture",
     });
   });
 

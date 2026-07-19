@@ -39,6 +39,7 @@ type RunBase = {
   createdAt: string;
   lastActiveAt: string;
   clientKeyHash: string;
+  manualRepairRetries?: number;
 };
 
 type SelectedContext = {
@@ -174,6 +175,7 @@ function baseOf(state: RunState): RunBase {
   return {
     runId: state.runId,
     clientKeyHash: state.clientKeyHash,
+    manualRepairRetries: state.manualRepairRetries,
     createdAt: state.createdAt,
     lastActiveAt: nowIso(),
   };
@@ -198,6 +200,7 @@ export function createRun(input: {
     phase: "created",
     runId: input.runId,
     clientKeyHash: input.clientKeyHash,
+    manualRepairRetries: 0,
     createdAt,
     lastActiveAt: createdAt,
   };
@@ -586,6 +589,48 @@ export function stopAfterRollback(state: RunState): TransitionResult {
       reason: "validation_rollback",
       validationReport: state.validationReport,
       acceptedChangeSets: state.acceptedChangeSets,
+    },
+  };
+}
+
+/** One developer-triggered, repair-context retry after the automatic repair has rolled back. */
+export function retryRolledBackStage(state: RunState): TransitionResult {
+  if (state.phase !== "stage_failed_rolled_back") {
+    return invalid(state.phase, "retryRolledBackStage", "Retry requires a rolled-back stage");
+  }
+  if ((state.manualRepairRetries ?? 0) >= 2) {
+    return invalid(
+      state.phase,
+      "retryRolledBackStage",
+      "Both manual repair retries were already used",
+    );
+  }
+  const failedChangeSet: ChangeSet = {
+    id: state.validationReport.changeSetId,
+    stageId: state.currentStage.id,
+    stageKind: state.currentStage.kind,
+    operations: [],
+    status: "validation_failed",
+    attempt: 1,
+    createdAt: nowIso(),
+  };
+  return {
+    ok: true,
+    state: {
+      ...baseOf(state),
+      manualRepairRetries: (state.manualRepairRetries ?? 0) + 1,
+      phase: "repairing",
+      snapshot: state.snapshot,
+      initialSnapshot: state.initialSnapshot,
+      analysis: state.analysis,
+      selectedCandidate: state.selectedCandidate,
+      sequence: state.sequence,
+      stageIndex: state.stageIndex,
+      currentStage: state.currentStage,
+      acceptedChangeSets: state.acceptedChangeSets,
+      validationReports: state.validationReports,
+      failedChangeSet,
+      validationReport: state.validationReport,
     },
   };
 }

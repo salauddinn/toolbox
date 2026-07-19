@@ -17,9 +17,9 @@ import {
   markValidated,
   planSequence,
   rejectChangeSet,
+  retryRolledBackStage,
   rollbackStage,
   selectCandidate,
-  stopAfterRollback,
   type RunId,
   type RunState,
 } from "./run-state";
@@ -302,12 +302,21 @@ describe("run state machine", () => {
     ).toBe(false);
 
     const rolled = mustOk(rollbackStage(state, report("failed_rolled_back"))).state;
-    const stopped = mustOk(stopAfterRollback(rolled)).state;
-    expect(stopped.phase).toBe("sequence_stopped");
-    if (stopped.phase === "sequence_stopped") {
-      expect(stopped.reason).toBe("validation_rollback");
-      expect(stopped.snapshot.snapshotId).toBe("base");
-    }
+    expect(rolled.phase).toBe("stage_failed_rolled_back");
+    const firstRetry = mustOk(retryRolledBackStage(rolled)).state;
+    expect(firstRetry.phase).toBe("repairing");
+    expect(firstRetry.manualRepairRetries).toBe(1);
+    if (firstRetry.phase !== "repairing") return;
+
+    const rolledAgain = mustOk(rollbackStage(firstRetry, report("failed_rolled_back"))).state;
+    const secondRetry = mustOk(retryRolledBackStage(rolledAgain)).state;
+    expect(secondRetry.manualRepairRetries).toBe(2);
+    if (secondRetry.phase !== "repairing") return;
+
+    const exhausted = mustOk(rollbackStage(secondRetry, report("failed_rolled_back"))).state;
+    const denied = retryRolledBackStage(exhausted);
+    expect(denied).toMatchObject({ ok: false });
+    if (!denied.ok) expect(denied.error.message).toContain("Both manual repair retries");
   });
 
   it("records eligibility failure without analysis", () => {
