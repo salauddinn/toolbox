@@ -78,7 +78,7 @@ A cheaper model never marks its own work complete. The Sol parent reads the diff
 | G05 | Record the P0 gate decision and release deferrals | Complete | G04 |
 | U01 | Add the bounded recoverable review payload | Complete | G05 |
 | U02 | Integrate typed client state and presentation adapter | Complete | U01 |
-| U03 | Build Paper + Terminal tokens and route shells | Pending | U02 |
+| U03 | Build Paper + Terminal tokens and route shells | Complete | U02 |
 | U04 | Redesign the landing page | Pending | U03 |
 | U05 | Redesign repository start and gate failures | Pending | U04 |
 | U06 | Build the assessment and candidate decision workspace | Pending | U05 |
@@ -513,43 +513,16 @@ A cheaper model never marks its own work complete. The Sol parent reads the diff
 
 ## U03 — Build Paper + Terminal tokens and route shells
 
-**Writer goal:** Establish the professional design foundation without styling feature details prematurely.
+**Status:** Complete
 
-**Primary files:**
+### U03 completion record
 
-- `src/app/globals.css`
-- `src/app/layout.tsx`
-- `src/app/page.tsx`
-- `src/app/app/layout.tsx`
-- Shared shell components
-
-**Required work:**
-
-- Add warm paper, dark terminal, semantic status, focus, and diff tokens.
-- Keep paper and terminal surfaces distinct regardless of system theme.
-- Add skip link and route-appropriate main landmarks.
-- Preserve `/` and `/app` URLs.
-- Give the work console adequate desktop width.
-
-**Non-goals:**
-
-- Full feature redesign
-- Literal retro operating-system chrome
-- Decorative motion
-
-**Acceptance:**
-
-- Product prose remains comfortably bounded.
-- Console can use a wider work area.
-- Focus is visible in all semantic surfaces.
-- Token contrast meets WCAG 2.2 AA.
-
-**Validation:**
-
-- Rendered shell tests
-- Axe scan
-- 320 px and 200% zoom smoke checks
-- Build
+- Writer: Grok 4.5 High; parent verification + independent review
+- Changed areas: stable warm paper/dark terminal tokens, contrast-oriented focus/diff/status roles, skip link, semantic product/console shells, bounded marketing width, and 1440px console shell
+- Verification: shell/page/assessment tests, Playwright landing Axe smoke, lint, typecheck, build, `git diff --check` — passed
+- Independent review: CLEAN
+- Residual risk: legacy feature class names are token aliases until later UI slices
+- Next todo: U04
 
 ---
 

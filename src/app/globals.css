@@ -1,40 +1,109 @@
 @import "tailwindcss";
 
+/*
+  Paper + Terminal tokens
+  Paper stays warm and terminal stays dark regardless of prefers-color-scheme.
+  Legacy aliases keep existing utility classes working during the redesign.
+*/
 :root {
-  --background: #f4f5f7;
-  --foreground: #0b1220;
-  --surface: #ffffff;
-  --surface-raised: #ffffff;
-  --surface-muted: #eef1f5;
-  --border: #d8dee8;
-  --border-strong: #b8c2d1;
-  --muted: #5b667a;
-  --muted-soft: #687386;
-  --accent: #0754d3;
-  --accent-hover: #063fa5;
-  --accent-foreground: #ffffff;
-  --accent-soft: #e8f0ff;
-  --ink: #0b1220;
-  --success: #096738;
-  --danger: #c81e4a;
-  --warning: #874900;
-  --panel-head: #f0f3f7;
-  --code-bg: #0f172a;
-  --code-fg: #e2e8f0;
-  --grid: rgba(11, 18, 32, 0.045);
-  --shadow-soft: 0 1px 0 rgba(11, 18, 32, 0.04), 0 1px 2px rgba(11, 18, 32, 0.04);
-  --shadow-lift: 0 1px 0 rgba(11, 18, 32, 0.05), 0 8px 24px rgba(11, 18, 32, 0.08);
+  /* Paper surfaces */
+  --canvas-paper: #f3eee4;
+  --surface-paper: #fffdf8;
+  --surface-inset: #ebe4d6;
+
+  /* Paper text — AA on paper surfaces */
+  --text-primary: #1c1917;
+  --text-secondary: #44403c;
+  --text-quiet: #57534e;
+
+  /* Borders and focus */
+  --border-subtle: #d6ceb8;
+  --border-strong: #a89f88;
+  --focus: #0b57d0;
+
+  /* Accents and status */
+  --accent-action: #0b57d0;
+  --accent-action-hover: #0842a0;
+  --accent-action-foreground: #ffffff;
+  --accent-action-soft: #e8f0ff;
+  --success: #0f6b3c;
+  --warning: #8a4b00;
+  --danger: #a1192e;
+
+  /* Terminal surfaces (always dark insets) */
+  --surface-terminal: #0e141b;
+  --surface-terminal-raised: #151c25;
+  --terminal-fg: #e6edf5;
+  --terminal-fg-muted: #9aa7b8;
+  --terminal-border: #2a3544;
+
+  /* Diff semantics on terminal */
+  --diff-add: #3dd68c;
+  --diff-add-bg: rgba(61, 214, 140, 0.14);
+  --diff-change: #e0b44d;
+  --diff-change-bg: rgba(224, 180, 77, 0.14);
+  --diff-delete: #f0718b;
+  --diff-delete-bg: rgba(240, 113, 139, 0.14);
+
+  /* Shape / elevation */
   --radius: 8px;
+  --shadow-soft: 0 1px 0 rgba(28, 25, 23, 0.04), 0 1px 2px rgba(28, 25, 23, 0.05);
+  --shadow-lift: 0 1px 0 rgba(28, 25, 23, 0.05), 0 8px 24px rgba(28, 25, 23, 0.08);
+  --grid: rgba(28, 25, 23, 0.045);
+
+  /* Legacy aliases → paper/terminal roles */
+  --background: var(--canvas-paper);
+  --foreground: var(--text-primary);
+  --surface: var(--surface-paper);
+  --surface-raised: var(--surface-paper);
+  --surface-muted: var(--surface-inset);
+  --border: var(--border-subtle);
+  --muted: var(--text-secondary);
+  --muted-soft: var(--text-quiet);
+  --accent: var(--accent-action);
+  --accent-hover: var(--accent-action-hover);
+  --accent-foreground: var(--accent-action-foreground);
+  --accent-soft: var(--accent-action-soft);
+  --ink: var(--text-primary);
+  --panel-head: color-mix(in srgb, var(--surface-inset) 72%, var(--surface-paper));
+  --code-bg: var(--surface-terminal);
+  --code-fg: var(--terminal-fg);
 }
 
 @theme inline {
+  /* New paper + terminal roles */
+  --color-canvas-paper: var(--canvas-paper);
+  --color-surface-paper: var(--surface-paper);
+  --color-surface-inset: var(--surface-inset);
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-quiet: var(--text-quiet);
+  --color-border-subtle: var(--border-subtle);
+  --color-border-strong: var(--border-strong);
+  --color-focus: var(--focus);
+  --color-accent-action: var(--accent-action);
+  --color-accent-action-hover: var(--accent-action-hover);
+  --color-accent-action-foreground: var(--accent-action-foreground);
+  --color-accent-action-soft: var(--accent-action-soft);
+  --color-surface-terminal: var(--surface-terminal);
+  --color-surface-terminal-raised: var(--surface-terminal-raised);
+  --color-terminal-fg: var(--terminal-fg);
+  --color-terminal-fg-muted: var(--terminal-fg-muted);
+  --color-terminal-border: var(--terminal-border);
+  --color-diff-add: var(--diff-add);
+  --color-diff-add-bg: var(--diff-add-bg);
+  --color-diff-change: var(--diff-change);
+  --color-diff-change-bg: var(--diff-change-bg);
+  --color-diff-delete: var(--diff-delete);
+  --color-diff-delete-bg: var(--diff-delete-bg);
+
+  /* Legacy utility colors */
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-surface: var(--surface);
   --color-surface-raised: var(--surface-raised);
   --color-surface-muted: var(--surface-muted);
   --color-border: var(--border);
-  --color-border-strong: var(--border-strong);
   --color-muted: var(--muted);
   --color-muted-soft: var(--muted-soft);
   --color-accent: var(--accent);
@@ -48,52 +117,72 @@
   --color-panel-head: var(--panel-head);
   --color-code-bg: var(--code-bg);
   --color-code-fg: var(--code-fg);
+
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  --font-serif: ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
   --shadow-soft: var(--shadow-soft);
   --shadow-lift: var(--shadow-lift);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0e14;
-    --foreground: #e6ebf2;
-    --surface: #111722;
-    --surface-raised: #151c29;
-    --surface-muted: #1a2231;
-    --border: #243044;
-    --border-strong: #334560;
-    --muted: #93a0b5;
-    --muted-soft: #6d7b91;
-    --accent: #4c8dff;
-    --accent-hover: #6aa0ff;
-    --accent-foreground: #041022;
-    --accent-soft: #13233f;
-    --ink: #f2f5fa;
-    --success: #3ecf8e;
-    --danger: #f0718b;
-    --warning: #e8b34a;
-    --panel-head: #0f1622;
-    --code-bg: #080c12;
-    --code-fg: #d7e0ee;
-    --grid: rgba(230, 235, 242, 0.035);
-    --shadow-soft: 0 1px 0 rgba(0, 0, 0, 0.35);
-    --shadow-lift: 0 8px 28px rgba(0, 0, 0, 0.4);
-  }
-}
-
 body {
-  background: var(--background);
-  color: var(--foreground);
+  background: var(--canvas-paper);
+  color: var(--text-primary);
   font-family: var(--font-geist-sans), system-ui, sans-serif;
   font-feature-settings:
     "ss01" on,
     "cv11" on;
 }
 
+/* Keyboard focus — high contrast on paper and terminal */
+:focus {
+  outline: none;
+}
+
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.tb-skip-link {
+  position: absolute;
+  left: 1rem;
+  top: 0;
+  z-index: 100;
+  transform: translateY(-120%);
+  border-radius: 6px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface-paper);
+  color: var(--text-primary);
+  padding: 0.5rem 0.875rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  box-shadow: var(--shadow-lift);
+  transition: transform 120ms ease;
+}
+
+.tb-skip-link:focus,
+.tb-skip-link:focus-visible {
+  transform: translateY(0.75rem);
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.tb-shell-product {
+  width: 100%;
+  max-width: 1120px;
+  margin-inline: auto;
+}
+
+.tb-shell-console {
+  width: 100%;
+  max-width: 1440px;
+  margin-inline: auto;
+}
+
 .tb-panel {
-  border: 1px solid var(--border);
-  background: var(--surface);
+  border: 1px solid var(--border-subtle);
+  background: var(--surface-paper);
   border-radius: var(--radius);
   box-shadow: var(--shadow-soft);
 }
@@ -103,9 +192,16 @@ body {
   align-items: center;
   justify-content: space-between;
   gap: 0.75rem;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--border-subtle);
   background: var(--panel-head);
   padding: 0.625rem 0.875rem;
+}
+
+.tb-terminal {
+  border: 1px solid var(--terminal-border);
+  background: var(--surface-terminal);
+  color: var(--terminal-fg);
+  border-radius: var(--radius);
 }
 
 .tb-chip {
@@ -113,32 +209,32 @@ body {
   align-items: center;
   gap: 0.35rem;
   border-radius: 999px;
-  border: 1px solid var(--border);
-  background: var(--surface-muted);
+  border: 1px solid var(--border-subtle);
+  background: var(--surface-inset);
   padding: 0.15rem 0.5rem;
   font-family: var(--font-geist-mono), ui-monospace, monospace;
   font-size: 10px;
   line-height: 1.4;
   letter-spacing: 0.02em;
-  color: var(--muted);
+  color: var(--text-quiet);
 }
 
 .tb-chip-ok {
-  border-color: color-mix(in srgb, var(--success) 30%, var(--border));
+  border-color: color-mix(in srgb, var(--success) 30%, var(--border-subtle));
   background: color-mix(in srgb, var(--success) 12%, transparent);
   color: var(--success);
 }
 
 .tb-chip-warn {
-  border-color: color-mix(in srgb, var(--warning) 30%, var(--border));
+  border-color: color-mix(in srgb, var(--warning) 30%, var(--border-subtle));
   background: color-mix(in srgb, var(--warning) 12%, transparent);
   color: var(--warning);
 }
 
 .tb-chip-accent {
-  border-color: color-mix(in srgb, var(--accent) 30%, var(--border));
-  background: var(--accent-soft);
-  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent-action) 30%, var(--border-subtle));
+  background: var(--accent-action-soft);
+  color: var(--accent-action);
 }
 
 .tb-btn {
@@ -164,55 +260,56 @@ body {
 }
 
 .tb-btn-primary {
-  background: var(--accent);
-  color: var(--accent-foreground);
+  background: var(--accent-action);
+  color: var(--accent-action-foreground);
 }
 
 .tb-btn-primary:hover:not(:disabled) {
-  background: var(--accent-hover);
+  background: var(--accent-action-hover);
 }
 
 .tb-btn-secondary {
   border: 1px solid var(--border-strong);
-  background: var(--surface);
-  color: var(--ink);
+  background: var(--surface-paper);
+  color: var(--text-primary);
 }
 
 .tb-btn-secondary:hover:not(:disabled) {
-  border-color: var(--accent);
-  color: var(--accent);
+  border-color: var(--accent-action);
+  color: var(--accent-action);
 }
 
 .tb-btn-ghost {
   border: 1px solid transparent;
   background: transparent;
-  color: var(--muted);
+  color: var(--text-secondary);
 }
 
 .tb-btn-ghost:hover:not(:disabled) {
-  background: var(--surface-muted);
-  color: var(--ink);
+  background: var(--surface-inset);
+  color: var(--text-primary);
 }
 
 .tb-input {
   height: 2.25rem;
   width: 100%;
   border-radius: 6px;
-  border: 1px solid var(--border);
-  background: var(--background);
+  border: 1px solid var(--border-subtle);
+  background: var(--canvas-paper);
   padding: 0 0.75rem;
   font-size: 0.8125rem;
-  color: var(--foreground);
+  color: var(--text-primary);
   outline: none;
 }
 
 .tb-input::placeholder {
-  color: var(--muted-soft);
+  color: var(--text-quiet);
 }
 
-.tb-input:focus {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
+.tb-input:focus-visible {
+  border-color: var(--focus);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--focus) 22%, transparent);
+  outline: none;
 }
 
 .tb-input:disabled {
@@ -220,23 +317,27 @@ body {
 }
 
 .tb-kbd {
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-subtle);
   border-bottom-width: 2px;
   border-radius: 4px;
-  background: var(--surface-muted);
+  background: var(--surface-inset);
   padding: 0.05rem 0.35rem;
   font-family: var(--font-geist-mono), ui-monospace, monospace;
   font-size: 10px;
-  color: var(--muted);
+  color: var(--text-quiet);
 }
 
 .tb-mono {
   font-family: var(--font-geist-mono), ui-monospace, monospace;
 }
 
+.tb-serif {
+  font-family: var(--font-serif);
+}
+
 .tb-rule {
   height: 1px;
-  background: var(--border);
+  background: var(--border-subtle);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -246,5 +347,9 @@ body {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
+  }
+
+  .tb-skip-link {
+    transition: none;
   }
 }
