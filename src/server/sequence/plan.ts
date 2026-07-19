@@ -294,16 +294,20 @@ function cycleRepairPlan(
       "Replace the selected domain's direct cyclic import with a factory exported from index.js and supplied by the application composition root.",
     evidence: cycleEvidence(cycles),
     expectedFiles: [
-      assertNormalizedPath(`src/modules/${slug}/index.js`),
-      analysis.entryPath,
-      ...cycleFiles,
+      ...new Set([
+        assertNormalizedPath(`src/modules/${slug}/index.js`),
+        analysis.entryPath,
+        ...cycleFiles,
+      ]),
     ],
     pathEnvelope: {
       create: [],
       update: [
-        `src/modules/${slug}/index.js`,
-        analysis.entryPath,
-        ...cycleFiles.map((f) => f as string),
+        ...new Set([
+          `src/modules/${slug}/index.js`,
+          analysis.entryPath as string,
+          ...cycleFiles.map((f) => f as string),
+        ]),
       ],
       delete: [],
     },
