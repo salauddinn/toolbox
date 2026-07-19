@@ -197,17 +197,22 @@ Done when the result ZIP's `repository/` folder reflects only accepted Change Se
 
 ### 14. Pass the release gate
 
-- [ ] Complete the successful external-repository scenario. (needs live URL + network)
+Gate record: `docs/P0-RELEASE-GATE.md` (2026-07-19). Local correctness P0 follow-ups are complete; remaining items below are scheduled release/deploy verification and still block submission.
+
+- [ ] Complete the successful external-repository scenario. (scheduled R01 — needs live URL + network; owner: release operator)
 - [x] Complete the honest-rejection scenario with zero generation calls. (fixture ESM path covered in E2E)
 - [x] Complete the double-failure repair/rollback scenario. (stage-runner tests)
-- [ ] Run the controlled example tests and record the real result. (run on deploy host)
-- [ ] Test the deployed application in an incognito browser.
+- [x] Run the controlled example tests and record the real local result. (2026-07-19: controlled E2E + G01–G04 suites passed; see `docs/P0-RELEASE-GATE.md`)
+- [ ] Re-run the controlled example tests on the deploy host and record that result. (scheduled R01)
+- [ ] Test the deployed application in an incognito browser. (scheduled R01 — needs public URL)
 - [x] Verify one long-lived application process retains run state across all stage requests. (RunStore + E2E)
-- [ ] Verify process restart discards active runs cleanly and the health endpoint recovers.
+- [ ] Verify process restart discards active runs cleanly and the health endpoint recovers. (scheduled R01 — deploy host process recycle)
 - [x] Confirm API secrets are absent from client assets and the public repository. (secrets-boundary tests)
-- [ ] Confirm the full demo path fits within three minutes.
+- [ ] Confirm the full demo path fits within three minutes. (scheduled R01 — after final UI)
 
 Done when all three release scenarios work on the deployed URL.
+
+UI redesign authorization: **GO** for U01–U11 per `docs/P0-RELEASE-GATE.md`. Submission remains **NO-GO** until this section and §15 are complete.
 
 ### 15. Submit
 
@@ -226,3 +231,5 @@ Done when all three release scenarios work on the deployed URL.
 - [ ] Optional pitch deck
 
 P1 work must not begin while a P0 acceptance criterion is failing.
+
+Broad UI redesign (U01–U11) may proceed under the documented P0 gate GO while only deploy/network/demo P0 items remain open. Optional P1 polish stays blocked until submission P0 is clear or explicitly re-gated.

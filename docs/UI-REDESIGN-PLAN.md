@@ -436,14 +436,16 @@ Create generic `Dialog`, `Drawer`, `DataTable`, `CodeBlock`, or additional featu
 
 ## Implementation prerequisites
 
-Broad visual redesign is gated by the unresolved P0 correctness and release work recorded in `TASKS.md`. Before Phase 2 begins, each remaining P0 item must be either:
+Broad visual redesign was gated by unresolved P0 correctness and release work recorded in `TASKS.md`. That gate was decided in `docs/P0-RELEASE-GATE.md` (2026-07-19):
 
-1. Completed and verified; or
-2. Explicitly deferred with an owner, reason, product impact, and demo limitation.
+1. G01–G04 correctness follow-ups are completed and verified; and
+2. Remaining deploy/network/demo P0 items are explicitly deferred with owner, reason, product impact, and verification point.
 
-Until then, implementation may proceed only on foundations that improve correctness and review safety: typed public state, rendered UI tests, active-run safeguards, honest workflow labels, recoverable review data, and accessibility foundations.
+**Gate result: GO for U01–U11 Paper + Terminal implementation.** Submission/release claims remain NO-GO until R01 and `TASKS.md` §14–15 deploy items pass.
 
-Optional Modernization Intent, rich graph interaction, decorative motion, and nostalgic polish remain deferred while a P0 release criterion is failing.
+Foundations already landed before the GO: typed public presentation state, rendered UI tests, active-run safeguards, honest workflow labels, and accessibility test harness. Recoverable review data (U01) is the first authorized UI contract slice after this gate.
+
+Optional Modernization Intent, rich graph interaction, decorative motion, and nostalgic polish remain deferred while submission P0 deploy criteria remain open.
 
 ## Implementation phases
 

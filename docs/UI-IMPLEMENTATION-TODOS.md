@@ -75,7 +75,7 @@ A cheaper model never marks its own work complete. The Sol parent reads the diff
 | G02 | Preserve package-manager lockfile evidence | Complete | G01 |
 | G03 | Enforce AI provider token budgets | Complete | G02 |
 | G04 | Strengthen composition-root injection validation | Complete | G03 |
-| G05 | Record the P0 gate decision and release deferrals | Pending | G04 |
+| G05 | Record the P0 gate decision and release deferrals | Complete | G04 |
 | U01 | Add the bounded recoverable review payload | Pending | G05 |
 | U02 | Integrate typed client state and presentation adapter | Pending | U01 |
 | U03 | Build Paper + Terminal tokens and route shells | Pending | U02 |
@@ -398,13 +398,16 @@ A cheaper model never marks its own work complete. The Sol parent reads the diff
 
 ## G05 — Record the P0 gate decision and release deferrals
 
+**Status:** Complete
+
 **Writer goal:** Produce an evidence-backed gate record before broad visual implementation.
 
 **Primary files:**
 
 - `TASKS.md`
 - `docs/UI-REDESIGN-PLAN.md`
-- Optional new release-gate record under `docs/`
+- `docs/P0-RELEASE-GATE.md`
+- `docs/UI-IMPLEMENTATION-TODOS.md`
 
 **Required work:**
 
@@ -432,6 +435,24 @@ A cheaper model never marks its own work complete. The Sol parent reads the diff
 - Documentation terminology review
 - `git diff --check`
 - Relevant local release commands
+
+### G05 completion record
+
+- Status: Complete
+- Writer: Parent Sol High (documentation gate; no product-code change)
+- Decision: **GO** for U01–U11; **NO-GO** for submission/release claims
+- Changed areas:
+  - `docs/P0-RELEASE-GATE.md` evidence-backed gate record
+  - `TASKS.md` §14 local vs deploy-host split and scheduled deferrals
+  - `docs/UI-REDESIGN-PLAN.md` prerequisite GO wording
+  - This queue status
+- Verification:
+  - Focused controlled-example + G01–G04 suites — 5 files / 52 tests passed (2026-07-19)
+  - `git diff --check` — passed
+  - No external, incognito, process-restart, or three-minute claims recorded as complete
+- Residual risks:
+  - Deploy-host and demo timing remain open under R01
+- Next todo: U01
 
 ---
 
