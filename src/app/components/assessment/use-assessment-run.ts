@@ -72,6 +72,12 @@ export function useAssessmentRun() {
     setIntent("");
   }, []);
 
+  const dismissStartConflict = useCallback(() => {
+    setBlockedStart(null);
+    setError(null);
+    setOperationError(null);
+  }, []);
+
   const applyRun = useCallback((nextRun: PublicRunView) => {
     setRun(nextRun);
     if (nextRun.phase === "assessed" || nextRun.phase === "not_ready") {
@@ -273,6 +279,7 @@ export function useAssessmentRun() {
     intent,
     setIntent,
     reset,
+    dismissStartConflict,
     startFixture,
     startGithub,
     replacePreviousRun,

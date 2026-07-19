@@ -72,6 +72,10 @@ describe("AssessmentApp active-run recovery", () => {
     expect(recover).toBeDefined();
     await act(async () => recover!.click());
 
+    const confirm = buttonByText(container, "Confirm end previous run and start new");
+    expect(confirm).toBeDefined();
+    await act(async () => confirm!.click());
+
     expect(fetchMock).toHaveBeenCalledTimes(3);
     expect(fetchMock.mock.calls.map(([url, init]) => [url, init?.method])).toEqual([
       ["/api/runs", "POST"],
@@ -103,6 +107,10 @@ describe("AssessmentApp active-run recovery", () => {
     const end = buttonByText(container, "End run / Start over");
     expect(end).toBeDefined();
     await act(async () => end!.click());
+
+    const confirm = buttonByText(container, "Confirm end run");
+    expect(confirm).toBeDefined();
+    await act(async () => confirm!.click());
 
     expect(fetchMock.mock.calls.map(([url, init]) => [url, init?.method])).toEqual([
       ["/api/runs", "POST"],

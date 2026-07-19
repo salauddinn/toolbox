@@ -80,7 +80,7 @@ A cheaper model never marks its own work complete. The Sol parent reads the diff
 | U02 | Integrate typed client state and presentation adapter | Complete | U01 |
 | U03 | Build Paper + Terminal tokens and route shells | Complete | U02 |
 | U04 | Redesign the landing page | Complete | U03 |
-| U05 | Redesign repository start and gate failures | Pending | U04 |
+| U05 | Redesign repository start and gate failures | Complete | U04 |
 | U06 | Build the assessment and candidate decision workspace | Pending | U05 |
 | U07 | Build evidence inspector and dependency file context | Pending | U06 |
 | U08 | Build Stage Plan and honest operation-status views | Pending | U07 |
@@ -543,6 +543,8 @@ A cheaper model never marks its own work complete. The Sol parent reads the diff
 
 ## U05 — Redesign repository start and gate failures
 
+**Status:** Complete
+
 **Writer goal:** Make repository entry and deterministic stop conditions clear and recoverable.
 
 **Primary files:**
@@ -573,6 +575,14 @@ A cheaper model never marks its own work complete. The Sol parent reads the diff
 - Request-shape tests
 - Keyboard test
 - Axe scan
+
+### U05 completion record
+
+- Writer: Grok 4.5 High; parent verification + independent review
+- Verification: focused rendered tests, lint, typecheck, full Vitest (213), build, Prettier, `git diff --check` — passed
+- Independent review: CLEAN
+- Residual risk: inline confirmations do not move focus automatically; legacy candidate cards remain until U06
+- Next todo: U06
 
 ---
 

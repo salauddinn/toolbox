@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import { GateFailure } from "./assessment/gate-failure";
 import {
   DURABLE_RUN_PHASES,
   presentationFor,
@@ -10,19 +11,9 @@ import {
   type PresentationState,
   type ReviewReadiness,
 } from "./assessment/presentation-state";
+import { RepositoryStart, SupportedContractDetails } from "./assessment/repository-start";
 import { useAssessmentRun } from "./assessment/use-assessment-run";
 import { DependencyGraph, type GraphPayload } from "./dependency-graph";
-
-const SUPPORTED_CONTRACT = [
-  "Public GitHub repository that passes Safety Screening",
-  "Single-root npm project with package.json",
-  "JavaScript CommonJS (no type: module)",
-  "Express.js and Mongoose declared dependencies",
-  "Recognizable entry (app.js, server.js, or index.js)",
-  "At least one route and one Mongoose model",
-  "Existing CommonJS Jest/Supertest harness via npm test for transformation",
-  "At most 150 analyzed source files and 2 MB analyzed source",
-] as const;
 
 type Evidence = {
   ruleId: string;
@@ -134,6 +125,8 @@ function presentationStateFor(
 export function AssessmentApp() {
   const [url, setUrl] = useState("");
   const [selectedEvidenceFile, setSelectedEvidenceFile] = useState<string | null>(null);
+  const [confirmingEnd, setConfirmingEnd] = useState(false);
+  const [confirmingReplace, setConfirmingReplace] = useState(false);
   const assessment = useAssessmentRun();
   const {
     run,
@@ -155,6 +148,12 @@ export function AssessmentApp() {
   const presentation = presentationFor(state);
   const can = (action: PresentationAction) => presentation.actions.includes(action);
   const unknownPhase = state.kind === "unknown-phase";
+  const gatePhase =
+    run?.phase === "eligibility_failed" ||
+    run?.phase === "safety_failed" ||
+    run?.phase === "not_ready"
+      ? run.phase
+      : null;
 
   const graph: GraphPayload | null = useMemo(() => {
     if ((run?.phase !== "assessed" && run?.phase !== "not_ready") || !run.analysis?.graph) {
@@ -174,8 +173,33 @@ export function AssessmentApp() {
   const currentStageTitle = run && "currentStage" in run ? run.currentStage.title : undefined;
   const validationReport = run && "validationReport" in run ? run.validationReport : undefined;
 
+  const readinessFailures =
+    run?.phase === "not_ready"
+      ? candidates
+          .map((candidate) => {
+            const readiness = readinessMap[candidate.id];
+            if (!readiness || readiness.ready) return null;
+            return {
+              candidateName: candidate.name,
+              failedRules: readiness.failedRules ?? [],
+            };
+          })
+          .filter((entry): entry is NonNullable<typeof entry> => entry !== null)
+      : [];
+
+  function requestEndRun() {
+    if (!can("end_run")) return;
+    setConfirmingEnd(true);
+  }
+
+  function performEndRun() {
+    setConfirmingEnd(false);
+    setConfirmingReplace(false);
+    void assessment.endCurrentRun();
+  }
+
   return (
-    <div className="space-y-4">
+    <div className="min-w-0 space-y-4">
       <section className="tb-panel overflow-hidden">
         <div className="tb-panel-head">
           <div className="min-w-0">
@@ -187,19 +211,56 @@ export function AssessmentApp() {
           <div className="flex flex-wrap items-center gap-2">
             {run ? (
               <>
-                <span className="tb-chip tb-chip-accent">phase: {run.phase}</span>
+                <span
+                  className={`tb-chip ${
+                    gatePhase
+                      ? "tb-chip-warn"
+                      : unknownPhase
+                        ? ""
+                        : run.phase === "completed"
+                          ? "tb-chip-ok"
+                          : "tb-chip-accent"
+                  }`}
+                >
+                  phase: {run.phase}
+                </span>
                 <span className="tb-chip">run: {run.runId.slice(0, 10)}…</span>
                 {can("end_run") ? (
-                  <button
-                    type="button"
-                    disabled={busy}
-                    onClick={() => void assessment.endCurrentRun()}
-                    className="tb-btn tb-btn-secondary h-8 px-2.5 text-[12px]"
-                  >
-                    End run / Start over
-                  </button>
+                  confirmingEnd && !gatePhase ? (
+                    <div
+                      className="flex flex-wrap items-center gap-2"
+                      role="group"
+                      aria-label="Confirm end run"
+                    >
+                      <button
+                        type="button"
+                        disabled={busy}
+                        onClick={performEndRun}
+                        className="tb-btn tb-btn-primary h-8 px-2.5 text-[12px]"
+                      >
+                        Confirm end run
+                      </button>
+                      <button
+                        type="button"
+                        disabled={busy}
+                        onClick={() => setConfirmingEnd(false)}
+                        className="tb-btn tb-btn-ghost h-8 px-2.5 text-[12px]"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  ) : !gatePhase ? (
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={requestEndRun}
+                      className="tb-btn tb-btn-secondary h-8 px-2.5 text-[12px]"
+                    >
+                      End run / Start over
+                    </button>
+                  ) : null
                 ) : null}
-                {!unknownPhase ? (
+                {!unknownPhase && !gatePhase ? (
                   <button
                     type="button"
                     disabled={busy}
@@ -223,84 +284,39 @@ export function AssessmentApp() {
       </section>
 
       {!run ? (
-        <section className="tb-panel overflow-hidden">
-          <div className="tb-panel-head">
-            <p className="tb-mono text-[11px] font-medium text-ink">new run</p>
-            <span className="tb-mono text-[10px] text-muted">POST /api/runs</span>
-          </div>
-          <div className="space-y-4 p-5">
-            <p className="max-w-2xl text-[13px] leading-relaxed text-muted">
-              Deterministic checks build the assessment before any AI call. After you confirm a
-              Domain Candidate, AI generates only within the approved Stage Plan and static
-              validation checks every proposed change.
-            </p>
-            <div className="flex flex-col gap-2 sm:flex-row">
-              <button
-                type="button"
-                disabled={busy}
-                onClick={() => void assessment.startFixture()}
-                className="tb-btn tb-btn-primary sm:shrink-0"
-              >
-                {busy ? "Running…" : "Try controlled example"}
-              </button>
-              <div className="flex min-w-0 flex-1 gap-2">
-                <label className="sr-only" htmlFor="github-url">
-                  Public GitHub repository URL
-                </label>
-                <input
-                  id="github-url"
-                  name="github-url"
-                  type="url"
-                  value={url}
-                  onChange={(e) => setUrl(e.target.value)}
-                  disabled={busy}
-                  placeholder="https://github.com/owner/repo"
-                  className="tb-input tb-mono"
-                />
-                <button
-                  type="button"
-                  disabled={busy || url.trim().length === 0}
-                  onClick={() => void assessment.startGithub(url)}
-                  className="tb-btn tb-btn-secondary shrink-0"
-                >
-                  Assess
-                </button>
-              </div>
-            </div>
-            {error ? (
-              <p
-                className="rounded border border-danger/25 bg-danger/8 px-2.5 py-2 text-[12px] text-danger"
-                role="alert"
-              >
-                {error}
-              </p>
-            ) : null}
-            {blockedStart ? (
-              <button
-                type="button"
-                disabled={busy}
-                onClick={() => void assessment.replacePreviousRun()}
-                className="tb-btn tb-btn-secondary"
-              >
-                End previous run and start new
-              </button>
-            ) : null}
-            {busy ? (
-              <p className="tb-mono text-[11px] text-muted" aria-live="polite">
-                load → safety → eligibility → analyze → rank…
-              </p>
-            ) : null}
-          </div>
-        </section>
+        <RepositoryStart
+          url={url}
+          onUrlChange={setUrl}
+          busy={busy}
+          error={error}
+          blockedStart={blockedStart}
+          confirmingReplace={confirmingReplace}
+          onConfirmingReplaceChange={setConfirmingReplace}
+          onStartFixture={() => void assessment.startFixture()}
+          onStartGithub={(nextUrl) => void assessment.startGithub(nextUrl)}
+          onReplacePreviousRun={() => void assessment.replacePreviousRun()}
+          onDismissConflict={() => assessment.dismissStartConflict()}
+        />
       ) : null}
 
-      {run && error ? (
-        <p
-          className="rounded-md border border-danger/25 bg-danger/8 px-3 py-2.5 text-[13px] text-danger"
-          role="alert"
-        >
-          {error}
-        </p>
+      {run ? <SupportedContractDetails defaultOpen={false} /> : null}
+
+      {run && error && !gatePhase ? (
+        <div className="tb-panel overflow-hidden" role="alert">
+          <div className="tb-panel-head">
+            <p className="text-[13px] font-semibold text-danger">
+              {assessment.operationError
+                ? presentation.heading
+                : "The requested action did not complete"}
+            </p>
+            <span className="tb-chip tb-chip-warn">preserved</span>
+          </div>
+          <div className="tb-terminal overflow-hidden border-0 border-t border-terminal-border">
+            <pre className="overflow-x-auto p-3 tb-mono text-[11px] leading-relaxed text-terminal-fg">
+              {error}
+            </pre>
+          </div>
+        </div>
       ) : null}
       {run && busy ? (
         <p className="tb-mono text-[11px] text-muted" aria-live="polite">
@@ -308,85 +324,168 @@ export function AssessmentApp() {
         </p>
       ) : null}
 
-      <section className="tb-panel overflow-hidden">
-        <div className="tb-panel-head">
-          <p className="tb-mono text-[11px] font-medium text-ink">supported contract</p>
-        </div>
-        <ul className="grid gap-0 sm:grid-cols-2">
-          {SUPPORTED_CONTRACT.map((item, i) => (
-            <li
-              key={item}
-              className="flex gap-2 border-b border-border px-3.5 py-2 text-[12px] text-muted last:border-b-0 sm:odd:border-r"
-            >
-              <span className="tb-mono text-[10px] text-muted-soft">
-                {String(i + 1).padStart(2, "0")}
-              </span>
-              <span>{item}</span>
-            </li>
-          ))}
-        </ul>
-      </section>
-
       {run && unknownPhase ? (
         <section className="tb-panel p-5 sm:p-6" role="alert">
           <h2 className="text-[15px] font-semibold text-ink">{presentation.heading}</h2>
           <p className="mt-2 text-sm text-muted">{presentation.explanation}</p>
+          <p className="mt-3 text-[12px] text-text-quiet">
+            No unsupported mutations are offered for this phase.
+          </p>
         </section>
       ) : null}
 
-      {run && !unknownPhase ? (
-        <section className="tb-panel space-y-6 p-5 sm:p-6">
+      {run && run.phase === "eligibility_failed" ? (
+        <GateFailure
+          kind="eligibility_failed"
+          presentation={presentation}
+          sourceLabel={run.sourceLabel}
+          rejections={run.eligibility.rejections}
+          busy={busy}
+          confirmingEnd={confirmingEnd}
+          onConfirmingEndChange={setConfirmingEnd}
+          onEndRun={performEndRun}
+          onFile={setSelectedEvidenceFile}
+        />
+      ) : null}
+
+      {run && run.phase === "safety_failed" ? (
+        <GateFailure
+          kind="safety_failed"
+          presentation={presentation}
+          sourceLabel={run.sourceLabel}
+          rejections={run.safety.rejections}
+          busy={busy}
+          confirmingEnd={confirmingEnd}
+          onConfirmingEndChange={setConfirmingEnd}
+          onEndRun={performEndRun}
+          onFile={setSelectedEvidenceFile}
+        />
+      ) : null}
+
+      {run && run.phase === "not_ready" ? (
+        <>
+          <GateFailure
+            kind="not_ready"
+            presentation={presentation}
+            sourceLabel={run.sourceLabel}
+            readinessFailures={readinessFailures}
+            busy={busy}
+            confirmingEnd={confirmingEnd}
+            onConfirmingEndChange={setConfirmingEnd}
+            onEndRun={performEndRun}
+            onFile={setSelectedEvidenceFile}
+          />
+          <section className="tb-panel space-y-6 overflow-hidden p-5 sm:p-6">
+            <div className="flex flex-wrap items-baseline justify-between gap-2">
+              <h2 className="text-[15px] font-semibold text-ink">
+                Assessment evidence (read-only)
+              </h2>
+              <p className="tb-mono text-[11px] text-muted">phase={run.phase}</p>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-3">
+              <div className="rounded-lg border border-border p-3">
+                <p className="text-xs text-muted">Source</p>
+                <p className="truncate text-sm font-medium">{run.sourceLabel}</p>
+              </div>
+              <div className="rounded-lg border border-border p-3">
+                <p className="text-xs text-muted">Routes / models</p>
+                <p className="text-sm font-medium">
+                  {run.analysis.routeCount} / {run.analysis.modelCount}
+                </p>
+              </div>
+              <div className="rounded-lg border border-border p-3">
+                <p className="text-xs text-muted">Entry</p>
+                <p className="font-mono text-sm">{run.analysis.entryPath}</p>
+              </div>
+            </div>
+
+            {graph ? (
+              <div className="min-w-0 space-y-2">
+                <h3 className="text-sm font-medium">Entry-reachable dependency graph</h3>
+                <p className="text-xs text-muted">
+                  Supporting evidence only. Click a node to focus a file path.
+                </p>
+                <DependencyGraph graph={graph} onSelectFile={setSelectedEvidenceFile} />
+              </div>
+            ) : null}
+
+            {selectedEvidenceFile ? (
+              <p className="text-xs text-muted">
+                Focused file:{" "}
+                <span className="font-mono text-foreground">{selectedEvidenceFile}</span>
+              </p>
+            ) : null}
+
+            <div className="space-y-4">
+              <h3 className="text-sm font-medium">Domain Candidates (not ready)</h3>
+              {candidates.map((c) => {
+                const readiness = readinessMap[c.id];
+                const safest = run.ranking.safestTechnicalCandidateId === c.id;
+                return (
+                  <article
+                    key={c.id}
+                    className={`rounded-lg border p-4 ${
+                      safest ? "border-accent" : "border-border"
+                    }`}
+                  >
+                    <div>
+                      <h4 className="font-medium">
+                        {c.name}{" "}
+                        {safest ? (
+                          <span className="ml-2 text-xs font-normal text-accent">
+                            safest technical candidate
+                          </span>
+                        ) : null}
+                      </h4>
+                      <p className="text-xs text-muted">
+                        technical score {c.technicalScore.toFixed(2)} · evidence strength{" "}
+                        {c.confidence.toFixed(2)} · {readiness?.ready ? "ready" : "not ready"}
+                      </p>
+                    </div>
+                    <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                      <div>
+                        <p className="mb-1 text-xs font-medium">Signals</p>
+                        <EvidenceList items={c.signals} onFile={setSelectedEvidenceFile} />
+                      </div>
+                      <div>
+                        <p className="mb-1 text-xs font-medium">Conflicting evidence</p>
+                        <EvidenceList
+                          items={c.conflictingEvidence}
+                          onFile={setSelectedEvidenceFile}
+                        />
+                      </div>
+                    </div>
+                    {readiness && !readiness.ready ? (
+                      <div className="mt-3">
+                        <p className="mb-1 text-xs font-medium text-red-600 dark:text-red-400">
+                          Failed readiness rules
+                        </p>
+                        <ul className="space-y-1 text-xs">
+                          {(readiness.failedRules ?? []).map((rule) => (
+                            <li key={rule.ruleId}>
+                              <span className="font-mono">{rule.ruleId}</span>: {rule.summary}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    ) : null}
+                  </article>
+                );
+              })}
+            </div>
+          </section>
+        </>
+      ) : null}
+
+      {run && !unknownPhase && !gatePhase ? (
+        <section className="tb-panel min-w-0 space-y-6 overflow-hidden p-5 sm:p-6">
           <div className="flex flex-wrap items-baseline justify-between gap-2">
             <h2 className="text-[15px] font-semibold text-ink">Assessment detail</h2>
             <p className="tb-mono text-[11px] text-muted">phase={run.phase}</p>
           </div>
 
-          {run.phase === "eligibility_failed" ? (
-            <div className="space-y-3">
-              <p className="text-sm font-medium text-red-600 dark:text-red-400">
-                Repository is not eligible
-              </p>
-              <ul className="space-y-2 text-sm">
-                {(run.eligibility?.rejections ?? []).map((r, i) => (
-                  <li key={`${r.code}-${i}`} className="rounded-md border border-border p-3">
-                    <p className="font-mono text-xs text-muted">{r.code}</p>
-                    <p>{r.message}</p>
-                    {r.evidence ? (
-                      <div className="mt-2">
-                        <EvidenceList items={r.evidence} onFile={setSelectedEvidenceFile} />
-                      </div>
-                    ) : null}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ) : null}
-
-          {run.phase === "safety_failed" ? (
-            <div className="space-y-3">
-              <p className="text-sm font-medium text-red-600 dark:text-red-400">
-                Safety Screening rejected this repository
-              </p>
-              <p className="text-xs text-muted">
-                Passing Safety Screening is not malware certification.
-              </p>
-              <ul className="space-y-2 text-sm">
-                {(run.safety?.rejections ?? []).map((r, i) => (
-                  <li key={`${r.code}-${i}`} className="rounded-md border border-border p-3">
-                    <p className="font-mono text-xs text-muted">{r.code}</p>
-                    <p>{r.message}</p>
-                    {r.evidence ? (
-                      <div className="mt-2">
-                        <EvidenceList items={r.evidence} onFile={setSelectedEvidenceFile} />
-                      </div>
-                    ) : null}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ) : null}
-
-          {run.phase === "assessed" || run.phase === "not_ready" ? (
+          {run.phase === "assessed" ? (
             <>
               <div className="grid gap-4 sm:grid-cols-3">
                 <div className="rounded-lg border border-border p-3">
@@ -405,20 +504,13 @@ export function AssessmentApp() {
                 </div>
               </div>
 
-              {run.phase === "not_ready" ? (
-                <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm">
-                  Assessment-only: no Domain Candidate passed Transformation Readiness. Ranking is
-                  technical evidence only — not business priority. AI was not called.
-                </p>
-              ) : (
-                <p className="text-sm text-muted">
-                  Up to three technical Domain Candidates. The highlighted candidate is the safest
-                  technical start; it is not a business priority ranking.
-                </p>
-              )}
+              <p className="text-sm text-muted">
+                Up to three technical Domain Candidates. The highlighted candidate is the safest
+                technical start; it is not a business priority ranking.
+              </p>
 
               {graph ? (
-                <div className="space-y-2">
+                <div className="min-w-0 space-y-2">
                   <h3 className="text-sm font-medium">Entry-reachable dependency graph</h3>
                   <p className="text-xs text-muted">
                     Red animated edges are entry-reachable cycles. Click a node to focus evidence.
@@ -462,7 +554,7 @@ export function AssessmentApp() {
                             {c.confidence.toFixed(2)} · {readiness?.ready ? "ready" : "not ready"}
                           </p>
                         </div>
-                        {run.phase === "assessed" && readiness?.ready && can("select_candidate") ? (
+                        {readiness?.ready && can("select_candidate") ? (
                           <button
                             type="button"
                             className="rounded-md border border-border px-3 py-1 text-xs font-medium"
@@ -516,30 +608,28 @@ export function AssessmentApp() {
                 })}
               </div>
 
-              {run.phase === "assessed" ? (
-                <div className="space-y-3 border-t border-border pt-4">
-                  <label className="block text-sm font-medium" htmlFor="intent">
-                    Modernization Intent (optional)
-                  </label>
-                  <textarea
-                    id="intent"
-                    value={intent}
-                    onChange={(e) => setIntent(e.target.value)}
-                    rows={2}
-                    maxLength={500}
-                    placeholder="Optional constraints for the selected domain (not a free-form AI prompt)"
-                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
-                  />
-                  <button
-                    type="button"
-                    disabled={busy || !can("confirm_candidate")}
-                    onClick={() => void assessment.confirmSelection()}
-                    className="tb-btn tb-btn-primary"
-                  >
-                    Confirm Domain Candidate
-                  </button>
-                </div>
-              ) : null}
+              <div className="space-y-3 border-t border-border pt-4">
+                <label className="block text-sm font-medium" htmlFor="intent">
+                  Modernization Intent (optional)
+                </label>
+                <textarea
+                  id="intent"
+                  value={intent}
+                  onChange={(e) => setIntent(e.target.value)}
+                  rows={2}
+                  maxLength={500}
+                  placeholder="Optional constraints for the selected domain (not a free-form AI prompt)"
+                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
+                />
+                <button
+                  type="button"
+                  disabled={busy || !can("confirm_candidate")}
+                  onClick={() => void assessment.confirmSelection()}
+                  className="tb-btn tb-btn-primary"
+                >
+                  Confirm Domain Candidate
+                </button>
+              </div>
             </>
           ) : null}
 

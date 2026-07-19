@@ -142,9 +142,11 @@ describe("product landing", () => {
 });
 
 describe("assessment no-run screen", () => {
-  it("renders both supported assessment entry points", () => {
+  it("renders distinct controlled-example and GitHub entry paths", () => {
     render(<AssessmentApp />);
 
+    expect(screen.getByRole("heading", { name: "Controlled example" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Public GitHub repository" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Try controlled example" })).toBeEnabled();
     expect(screen.getByLabelText("Public GitHub repository URL")).toHaveAttribute(
       "placeholder",
@@ -152,6 +154,7 @@ describe("assessment no-run screen", () => {
     );
     expect(screen.getByRole("button", { name: "Assess" })).toBeDisabled();
     expect(screen.getByText("supported contract")).toBeInTheDocument();
+    expect(screen.getByText(/expire after 30 minutes/i)).toBeInTheDocument();
   });
 
   it("enables URL assessment and posts the entered public repository", async () => {
@@ -179,6 +182,32 @@ describe("assessment no-run screen", () => {
       }),
     );
     expect(await screen.findByRole("alert")).toHaveTextContent("Invalid URL");
+    expect(screen.getByRole("alert")).toHaveTextContent(/Start did not create a run/i);
+  });
+
+  it("submits the GitHub URL form with Enter", async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(
+        jsonResponse(400, { ok: false, code: "INVALID_GITHUB_URL", message: "Invalid URL" }),
+      );
+    render(<AssessmentApp />);
+
+    const input = screen.getByLabelText("Public GitHub repository URL");
+    await user.type(input, "https://github.com/example/from-enter{Enter}");
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/runs",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          source: "github",
+          url: "https://github.com/example/from-enter",
+        }),
+      }),
+    );
   });
 
   it("offers active-run recovery and preserves it when replacement deletion fails", async () => {
@@ -208,15 +237,208 @@ describe("assessment no-run screen", () => {
       name: "End previous run and start new",
     });
     expect(screen.getByRole("alert")).toHaveTextContent("An active run already exists");
+    expect(
+      screen.getByRole("heading", { name: "An active run must be ended first" }),
+    ).toBeInTheDocument();
 
     await user.click(recovery);
+    await user.click(
+      screen.getByRole("button", { name: "Confirm end previous run and start new" }),
+    );
 
     expect(await screen.findByRole("alert")).toHaveTextContent("Previous run could not be ended");
     expect(screen.getByRole("button", { name: "End previous run and start new" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Keep previous run" })).toBeEnabled();
     expect(fetchMock).toHaveBeenNthCalledWith(
       2,
       "/api/runs/active-run-123",
       expect.objectContaining({ method: "DELETE" }),
     );
+  });
+});
+
+describe("assessment gate failures", () => {
+  it("renders eligibility failure as a stopped gate with evidence and no success framing", async () => {
+    const user = userEvent.setup();
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      jsonResponse(200, {
+        ok: true,
+        run: {
+          runId: "elig-run",
+          phase: "eligibility_failed",
+          sourceLabel: "fixture:unsupported-esm",
+          eligibility: {
+            eligible: false,
+            rejections: [
+              {
+                code: "ELIGIBILITY_ESM_MODULE",
+                message: "type module is not supported",
+                evidence: [
+                  {
+                    ruleId: "ELIGIBILITY_ESM_MODULE",
+                    message: "package.json sets type module",
+                    severity: "error",
+                    file: "package.json",
+                    line: 2,
+                    snippet: '"type": "module"',
+                  },
+                ],
+              },
+            ],
+          },
+        },
+      }),
+    );
+    render(<AssessmentApp />);
+
+    await user.click(screen.getByRole("button", { name: "Try controlled example" }));
+
+    expect(
+      await screen.findByRole("heading", { name: "Repository is not eligible" }),
+    ).toBeInTheDocument();
+    expect(screen.getAllByText(/AI was not called/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByText("ELIGIBILITY_ESM_MODULE").length).toBeGreaterThan(0);
+    expect(screen.getByText(/package.json sets type module/i)).toBeInTheDocument();
+    expect(screen.queryByText("Assessment detail")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "End run / Start over" })).toBeEnabled();
+    expect(
+      screen.queryByRole("button", { name: "Confirm Domain Candidate" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("renders safety failure with disclaimer and terminal evidence", async () => {
+    const user = userEvent.setup();
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      jsonResponse(200, {
+        ok: true,
+        run: {
+          runId: "safe-run",
+          phase: "safety_failed",
+          sourceLabel: "github:owner/risk",
+          safety: {
+            passed: false,
+            rejections: [
+              {
+                code: "SAFETY_DYNAMIC_CODE_EXECUTION",
+                message: "eval usage detected",
+                evidence: [
+                  {
+                    ruleId: "SAFETY_DYNAMIC_CODE_EXECUTION",
+                    message: 'eval("...")',
+                    severity: "error",
+                    file: "src/boot.js",
+                    line: 12,
+                    snippet: "eval(payload)",
+                  },
+                ],
+              },
+            ],
+          },
+        },
+      }),
+    );
+    render(<AssessmentApp />);
+
+    await user.click(screen.getByRole("button", { name: "Try controlled example" }));
+
+    expect(
+      await screen.findByRole("heading", { name: "Safety Screening rejected the repository" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/not malware certification/i)).toBeInTheDocument();
+    expect(screen.getAllByText("SAFETY_DYNAMIC_CODE_EXECUTION").length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/AI not called/i).length).toBeGreaterThan(0);
+    expect(screen.queryByText("Assessment detail")).not.toBeInTheDocument();
+  });
+
+  it("renders not-ready as assessment-only stop without candidate confirmation", async () => {
+    const user = userEvent.setup();
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      jsonResponse(200, {
+        ok: true,
+        run: {
+          runId: "not-ready-run",
+          phase: "not_ready",
+          sourceLabel: "fixture:unsupported-syntax",
+          assessmentOnly: true,
+          analysis: {
+            entryPath: "app.js",
+            runtime: "node",
+            routeCount: 1,
+            modelCount: 1,
+            findings: [],
+            graph: { nodes: [], edges: [], cycles: [], entryPath: "app.js" },
+          },
+          ranking: {
+            candidates: [
+              {
+                id: "c1",
+                name: "Orders",
+                technicalScore: 0.4,
+                confidence: 0.5,
+                routes: [],
+                files: [],
+                signals: [],
+                conflictingEvidence: [],
+              },
+            ],
+            safestTechnicalCandidateId: "c1",
+          },
+          readinessByCandidateId: {
+            c1: {
+              ready: false,
+              candidateId: "c1",
+              rules: [],
+              failedRules: [
+                {
+                  ruleId: "READINESS_UNSUPPORTED_HANDLER_SHAPE",
+                  passed: false,
+                  summary: "Handler shape is outside the MVP profile",
+                  evidence: [],
+                },
+              ],
+            },
+          },
+        },
+      }),
+    );
+    render(<AssessmentApp />);
+
+    await user.click(screen.getByRole("button", { name: "Try controlled example" }));
+
+    expect(
+      await screen.findByRole("heading", {
+        name: "Assessment complete — no candidate is ready",
+      }),
+    ).toBeInTheDocument();
+    expect(screen.getAllByText(/AI was not called/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByText("READINESS_UNSUPPORTED_HANDLER_SHAPE").length).toBeGreaterThan(0);
+    expect(screen.getByText(/Assessment evidence \(read-only\)/i)).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Confirm Domain Candidate" }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Select" })).not.toBeInTheDocument();
+  });
+
+  it("blocks unknown phases without mutation actions", async () => {
+    const user = userEvent.setup();
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      jsonResponse(200, {
+        ok: true,
+        run: {
+          runId: "future-run",
+          phase: "future_phase",
+        },
+      }),
+    );
+    render(<AssessmentApp />);
+
+    await user.click(screen.getByRole("button", { name: "Try controlled example" }));
+
+    expect(await screen.findByText(/No unsupported mutations/i)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "End run / Start over" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Confirm Domain Candidate" }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Retry example" })).not.toBeInTheDocument();
   });
 });
