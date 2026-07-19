@@ -1,4 +1,4 @@
-import type { AnalysisResult } from "@/core/analysis";
+import type { AnalysisResult, UnsupportedSyntaxReason } from "@/core/analysis";
 import type { DomainCandidate } from "@/core/candidates";
 import type { Evidence } from "@/core/evidence";
 import {
@@ -280,6 +280,46 @@ export function evaluateCandidateReadiness(
         .map((r) =>
           ev("READINESS_STATIC_ROUTES", `${r.method} ${r.path}`, r.file, r.line, r.path, "info"),
         ),
+    ),
+  );
+
+  // Every required route, mount, handler, model, and CRUD shape must be in the
+  // documented conventional profile. Eligibility remains repository-level; only
+  // syntax relevant to this candidate can block its Transformation Readiness.
+  const unsupportedSyntax = analysis.unsupportedSyntax.filter(
+    (syntax) =>
+      candidateFiles.has(syntax.file) ||
+      syntax.relatedFiles?.some((file) => candidateFiles.has(file)),
+  );
+  const syntaxRuleId: Record<UnsupportedSyntaxReason, string> = {
+    computed_or_non_literal_mount_prefix: "READINESS_UNSUPPORTED_MOUNT_NON_LITERAL_PREFIX",
+    direct_require_mount_target: "READINESS_UNSUPPORTED_MOUNT_DIRECT_REQUIRE_TARGET",
+    middleware_before_router_mount: "READINESS_UNSUPPORTED_MOUNT_MIDDLEWARE_BEFORE_ROUTER",
+    computed_or_non_literal_route_path: "READINESS_UNSUPPORTED_ROUTE_NON_LITERAL_PATH",
+    computed_route_method: "READINESS_UNSUPPORTED_ROUTE_COMPUTED_METHOD",
+    chained_route_registration: "READINESS_UNSUPPORTED_ROUTE_CHAINED_REGISTRATION",
+    missing_route_handler: "READINESS_UNSUPPORTED_HANDLER_MISSING",
+    unsupported_handler_shape: "READINESS_UNSUPPORTED_HANDLER_SHAPE",
+    non_literal_model_name: "READINESS_UNSUPPORTED_MODEL_NON_LITERAL_NAME",
+    computed_crud_method: "READINESS_UNSUPPORTED_CRUD_COMPUTED_METHOD",
+    unsupported_crud_method: "READINESS_UNSUPPORTED_CRUD_METHOD",
+  };
+  rules.push(
+    rule(
+      "READINESS_SUPPORTED_TRANSFORMATION_SYNTAX",
+      unsupportedSyntax.length === 0,
+      unsupportedSyntax.length === 0
+        ? "Candidate uses only supported route, mount, handler, model, and CRUD syntax"
+        : "Candidate contains unsupported route, mount, handler, model, or CRUD syntax",
+      unsupportedSyntax.map((syntax) =>
+        ev(
+          syntaxRuleId[syntax.reason],
+          `Unsupported ${syntax.kind} syntax: ${syntax.reason}`,
+          syntax.file,
+          syntax.line,
+          syntax.snippet,
+        ),
+      ),
     ),
   );
 

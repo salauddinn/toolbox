@@ -1,0 +1,15 @@
+{
+  "name": "unsupported-syntax",
+  "main": "app.js",
+  "dependencies": {
+    "express": "4",
+    "mongoose": "8"
+  },
+  "devDependencies": {
+    "jest": "29",
+    "supertest": "7"
+  },
+  "scripts": {
+    "test": "jest"
+  }
+}

@@ -1,124 +1,164 @@
 import Link from "next/link";
 
-const PIPELINE = [
-  { step: "01", label: "Load", detail: "Public repo snapshot only" },
-  { step: "02", label: "Screen", detail: "Safety + eligibility gates" },
-  { step: "03", label: "Analyze", detail: "Routes, models, cycles" },
-  { step: "04", label: "Rank", detail: "Domain Candidates by evidence" },
-  { step: "05", label: "Sequence", detail: "Bounded Stage Plans" },
-  { step: "06", label: "Deliver", detail: "Accepted Change Sets + ZIP" },
-] as const;
-
-const STAGES = [
+const WORKFLOW = [
   {
-    id: "S1",
-    title: "Behaviour capture",
-    kind: "Required",
-    body: "Lock observable routes and ownership signals before structure moves.",
+    step: "01",
+    title: "Assess",
+    body: "Load a Supported Repository or the controlled example. Deterministic eligibility, Safety Screening, and static analysis produce ranked Domain Candidates with evidence.",
   },
   {
-    id: "S2",
-    title: "Domain Module extract",
-    kind: "Required",
-    body: "Pull one cohesive Domain Candidate into a module inside the same deploy.",
+    step: "02",
+    title: "Select candidate",
+    body: "Compare readiness and blocking evidence, then confirm one ready Domain Candidate as the Modernization Decision. Ranking reflects code evidence, not business priority.",
   },
   {
-    id: "S3",
-    title: "Integration cleanup",
-    kind: "Required",
-    body: "Rewire supported consumers and remove only superseded legacy paths.",
+    step: "03",
+    title: "Authorize Stage Plan",
+    body: "Inspect purpose, path envelope, and validation contract, then authorize. AI does not run until you authorize that stage.",
   },
   {
-    id: "S4",
-    title: "Cycle repair",
-    kind: "Conditional",
-    body: "Runs when entry-reachable cycles block a clean module boundary.",
+    step: "04",
+    title: "Validate Change Set",
+    body: "Static Validation checks repository artifacts only. It is not Runtime Validation and does not execute the application.",
+  },
+  {
+    step: "05",
+    title: "Accept changes",
+    body: "Review the diff and Validation Report, then perform Change Acceptance. Only accepted Change Sets enter the snapshot and result ZIP.",
   },
 ] as const;
 
-const CANDIDATES = [
+const RESPONSIBILITY = [
+  {
+    concern: "Eligibility and Safety Screening",
+    owner: "Deterministic",
+    detail: "Rules finish before analysis content can reach the AI provider.",
+  },
+  {
+    concern: "Routes, models, writes, imports, cycles",
+    owner: "Deterministic",
+    detail: "Babel-based static analysis builds the evidence graph.",
+  },
+  {
+    concern: "Domain Candidate ranking and readiness",
+    owner: "Deterministic",
+    detail: "Transformation Readiness is computed without AI.",
+  },
+  {
+    concern: "Stage count, purpose, path envelope, checks",
+    owner: "Deterministic",
+    detail: "The sequence planner defines each Stage Plan contract.",
+  },
+  {
+    concern: "Proposed source edits and one repair attempt",
+    owner: "AI",
+    detail: "Generation stays inside the authorized Stage Plan only.",
+  },
+  {
+    concern: "Syntax, path, scope, route, schema, fingerprints",
+    owner: "Deterministic",
+    detail: "Static Validation records only checks actually run.",
+  },
+  {
+    concern: "Promotion into the accepted snapshot",
+    owner: "Developer",
+    detail: "Explicit Change Acceptance is required; AI cannot self-apply.",
+  },
+] as const;
+
+const ASSESSMENT_REQUIREMENTS = [
+  "Public GitHub root URL, or the controlled bundled example",
+  "Single-root npm application",
+  "JavaScript CommonJS module system",
+  "Express.js and Mongoose dependencies",
+  "Recognized entry: app.js, server.js, or index.js",
+  "At least one Express route and one Mongoose model",
+  "At most 150 analyzed files and 2 MB of analyzed source",
+] as const;
+
+const TRANSFORMATION_REQUIREMENTS = [
+  "At least one Domain Candidate marked ready for transformation",
+  "CommonJS Jest/Supertest harness available via npm test",
+  "Developer confirmation of the Modernization Decision",
+  "Per-stage Stage Plan authorization before any generation call",
+  "Passing Static Validation before Change Acceptance is offered",
+] as const;
+
+const BOUNDARIES = [
+  {
+    title: "Static Validation is not Runtime Validation",
+    body: "External repositories are never installed or executed. Validation Reports list only the checks ToolBox actually ran.",
+  },
+  {
+    title: "Safety Screening is not certification",
+    body: "Passing risk gates means supported signals were not detected. It does not certify that a repository is safe or malware-free.",
+  },
+  {
+    title: "No microservices or deploy splits",
+    body: "A Domain Module stays inside the existing deployment boundary. ToolBox does not create services or claim a production migration.",
+  },
+  {
+    title: "Developer authorizes and accepts",
+    body: "You authorize every Stage Plan and accept every validated Change Set. AI output is never applied without explicit Change Acceptance.",
+  },
+  {
+    title: "One repair, then stop",
+    body: "A failed Change Set may receive one bounded repair. A second Static Validation failure rolls back and keeps the last accepted snapshot.",
+  },
+] as const;
+
+const SAMPLE_CANDIDATES = [
   {
     rank: "01",
     name: "Orders",
     score: "0.86",
-    state: "ready",
+    state: "ready" as const,
     detail: "Exclusive write ownership · 4 routes · Order",
   },
   {
     rank: "02",
     name: "Payments",
     score: "0.71",
-    state: "ready",
+    state: "ready" as const,
     detail: "Cycle with Orders · 3 routes · Payment",
   },
   {
     rank: "03",
     name: "Users",
     score: "0.54",
-    state: "blocked",
+    state: "blocked" as const,
     detail: "Shared writes · readiness fails",
   },
-] as const;
-
-const CONTROLS = [
-  {
-    title: "Safety before AI",
-    body: "Safety Screening and eligibility finish before any generation call.",
-  },
-  {
-    title: "Static analysis only",
-    body: "Untrusted repositories are never installed or executed by ToolBox.",
-  },
-  {
-    title: "Stage envelopes",
-    body: "Each Change Set is constrained to path budgets and protected regions.",
-  },
-  {
-    title: "One repair, then stop",
-    body: "A second validation failure rolls back and keeps the current snapshot.",
-  },
-  {
-    title: "Human authorization",
-    body: "You authorize every stage and accept every Change Set before it sticks.",
-  },
-  {
-    title: "Honest artifacts",
-    body: "The result ZIP contains only accepted files plus a Validation Report.",
-  },
-] as const;
-
-const CONTRACT = [
-  "Public GitHub root repository",
-  "Single-root npm · JavaScript CommonJS",
-  "Express.js + Mongoose dependencies",
-  "Entry point: app.js, server.js, or index.js",
-  "At least one route and one Mongoose model",
-  "Jest/Supertest available via npm test",
-  "At most 150 analyzed files and 2 MB of source",
 ] as const;
 
 export function MarketingLanding() {
   return (
     <div className="space-y-10 pb-6 sm:space-y-12">
-      <section className="grid items-start gap-6 lg:grid-cols-[1.1fr_0.9fr] lg:gap-8">
-        <div className="space-y-6">
+      <section
+        aria-labelledby="landing-hero-heading"
+        className="grid items-start gap-6 lg:grid-cols-[1.1fr_0.9fr] lg:gap-8"
+      >
+        <div className="min-w-0 space-y-6">
           <div className="flex flex-wrap gap-2">
             <span className="tb-chip tb-chip-ok">
-              <span className="h-1.5 w-1.5 rounded-full bg-success" />
+              <span className="h-1.5 w-1.5 rounded-full bg-success" aria-hidden />
               for engineering teams
             </span>
             <span className="tb-chip">express · mongoose · commonjs</span>
-            <span className="tb-chip">no microservices required</span>
+            <span className="tb-chip tb-chip-accent">first safe cut</span>
           </div>
 
           <div className="space-y-3">
-            <h1 className="max-w-2xl text-[2rem] font-semibold leading-[1.12] tracking-tight text-ink sm:text-[2.5rem]">
+            <h1
+              id="landing-hero-heading"
+              className="max-w-2xl text-[2rem] font-semibold leading-[1.12] tracking-tight text-text-primary sm:text-[2.5rem]"
+            >
               Turn one tangled Express domain into a verified module.
             </h1>
-            <p className="max-w-xl text-[15px] leading-relaxed text-muted sm:text-base">
-              ToolBox finds a safe domain boundary from code evidence, uses AI to generate bounded
-              Change Sets, and validates every proposed change before you accept it. No rewrite or
-              deployment split required.
+            <p className="max-w-xl text-[15px] leading-relaxed text-text-secondary sm:text-base">
+              ToolBox finds a safe domain from code evidence, lets AI propose changes only after you
+              authorize a Stage Plan, and applies nothing until you accept. Same deploy—not a fake
+              microservice split.
             </p>
           </div>
 
@@ -131,6 +171,11 @@ export function MarketingLanding() {
             </a>
           </div>
 
+          <p className="max-w-xl text-[12px] leading-relaxed text-text-quiet">
+            Reliable demo: work console →{" "}
+            <span className="font-medium text-text-secondary">Try controlled example</span>
+          </p>
+
           <dl className="grid max-w-lg grid-cols-3 gap-2 pt-1">
             {[
               { k: "Stages", v: "3–4" },
@@ -139,22 +184,24 @@ export function MarketingLanding() {
             ].map((item) => (
               <div
                 key={item.k}
-                className="rounded-md border border-border bg-surface px-3 py-2.5 shadow-[var(--shadow-soft)]"
+                className="rounded-md border border-border-subtle bg-surface-paper px-3 py-2.5 shadow-[var(--shadow-soft)]"
               >
-                <dt className="tb-mono text-[10px] uppercase tracking-wide text-muted">{item.k}</dt>
-                <dd className="mt-0.5 text-sm font-semibold text-ink">{item.v}</dd>
+                <dt className="tb-mono text-[10px] uppercase tracking-wide text-text-quiet">
+                  {item.k}
+                </dt>
+                <dd className="mt-0.5 text-sm font-semibold text-text-primary">{item.v}</dd>
               </div>
             ))}
           </dl>
         </div>
 
-        <aside className="tb-panel overflow-hidden" aria-label="Sample Modernization Assessment">
+        <aside className="tb-panel min-w-0 overflow-hidden" aria-label="Sample Modernization Assessment">
           <div className="tb-panel-head">
-            <div>
-              <p className="tb-mono text-[10px] uppercase tracking-wide text-muted">
+            <div className="min-w-0">
+              <p className="tb-mono text-[10px] uppercase tracking-wide text-text-quiet">
                 sample output
               </p>
-              <p className="text-[12px] font-medium text-ink">Modernization Assessment</p>
+              <p className="text-[12px] font-medium text-text-primary">Modernization Assessment</p>
             </div>
             <span className="tb-chip tb-chip-accent">phase: assessed</span>
           </div>
@@ -168,34 +215,34 @@ export function MarketingLanding() {
               ].map((m) => (
                 <div
                   key={m.k}
-                  className="rounded border border-border bg-surface-muted/60 px-2 py-1.5"
+                  className="rounded border border-border-subtle bg-surface-muted/60 px-2 py-1.5"
                 >
-                  <p className="tb-mono text-[9px] uppercase text-muted">{m.k}</p>
-                  <p className="tb-mono text-sm font-semibold tabular-nums text-ink">{m.v}</p>
+                  <p className="tb-mono text-[9px] uppercase text-text-quiet">{m.k}</p>
+                  <p className="tb-mono text-sm font-semibold tabular-nums text-text-primary">{m.v}</p>
                 </div>
               ))}
             </div>
 
-            <div className="overflow-hidden rounded border border-border">
-              <div className="grid grid-cols-[2.25rem_1fr_3.25rem_3.5rem] gap-2 border-b border-border bg-panel-head px-2.5 py-1.5 tb-mono text-[9px] uppercase tracking-wide text-muted">
+            <div className="overflow-hidden rounded border border-border-subtle">
+              <div className="grid grid-cols-[2.25rem_1fr_3.25rem_3.5rem] gap-2 border-b border-border-subtle bg-surface-inset px-2.5 py-1.5 tb-mono text-[9px] uppercase tracking-wide text-text-quiet">
                 <span>#</span>
                 <span>candidate</span>
                 <span className="text-right">score</span>
                 <span className="text-right">state</span>
               </div>
-              {CANDIDATES.map((c) => (
+              {SAMPLE_CANDIDATES.map((c) => (
                 <div
                   key={c.name}
-                  className={`grid grid-cols-[2.25rem_1fr_3.25rem_3.5rem] items-center gap-2 border-b border-border px-2.5 py-2 last:border-b-0 ${
-                    c.rank === "01" ? "bg-accent-soft/45" : "bg-surface"
+                  className={`grid grid-cols-[2.25rem_1fr_3.25rem_3.5rem] items-center gap-2 border-b border-border-subtle px-2.5 py-2 last:border-b-0 ${
+                    c.rank === "01" ? "bg-accent-action/8" : "bg-surface-paper"
                   }`}
                 >
-                  <span className="tb-mono text-[11px] text-muted">{c.rank}</span>
+                  <span className="tb-mono text-[11px] text-text-quiet">{c.rank}</span>
                   <div className="min-w-0">
-                    <p className="truncate text-[12px] font-medium text-ink">{c.name}</p>
-                    <p className="truncate tb-mono text-[10px] text-muted">{c.detail}</p>
+                    <p className="truncate text-[12px] font-medium text-text-primary">{c.name}</p>
+                    <p className="truncate tb-mono text-[10px] text-text-quiet">{c.detail}</p>
                   </div>
-                  <span className="tb-mono text-right text-[12px] tabular-nums text-ink">
+                  <span className="tb-mono text-right text-[12px] tabular-nums text-text-primary">
                     {c.score}
                   </span>
                   <span className="text-right">
@@ -209,12 +256,14 @@ export function MarketingLanding() {
               ))}
             </div>
 
-            <div className="rounded border border-border bg-code-bg p-3 text-code-fg">
-              <p className="tb-mono text-[10px] uppercase tracking-wide text-code-fg/55">
+            <div className="rounded border border-border-subtle bg-surface-inset px-3 py-2.5">
+              <p className="tb-mono text-[10px] uppercase tracking-wide text-text-quiet">
                 stage plan · pending
               </p>
-              <p className="mt-1.5 text-[12px] font-medium">Extract Orders Domain Module</p>
-              <p className="mt-1 tb-mono text-[10px] leading-relaxed text-code-fg/65">
+              <p className="mt-1.5 text-[12px] font-medium text-text-primary">
+                Extract Orders Domain Module
+              </p>
+              <p className="mt-1 tb-mono text-[10px] leading-relaxed text-text-quiet">
                 envelope: src/modules/orders/** · maxOps: 20
                 <br />
                 protect: route table · schema fingerprints
@@ -224,105 +273,195 @@ export function MarketingLanding() {
         </aside>
       </section>
 
-      <section id="how-it-works" className="tb-panel overflow-hidden">
+      <section
+        id="how-it-works"
+        aria-labelledby="workflow-heading"
+        className="tb-panel overflow-hidden"
+      >
         <div className="tb-panel-head">
-          <p className="tb-mono text-[11px] font-medium text-ink">how it works</p>
-          <p className="tb-mono text-[10px] text-muted">
-            deterministic evidence · bounded AI generation
-          </p>
+          <div>
+            <h2 id="workflow-heading" className="text-[13px] font-semibold text-text-primary">
+              Modernization workflow
+            </h2>
+            <p className="mt-0.5 text-[12px] text-text-secondary">
+              Assessment and selection stay separate from Stage Plan authorization, validation, and
+              Change Acceptance.
+            </p>
+          </div>
+          <span className="tb-chip">five steps</span>
         </div>
-        <ol className="grid sm:grid-cols-3 lg:grid-cols-6">
-          {PIPELINE.map((p, i) => (
+        <ol className="divide-y divide-border-subtle">
+          {WORKFLOW.map((step) => (
             <li
-              key={p.step}
-              className={`px-3.5 py-3.5 ${
-                i < PIPELINE.length - 1 ? "border-b border-border sm:border-b-0 sm:border-r" : ""
-              }`}
+              key={step.step}
+              className="grid gap-2 px-4 py-3.5 sm:grid-cols-[4.5rem_10rem_1fr] sm:items-start sm:gap-4"
             >
-              <p className="tb-mono text-[10px] text-accent">{p.step}</p>
-              <p className="mt-1 text-[13px] font-medium text-ink">{p.label}</p>
-              <p className="mt-0.5 text-[11px] text-muted">{p.detail}</p>
+              <span className="tb-mono text-[11px] text-accent-action">{step.step}</span>
+              <h3 className="text-[13px] font-semibold text-text-primary">{step.title}</h3>
+              <p className="text-[13px] leading-relaxed text-text-secondary">{step.body}</p>
             </li>
           ))}
         </ol>
       </section>
 
-      <section className="grid gap-4 lg:grid-cols-2">
-        <div className="tb-panel overflow-hidden">
-          <div className="tb-panel-head">
-            <p className="tb-mono text-[11px] font-medium text-ink">modernization sequence</p>
-            <span className="tb-chip">3 required · 1 conditional</span>
-          </div>
-          <ul className="divide-y divide-border">
-            {STAGES.map((s) => (
-              <li key={s.id} className="flex items-start gap-3 px-4 py-3.5">
-                <span className="tb-mono mt-0.5 rounded border border-border bg-surface-muted px-1.5 py-0.5 text-[10px] text-muted">
-                  {s.id}
-                </span>
-                <div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <p className="text-[13px] font-medium text-ink">{s.title}</p>
-                    <span className={s.kind === "Required" ? "tb-chip" : "tb-chip tb-chip-warn"}>
-                      {s.kind.toLowerCase()}
-                    </span>
-                  </div>
-                  <p className="mt-1 text-[12px] leading-relaxed text-muted">{s.body}</p>
-                </div>
-              </li>
-            ))}
-          </ul>
-        </div>
-
-        <div id="contract" className="tb-panel overflow-hidden">
-          <div className="tb-panel-head">
-            <p className="tb-mono text-[11px] font-medium text-ink">supported contract</p>
-            <span className="tb-chip tb-chip-accent">eligibility gate</span>
-          </div>
-          <ul className="divide-y divide-border">
-            {CONTRACT.map((line, i) => (
-              <li key={line} className="flex items-start gap-3 px-4 py-2.5 text-[13px]">
-                <span className="tb-mono w-5 shrink-0 text-[10px] text-muted">
-                  {String(i + 1).padStart(2, "0")}
-                </span>
-                <span className="text-ink/90">{line}</span>
-              </li>
-            ))}
-          </ul>
-          <div className="border-t border-border bg-surface-muted/50 px-4 py-2.5 text-[11px] text-muted">
-            Support means the repo can enter assessment. It does not mean every domain is
-            transform-ready, and Safety Screening is not malware certification.
-          </div>
-        </div>
-      </section>
-
-      <section id="controls" className="tb-panel overflow-hidden">
+      <section
+        id="controls"
+        aria-labelledby="boundaries-heading"
+        className="tb-panel overflow-hidden"
+      >
         <div className="tb-panel-head">
-          <p className="tb-mono text-[11px] font-medium text-ink">operating controls</p>
-          <p className="tb-mono text-[10px] text-muted">what ToolBox will not skip</p>
+          <div>
+            <h2 id="boundaries-heading" className="text-[13px] font-semibold text-text-primary">
+              Safety and non-goals
+            </h2>
+            <p className="mt-0.5 text-[12px] text-text-secondary">
+              Honest limits ToolBox will not blur.
+            </p>
+          </div>
         </div>
-        <div className="grid sm:grid-cols-2 lg:grid-cols-3">
-          {CONTROLS.map((c, i) => (
+        <div className="grid sm:grid-cols-2">
+          {BOUNDARIES.map((item, index) => (
             <article
-              key={c.title}
-              className={`px-4 py-3.5 ${i < 3 ? "border-b border-border" : ""} ${
-                i % 3 !== 2 ? "lg:border-r lg:border-border" : ""
-              } ${i % 2 === 0 ? "sm:border-r sm:border-border" : ""} ${i < 4 ? "sm:border-b" : ""}`}
+              key={item.title}
+              className={`min-w-0 px-4 py-3.5 ${
+                index < BOUNDARIES.length - 1 ? "border-b border-border-subtle" : ""
+              } ${index % 2 === 0 ? "sm:border-r sm:border-border-subtle" : ""} ${
+                index < 2 ? "sm:border-b sm:border-border-subtle" : "sm:border-b-0"
+              } ${index === BOUNDARIES.length - 1 ? "border-b-0" : ""}`}
             >
-              <p className="text-[13px] font-medium text-ink">{c.title}</p>
-              <p className="mt-1 text-[12px] leading-relaxed text-muted">{c.body}</p>
+              <h3 className="text-[13px] font-medium text-text-primary">{item.title}</h3>
+              <p className="mt-1 text-[12px] leading-relaxed text-text-secondary">{item.body}</p>
             </article>
           ))}
         </div>
       </section>
 
-      <section className="flex flex-col items-start justify-between gap-4 rounded-md border border-border bg-surface px-5 py-4 shadow-[var(--shadow-soft)] sm:flex-row sm:items-center">
-        <div>
-          <p className="text-[14px] font-medium text-ink">Ready to run an assessment?</p>
-          <p className="mt-0.5 text-[12px] text-muted">
-            Open the work console to try the controlled example or paste a public GitHub URL.
+      <section aria-labelledby="ledger-heading" className="overflow-hidden">
+        <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
+          <div>
+            <h2 id="ledger-heading" className="text-[15px] font-semibold text-text-primary">
+              Responsibility ledger
+            </h2>
+            <p className="mt-0.5 max-w-2xl text-[13px] text-text-secondary">
+              Deterministic components own eligibility, evidence, readiness, Stage Plans, and Static
+              Validation. AI owns only authorized generation and one bounded repair. Developers own
+              authorization and Change Acceptance.
+            </p>
+          </div>
+        </div>
+        <div className="tb-terminal overflow-hidden">
+          <div className="hidden grid-cols-[minmax(0,1.5fr)_7.5rem_minmax(0,1.8fr)] gap-2 border-b border-terminal-border bg-surface-terminal-raised px-3 py-2 tb-mono text-[10px] uppercase tracking-wide text-terminal-fg-muted sm:grid">
+            <span>Concern</span>
+            <span>Owner</span>
+            <span>Boundary</span>
+          </div>
+          <ul className="divide-y divide-terminal-border">
+            {RESPONSIBILITY.map((row) => (
+              <li
+                key={row.concern}
+                className="grid min-w-0 grid-cols-1 gap-1 px-3 py-2.5 sm:grid-cols-[minmax(0,1.5fr)_7.5rem_minmax(0,1.8fr)] sm:items-baseline sm:gap-2"
+              >
+                <p className="tb-mono text-[12px] text-terminal-fg">{row.concern}</p>
+                <p
+                  className={`tb-mono text-[11px] font-medium ${
+                    row.owner === "AI"
+                      ? "text-diff-change"
+                      : row.owner === "Developer"
+                        ? "text-diff-add"
+                        : "text-terminal-fg-muted"
+                  }`}
+                >
+                  {row.owner}
+                </p>
+                <p className="tb-mono text-[11px] leading-relaxed text-terminal-fg-muted">
+                  {row.detail}
+                </p>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </section>
+
+      <section id="contract" aria-labelledby="contract-heading" className="tb-panel overflow-hidden">
+        <details className="group">
+          <summary className="tb-panel-head cursor-pointer list-none [&::-webkit-details-marker]:hidden">
+            <div className="min-w-0">
+              <h2 id="contract-heading" className="text-[13px] font-semibold text-text-primary">
+                Repository requirements
+              </h2>
+              <p className="mt-0.5 text-[12px] text-text-secondary">
+                Full assessment contract and extra rules before generation.
+              </p>
+            </div>
+            <span className="tb-chip group-open:tb-chip-accent">
+              <span className="group-open:hidden">show</span>
+              <span className="hidden group-open:inline">hide</span>
+            </span>
+          </summary>
+          <div className="grid gap-0 border-t border-border-subtle lg:grid-cols-2">
+            <div className="min-w-0 lg:border-r lg:border-border-subtle">
+              <div className="border-b border-border-subtle px-4 py-2.5">
+                <h3 className="text-[13px] font-semibold text-text-primary">
+                  Requirements for assessment
+                </h3>
+                <p className="mt-0.5 text-[11px] text-text-quiet">enter assessment</p>
+              </div>
+              <ul className="divide-y divide-border-subtle">
+                {ASSESSMENT_REQUIREMENTS.map((line, index) => (
+                  <li key={line} className="flex items-start gap-3 px-4 py-2.5 text-[13px]">
+                    <span className="tb-mono w-5 shrink-0 text-[10px] text-text-quiet">
+                      {String(index + 1).padStart(2, "0")}
+                    </span>
+                    <span className="text-text-primary/90">{line}</span>
+                  </li>
+                ))}
+              </ul>
+              <div className="border-t border-border-subtle bg-surface-inset/60 px-4 py-2.5 text-[12px] leading-relaxed text-text-secondary">
+                Support means the repository can enter Modernization Assessment. It does not mean
+                every domain is transform-ready.
+              </div>
+            </div>
+            <div className="min-w-0 border-t border-border-subtle lg:border-t-0">
+              <div className="border-b border-border-subtle px-4 py-2.5">
+                <h3 className="text-[13px] font-semibold text-text-primary">
+                  Additional requirements for transformation
+                </h3>
+                <p className="mt-0.5 text-[11px] text-text-quiet">enter generation</p>
+              </div>
+              <ul className="divide-y divide-border-subtle">
+                {TRANSFORMATION_REQUIREMENTS.map((line, index) => (
+                  <li key={line} className="flex items-start gap-3 px-4 py-2.5 text-[13px]">
+                    <span className="tb-mono w-5 shrink-0 text-[10px] text-text-quiet">
+                      {String(index + 1).padStart(2, "0")}
+                    </span>
+                    <span className="text-text-primary/90">{line}</span>
+                  </li>
+                ))}
+              </ul>
+              <div className="border-t border-border-subtle bg-surface-inset/60 px-4 py-2.5 text-[12px] leading-relaxed text-text-secondary">
+                Transformation Readiness is separate from repository eligibility. When no candidate
+                is ready, ToolBox returns the assessment and blocking evidence without calling AI.
+              </div>
+            </div>
+          </div>
+        </details>
+      </section>
+
+      <section
+        aria-labelledby="cta-heading"
+        className="flex flex-col items-start justify-between gap-4 rounded-md border border-border-subtle bg-surface-paper px-5 py-4 shadow-[var(--shadow-soft)] sm:flex-row sm:items-center"
+      >
+        <div className="min-w-0">
+          <h2 id="cta-heading" className="text-[14px] font-medium text-text-primary">
+            Ready for the first safe cut?
+          </h2>
+          <p className="mt-0.5 text-[12px] text-text-secondary">
+            Judges and first-time visitors: open the work console and run{" "}
+            <strong className="font-medium text-text-primary">Try controlled example</strong>. Or
+            paste a public GitHub root that matches the supported contract.
           </p>
         </div>
-        <Link href="/app" className="tb-btn tb-btn-primary h-10 px-4">
+        <Link href="/app" className="tb-btn tb-btn-primary h-10 shrink-0 px-4">
           Go to work console
         </Link>
       </section>

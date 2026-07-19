@@ -4,6 +4,7 @@ import { bindClientFromRequest } from "@/server/http/bound-client";
 import { guardStateChangingRequest } from "@/server/http/request-guards";
 import { withSessionCookie } from "@/server/http/session";
 import { toPublicRunView } from "@/server/workflow/public-view";
+import { buildReviewPayload } from "@/server/workflow/review-payload";
 import { authorizeAndGenerate } from "@/server/workflow/stage-runner";
 
 type Params = { params: Promise<{ runId: string }> };
@@ -45,22 +46,22 @@ export async function POST(request: Request, { params }: Params) {
     );
   }
 
-  // Do not return full file bodies — paths + byte sizes + short previews only.
+  // Derive review data from the validated server state. It is bounded and can
+  // be recovered from GET while awaiting acceptance; no client review body is trusted.
+  const reviewPayload = buildReviewPayload(result.run);
   return respond(
     NextResponse.json({
       ok: true,
       run: toPublicRunView(result.run),
-      diff: result.diff
+      reviewPayload,
+      // Keep the legacy response fields for the current client while sourcing
+      // all preview material from the shared bounded payload.
+      diff: reviewPayload
         ? {
-            created: result.diff.created,
-            updated: result.diff.updated,
-            deleted: result.diff.deleted,
-            files: result.diff.files.map((f) => ({
-              path: f.path,
-              kind: f.kind,
-              beforePreview: f.before?.slice(0, 400),
-              afterPreview: f.after?.slice(0, 400),
-            })),
+            created: reviewPayload.totals.created,
+            updated: reviewPayload.totals.updated,
+            deleted: reviewPayload.totals.deleted,
+            files: reviewPayload.files,
           }
         : undefined,
       operations: result.operations
@@ -70,7 +71,7 @@ export async function POST(request: Request, { params }: Params) {
             deletes: result.operations.deletes,
           }
         : undefined,
-      validationReport: result.validationReport,
+      validationReport: reviewPayload?.validationReport,
     }),
   );
 }

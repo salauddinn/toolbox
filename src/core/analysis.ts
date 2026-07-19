@@ -31,6 +31,33 @@ export type ModelAccessEvidence = {
   line: number;
 };
 
+/** A recognized-but-unsupported conventional transformation syntax shape. */
+export type UnsupportedSyntaxKind = "route" | "mount" | "handler" | "model" | "crud";
+
+/** Closed set of recognized syntax shapes outside the MVP transformation profile. */
+export type UnsupportedSyntaxReason =
+  | "computed_or_non_literal_mount_prefix"
+  | "direct_require_mount_target"
+  | "middleware_before_router_mount"
+  | "computed_or_non_literal_route_path"
+  | "computed_route_method"
+  | "chained_route_registration"
+  | "missing_route_handler"
+  | "unsupported_handler_shape"
+  | "non_literal_model_name"
+  | "computed_crud_method"
+  | "unsupported_crud_method";
+
+export type UnsupportedSyntaxEvidence = {
+  kind: UnsupportedSyntaxKind;
+  reason: UnsupportedSyntaxReason;
+  file: NormalizedPath;
+  line: number;
+  snippet: string;
+  /** Files reached by a mount binding, when statically resolvable. */
+  relatedFiles?: readonly NormalizedPath[];
+};
+
 export type DependencyEdge = {
   from: NormalizedPath;
   to: NormalizedPath;
@@ -64,6 +91,8 @@ export type AnalysisResult = {
   routes: readonly RouteEvidence[];
   models: readonly ModelEvidence[];
   modelAccess: readonly ModelAccessEvidence[];
+  /** Unsupported syntax retained for candidate-level Transformation Readiness. */
+  unsupportedSyntax: readonly UnsupportedSyntaxEvidence[];
   graph: DependencyGraph;
   findings: readonly ModernizationFinding[];
   /** Content hash of the analyzed snapshot for in-memory cache keys. */

@@ -12,6 +12,9 @@ const FIXTURE_IDS = new Set<FixtureId>([
   "missing-mongoose",
   "path-risk",
   "no-ready-candidate",
+  "unsupported-syntax",
+  "unsupported-package-manager",
+  "ambiguous-package-manager",
 ]);
 
 type StartBody = { source: "fixture"; fixtureId: string } | { source: "github"; url: string };
@@ -52,7 +55,12 @@ export async function POST(request: Request) {
     if (!result.ok) {
       return respond(
         NextResponse.json(
-          { ok: false, code: result.code, message: result.message },
+          {
+            ok: false,
+            code: result.code,
+            message: result.message,
+            activeRunId: result.activeRunId,
+          },
           { status: result.status },
         ),
       );
@@ -76,7 +84,12 @@ export async function POST(request: Request) {
     if (!result.ok) {
       return respond(
         NextResponse.json(
-          { ok: false, code: result.code, message: result.message },
+          {
+            ok: false,
+            code: result.code,
+            message: result.message,
+            activeRunId: result.activeRunId,
+          },
           { status: result.status },
         ),
       );

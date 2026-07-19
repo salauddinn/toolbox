@@ -14,6 +14,31 @@ export type RunStoreOptions = {
   now?: () => number;
 };
 
+const NON_CAPACITY_PHASES = new Set<RunState["phase"]>([
+  "eligibility_failed",
+  "safety_failed",
+  "not_ready",
+  "sequence_stopped",
+  "completed",
+  "expired",
+]);
+
+const SERVER_BUSY_PHASES = new Set<RunState["phase"]>([
+  "created",
+  "loading",
+  "generating",
+  "validating",
+  "repairing",
+]);
+
+export function holdsRunCapacity(run: RunState): boolean {
+  return !NON_CAPACITY_PHASES.has(run.phase);
+}
+
+export function canExplicitlyEndRun(run: RunState): boolean {
+  return !SERVER_BUSY_PHASES.has(run.phase);
+}
+
 /**
  * Process-local run store for the long-lived single-process host (ADR-0015).
  * Process restart discards all active runs.
@@ -67,6 +92,14 @@ export class RunStore {
     return this.runs.size;
   }
 
+  findReplaceableByClient(clientKeyHash: string): RunState | undefined {
+    this.evictExpired();
+    return [...this.runs.values()].find(
+      (run) =>
+        run.clientKeyHash === clientKeyHash && holdsRunCapacity(run) && canExplicitlyEndRun(run),
+    );
+  }
+
   /** Test helper. */
   clear(): void {
     this.runs.clear();
@@ -87,7 +120,9 @@ export class RunStore {
   private evictExpired(): void {
     for (const [id, state] of this.runs) {
       if (this.isExpired(state)) {
-        globalRateLimiter.release(state.clientKeyHash);
+        if (holdsRunCapacity(state)) {
+          globalRateLimiter.release(state.clientKeyHash);
+        }
         if (state.phase !== "completed" && state.phase !== "sequence_stopped") {
           const expired = expireRun(state);
           if (expired.ok) {

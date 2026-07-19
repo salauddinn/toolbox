@@ -1,5 +1,10 @@
 import { MarketingLanding } from "./components/marketing-landing";
+import { ProductShell } from "./components/shell/product-shell";
 
 export default function HomePage() {
-  return <MarketingLanding />;
+  return (
+    <ProductShell>
+      <MarketingLanding />
+    </ProductShell>
+  );
 }

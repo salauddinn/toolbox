@@ -1,7 +1,13 @@
 import type { Expression, ObjectExpression, ObjectProperty, StringLiteral } from "@babel/types";
-import type { ModelAccessEvidence, ModelAccessKind, ModelEvidence } from "@/core/analysis";
+import type {
+  ModelAccessEvidence,
+  ModelAccessKind,
+  ModelEvidence,
+  UnsupportedSyntaxEvidence,
+} from "@/core/analysis";
 import type { NormalizedPath } from "@/core/paths";
 import type { RepositoryFile } from "@/core/repository";
+import { resolveRelativeRequire } from "./graph";
 import { traverse } from "./babel-traverse";
 import { parseJavaScript, snippetAround } from "./parse";
 
@@ -37,7 +43,7 @@ const READ_METHODS = new Set([
 export type ModelExtraction = {
   models: ModelEvidence[];
   access: ModelAccessEvidence[];
-  unsupported: Array<{ file: NormalizedPath; line: number; reason: string; snippet: string }>;
+  unsupported: Array<UnsupportedSyntaxEvidence>;
   /** filePath::localName -> model name */
   bindings: Map<string, string>;
 };
@@ -61,7 +67,10 @@ function collectionFromSchemaOptions(options: Expression | undefined): string | 
 /**
  * Extract mongoose.model / Schema declarations and classified CRUD access.
  */
-export function extractModels(files: readonly RepositoryFile[]): ModelExtraction {
+export function extractModels(
+  files: readonly RepositoryFile[],
+  resolve?: (from: NormalizedPath, request: string) => NormalizedPath | null,
+): ModelExtraction {
   const models: ModelEvidence[] = [];
   const access: ModelAccessEvidence[] = [];
   const unsupported: ModelExtraction["unsupported"] = [];
@@ -111,6 +120,7 @@ export function extractModels(files: readonly RepositoryFile[]): ModelExtraction
           const nameArg = path.node.arguments[0];
           if (!nameArg || nameArg.type !== "StringLiteral") {
             unsupported.push({
+              kind: "model",
               file: file.path,
               line,
               reason: "non_literal_model_name",
@@ -153,22 +163,39 @@ export function extractModels(files: readonly RepositoryFile[]): ModelExtraction
           }
         }
       },
+    });
+  }
+
+  // A local import is a model binding only when its resolved target actually
+  // contains a recognized mongoose.model registration. Basenames are not proof.
+  const fileSet = new Set(
+    files.filter((file) => file.path.endsWith(".js")).map((file) => file.path),
+  );
+  const resolveImport =
+    resolve ??
+    ((from: NormalizedPath, request: string) => resolveRelativeRequire(from, request, fileSet));
+  const modelsByFile = new Map<string, string>();
+  for (const model of models) {
+    if (!modelsByFile.has(model.file)) modelsByFile.set(model.file, model.modelName);
+  }
+  for (const file of files) {
+    if (!file.path.endsWith(".js")) continue;
+    const parsed = parseJavaScript(file.content, file.path);
+    if (!parsed.ok) continue;
+    traverse(parsed.ast, {
       VariableDeclarator(path) {
-        const id = path.node.id;
-        const init = path.node.init;
-        if (id.type !== "Identifier" || !init) return;
+        const { id, init } = path.node;
         if (
-          init.type === "CallExpression" &&
-          init.callee.type === "Identifier" &&
-          init.callee.name === "require" &&
-          init.arguments[0]?.type === "StringLiteral"
-        ) {
-          const request = (init.arguments[0] as StringLiteral).value;
-          const base = request.split("/").pop()?.replace(/\.js$/, "") ?? "";
-          if (base && /^[A-Z]/.test(base)) {
-            bindings.set(`${file.path}::${id.name}`, base);
-          }
-        }
+          id.type !== "Identifier" ||
+          init?.type !== "CallExpression" ||
+          init.callee.type !== "Identifier" ||
+          init.callee.name !== "require" ||
+          init.arguments[0]?.type !== "StringLiteral"
+        )
+          return;
+        const target = resolveImport(file.path, init.arguments[0].value);
+        const modelName = target ? modelsByFile.get(target) : undefined;
+        if (modelName) bindings.set(`${file.path}::${id.name}`, modelName);
       },
     });
   }
@@ -181,25 +208,44 @@ export function extractModels(files: readonly RepositoryFile[]): ModelExtraction
     traverse(parsed.ast, {
       CallExpression(path) {
         const callee = path.node.callee;
-        if (callee.type !== "MemberExpression" || callee.computed) return;
-        if (callee.property.type !== "Identifier") return;
-        const methodName = callee.property.name;
-        if (callee.object.type !== "Identifier") return;
+        if (callee.type !== "MemberExpression" || callee.object.type !== "Identifier") return;
         const binding = callee.object.name;
         const modelName = bindings.get(`${file.path}::${binding}`);
         if (!modelName) return;
 
+        const line = path.node.loc?.start.line ?? 1;
+        if (callee.computed || callee.property.type !== "Identifier") {
+          unsupported.push({
+            kind: "crud",
+            file: file.path,
+            line,
+            reason: "computed_crud_method",
+            snippet: snippetAround(file.content, line),
+          });
+          return;
+        }
+
+        const methodName = callee.property.name;
         let kind: ModelAccessKind = "unknown";
         if (WRITE_METHODS.has(methodName)) kind = "write";
         else if (READ_METHODS.has(methodName)) kind = "read";
-        else return;
+        else {
+          unsupported.push({
+            kind: "crud",
+            file: file.path,
+            line,
+            reason: "unsupported_crud_method",
+            snippet: snippetAround(file.content, line),
+          });
+          return;
+        }
 
         access.push({
           modelName,
           kind,
           methodName,
           file: file.path,
-          line: path.node.loc?.start.line ?? 1,
+          line,
         });
       },
     });

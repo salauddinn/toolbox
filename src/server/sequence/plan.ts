@@ -330,7 +330,12 @@ function cycleRepairPlan(
       },
       {
         id: "factory-injection",
-        description: "Composition root supplies dependency through public factory",
+        description: "Public module factory has the supported injected dependency shape",
+        kind: "static",
+      },
+      {
+        id: "composition-root-injection",
+        description: "Recognized composition root supplies that dependency to the public factory",
         kind: "static",
       },
       {

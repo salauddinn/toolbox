@@ -94,6 +94,19 @@ export class ExpressAnalyzer implements CodebaseAnalyzer {
       : new Map<string, string>();
 
     const routes = applyMountPrefixes(routeExtraction.routes, routeExtraction.mounts, requireMap);
+    const unsupportedSyntax = [
+      ...routeExtraction.unsupported.map(({ routerBinding, ...syntax }) => {
+        const related = routerBinding ? requireMap.get(routerBinding) : undefined;
+        return related ? { ...syntax, relatedFiles: [assertNormalizedPath(related)] } : syntax;
+      }),
+      ...modelExtraction.unsupported,
+    ].sort(
+      (a, b) =>
+        a.file.localeCompare(b.file) ||
+        a.line - b.line ||
+        a.kind.localeCompare(b.kind) ||
+        a.reason.localeCompare(b.reason),
+    );
 
     const findings = detectFindings({
       files,
@@ -109,6 +122,7 @@ export class ExpressAnalyzer implements CodebaseAnalyzer {
       routes,
       models: modelExtraction.models,
       modelAccess: modelExtraction.access,
+      unsupportedSyntax,
       graph,
       findings,
       contentHash: hashRepositoryFiles(jsFiles),

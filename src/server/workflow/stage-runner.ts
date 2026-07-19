@@ -24,6 +24,7 @@ import { globalRunStore, type RunStore } from "@/server/run-store";
 import { resolveConditionalStage } from "@/server/sequence/plan";
 import { validateChangeSetStatic } from "@/server/validation/static";
 import { releaseRunCapacity } from "@/server/workflow/assess";
+import { hasCurrentValidatedReview } from "@/server/workflow/review-payload";
 
 function changeSetId(): string {
   return `cs_${randomBytes(8).toString("hex")}`;
@@ -227,23 +228,83 @@ async function runGenerateValidateLoop(input: {
   });
 
   if (!produced.ok) {
-    if (produced.retryable && attempt === 1) {
+    // The adapter has already exhausted its one transient transport retry. Any
+    // first-attempt provider failure leaves no candidate changes, so return to
+    // the authorization boundary and let the developer correct/retry it.
+    if (attempt === 1) {
       const restored = restoreAwaitingAuthorization(genRun);
       input.store.set(restored);
       return {
         ok: false,
         code: produced.code,
         message: `${produced.message} — stage preserved for manual retry`,
-        status: 503,
+        status: produced.retryable ? 503 : 502,
         run: restored,
       };
     }
+
+    // A repair request is the sole permitted repair attempt. Its provider
+    // failure must use the normal rollback transition, while recording only a
+    // stable failure code rather than provider output or error content.
+    if (genRun.phase !== "repairing") {
+      return {
+        ok: false,
+        code: "INVALID_PHASE",
+        message: "Repair provider failure did not originate from repairing",
+        status: 500,
+        run: genRun,
+      };
+    }
+    const providerFailureReport: ValidationReport = {
+      ...genRun.validationReport,
+      attempts: [
+        ...genRun.validationReport.attempts,
+        {
+          attempt: 2,
+          passed: false,
+          checks: [
+            {
+              id: "provider_generation",
+              kind: "static",
+              title: "Generate repair operations",
+              outcome: "failed",
+              detail: `Provider repair generation failed (${produced.code})`,
+            },
+          ],
+          structuredErrors: [`provider_failure:${produced.code}`],
+        },
+      ],
+      finalOutcome: "failed_rolled_back",
+    };
+    const rolled = rollbackStage(genRun, providerFailureReport);
+    if (!rolled.ok) {
+      return {
+        ok: false,
+        code: rolled.error.code,
+        message: rolled.error.message,
+        status: 500,
+        run: genRun,
+      };
+    }
+    const stopped = stopAfterRollback(rolled.state);
+    if (!stopped.ok) {
+      input.store.set(rolled.state);
+      return {
+        ok: false,
+        code: produced.code,
+        message: "Provider repair generation failed; stage rolled back",
+        status: 502,
+        run: rolled.state,
+      };
+    }
+    input.store.set(stopped.state);
+    releaseRunCapacity(stopped.state.clientKeyHash);
     return {
       ok: false,
       code: produced.code,
-      message: produced.message,
+      message: "Provider repair generation failed; stage rolled back",
       status: 502,
-      run: genRun,
+      run: stopped.state,
     };
   }
 
@@ -384,7 +445,20 @@ async function handleValidationFailure(input: {
   provider: AiProvider;
   deterministic: boolean;
 }): Promise<StageActionResult> {
-  const { run, store, changeSet, report } = input;
+  const { store, changeSet, report } = input;
+  let run: GenRun | ValidatingRun = input.run;
+
+  // Apply failures arrive in "generating"/"repairing" phase — transition to
+  // "validating" first so the normal repair and rollback paths can proceed.
+  if (run.phase === "generating" || run.phase === "repairing") {
+    const forced = beginValidation(run, {
+      candidateSnapshot: run.snapshot,
+      changeSet,
+    });
+    if (forced.ok) {
+      run = forced.state as ValidatingRun;
+    }
+  }
 
   if (changeSet.attempt === 1 && run.phase === "validating") {
     const repairing = beginRepair(run, {
@@ -409,20 +483,7 @@ async function handleValidationFailure(input: {
     });
   }
 
-  // Need validating or repairing for rollback — if still generating apply-fail path:
-  let rollbackSource = run;
-  if (run.phase === "generating" || run.phase === "repairing") {
-    // Move to validating-like rollback via beginValidation with empty candidate? Use snapshot as candidate.
-    const forced = beginValidation(run, {
-      candidateSnapshot: run.snapshot,
-      changeSet,
-    });
-    if (forced.ok) {
-      rollbackSource = forced.state as ValidatingRun;
-    }
-  }
-
-  if (rollbackSource.phase !== "validating" && rollbackSource.phase !== "repairing") {
+  if (run.phase !== "validating" && run.phase !== "repairing") {
     return {
       ok: false,
       code: "INVALID_PHASE",
@@ -433,7 +494,7 @@ async function handleValidationFailure(input: {
   }
 
   const finalReport: ValidationReport = { ...report, finalOutcome: "failed_rolled_back" };
-  const rolled = rollbackStage(rollbackSource, finalReport);
+  const rolled = rollbackStage(run, finalReport);
   if (!rolled.ok) {
     return {
       ok: false,
@@ -470,6 +531,17 @@ export function acceptCurrentChangeSet(input: {
       ok: false,
       code: "INVALID_PHASE",
       message: `Cannot accept from phase ${run.phase}`,
+      status: 409,
+      run,
+    };
+  }
+  // Acceptance is server-gated by the current Change Set and report. The
+  // browser never supplies a review payload that could satisfy this check.
+  if (!hasCurrentValidatedReview(run)) {
+    return {
+      ok: false,
+      code: "STALE_REVIEW",
+      message: "Current Change Set review is stale or incomplete",
       status: 409,
       run,
     };

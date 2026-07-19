@@ -5,6 +5,7 @@ import type { TransformationReadiness } from "@/core/readiness";
 import type { RunState } from "@/core/run-state";
 import { orderedStages } from "@/core/run-state";
 import type { ModernizationSequencePlan, StagePlan } from "@/core/stages";
+import { buildReviewPayload } from "./review-payload";
 
 function publicEvidence(e: Evidence) {
   return {
@@ -219,7 +220,8 @@ export function toPublicRunView(state: RunState) {
         validationReport:
           state.phase === "stage_failed_rolled_back" ? state.validationReport : undefined,
       };
-    case "awaiting_acceptance":
+    case "awaiting_acceptance": {
+      const reviewPayload = buildReviewPayload(state);
       return {
         ...base,
         sourceLabel: state.snapshot.sourceLabel,
@@ -234,15 +236,19 @@ export function toPublicRunView(state: RunState) {
           stageKind: state.changeSet.stageKind,
           status: state.changeSet.status,
           attempt: state.changeSet.attempt,
-          operations: state.changeSet.operations.map((op) =>
-            op.type === "delete"
-              ? { type: op.type, path: op.path }
-              : { type: op.type, path: op.path, bytes: Buffer.byteLength(op.content, "utf8") },
-          ),
+          // Only allowlisted paths from the bounded review projection are public.
+          operations:
+            reviewPayload?.files.map((file) =>
+              file.bytes === undefined
+                ? { type: file.kind, path: file.path }
+                : { type: file.kind, path: file.path, bytes: file.bytes },
+            ) ?? [],
         },
-        validationReport: state.validationReport,
+        reviewPayload,
+        validationReport: reviewPayload?.validationReport,
         candidateFileCount: state.candidateSnapshot.files.size,
       };
+    }
     case "sequence_stopped":
       return {
         ...base,
@@ -283,4 +289,36 @@ export function toPublicRunView(state: RunState) {
   }
 }
 
-export type PublicRunView = ReturnType<typeof toPublicRunView>;
+type PublicRunViewRaw = ReturnType<typeof toPublicRunView>;
+type PublicRunBase = Pick<PublicRunViewRaw, "runId" | "createdAt" | "lastActiveAt">;
+type WithPhase<Phase extends RunState["phase"], Shape> = Omit<Shape, "phase"> & {
+  phase: Phase;
+};
+type AssessedPublicRun = Extract<PublicRunViewRaw, { analysis: unknown }>;
+type SelectedPublicRun = Extract<PublicRunViewRaw, { selectedReadiness: unknown }>;
+type SequencedPublicRun = Extract<PublicRunViewRaw, { currentStage: unknown }>;
+type AcceptancePublicRun = Extract<PublicRunViewRaw, { changeSet: unknown }>;
+type StoppedPublicRun = Extract<PublicRunViewRaw, { reason: unknown }>;
+type CompletedPublicRun = Extract<PublicRunViewRaw, { downloadPath: unknown }>;
+type EligibilityFailurePublicRun = Extract<PublicRunViewRaw, { eligibility: unknown }>;
+type SafetyFailurePublicRun = Extract<PublicRunViewRaw, { safety: unknown }>;
+
+/** Discriminated, client-safe public projection returned by every run endpoint. */
+export type PublicRunView =
+  | WithPhase<"created" | "expired", PublicRunBase>
+  | WithPhase<"loading", PublicRunBase & { sourceLabel: string }>
+  | WithPhase<"eligibility_failed", EligibilityFailurePublicRun>
+  | WithPhase<"safety_failed", SafetyFailurePublicRun>
+  | WithPhase<"assessed" | "not_ready", AssessedPublicRun>
+  | WithPhase<"candidate_selected", SelectedPublicRun>
+  | WithPhase<
+      | "awaiting_authorization"
+      | "generating"
+      | "validating"
+      | "repairing"
+      | "stage_failed_rolled_back",
+      SequencedPublicRun
+    >
+  | WithPhase<"awaiting_acceptance", AcceptancePublicRun>
+  | WithPhase<"sequence_stopped", StoppedPublicRun>
+  | WithPhase<"completed", CompletedPublicRun>;

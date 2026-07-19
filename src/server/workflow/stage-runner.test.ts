@@ -1,7 +1,8 @@
 import { describe, expect, it, beforeEach } from "vitest";
-import type { RunId } from "@/core/run-state";
+import type { RunId, RunState } from "@/core/run-state";
 import { assertNormalizedPath } from "@/core/paths";
 import { globalRateLimiter } from "@/server/ai/rate-limit";
+import { OpenAiCompatibleProvider } from "@/server/ai/provider";
 import { loadDoubleFailureAiFixture } from "@/fixtures/load-fixture";
 import { RunStore } from "@/server/run-store";
 import { startAssessment } from "./assess";
@@ -12,6 +13,13 @@ import {
   rejectCurrentChangeSet,
   validateInjectedOperations,
 } from "./stage-runner";
+
+function snapshotFingerprint(run: RunState) {
+  if (!("snapshot" in run)) throw new Error("run has no snapshot");
+  return [...run.snapshot.files.entries()]
+    .map(([path, file]) => [path, file.content] as const)
+    .sort(([left], [right]) => left.localeCompare(right));
+}
 
 async function readyRun(store: RunStore, clientKeyHash: string) {
   const assessed = await startAssessment({
@@ -77,6 +85,203 @@ describe("stage runner", () => {
       expect(rejected.run.snapshot.files.size).toBe(beforeFiles);
       expect(rejected.run.reason).toBe("developer_rejected");
     }
+  });
+
+  it("keeps an over-budget provider output out of the candidate snapshot", async () => {
+    const store = new RunStore();
+    const run = await readyRun(store, "stage-provider-output-budget");
+    let calls = 0;
+    const provider = new OpenAiCompatibleProvider({
+      fetchImpl: (async () => {
+        calls += 1;
+        return new Response(
+          JSON.stringify({
+            choices: [
+              {
+                message: {
+                  content: JSON.stringify({
+                    operations: [
+                      {
+                        type: "create",
+                        path: "tests/orders.characterization.test.js",
+                        content: "test('orders', () => {});",
+                      },
+                    ],
+                  }),
+                },
+              },
+            ],
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }) as typeof fetch,
+      baseUrl: "https://example.test/v1",
+      apiKey: "test-key",
+      model: "test-model",
+      tokenBudgets: { input: 100_000, output: 1 },
+    });
+
+    const result = await authorizeAndGenerate({
+      runId: run.runId as RunId,
+      clientKeyHash: "stage-provider-output-budget",
+      store,
+      provider,
+      forceDeterministic: false,
+    });
+
+    expect(calls).toBe(1);
+    expect(result).toMatchObject({ ok: false, code: "PROVIDER_BUDGET", status: 502 });
+    const stored = store.get(run.runId as RunId);
+    expect(stored?.phase).toBe("awaiting_authorization");
+    if (stored?.phase === "awaiting_authorization") {
+      expect(snapshotFingerprint(stored)).toEqual(snapshotFingerprint(run));
+    }
+  });
+
+  it.each(["PROVIDER_INVALID_JSON", "PROVIDER_SCHEMA"] as const)(
+    "restores awaiting authorization for nonretryable first-attempt %s failures",
+    async (code) => {
+      const store = new RunStore();
+      const run = await readyRun(store, `stage-first-${code}`);
+      const before = snapshotFingerprint(run);
+      const provider = {
+        async generate() {
+          return {
+            ok: false as const,
+            code,
+            message: "provider failure",
+            retryable: false,
+          };
+        },
+      };
+
+      const result = await authorizeAndGenerate({
+        runId: run.runId as RunId,
+        clientKeyHash: `stage-first-${code}`,
+        store,
+        provider,
+        forceDeterministic: false,
+      });
+
+      expect(result).toMatchObject({ ok: false, code, status: 502 });
+      expect(result.run?.phase).toBe("awaiting_authorization");
+      expect(store.get(run.runId as RunId)?.phase).toBe("awaiting_authorization");
+      if (result.run?.phase === "awaiting_authorization") {
+        expect(snapshotFingerprint(result.run)).toEqual(before);
+      }
+    },
+  );
+
+  it("rolls back after a provider failure during the sole repair attempt", async () => {
+    const store = new RunStore();
+    const run = await readyRun(store, "stage-repair-provider-failure");
+    const before = snapshotFingerprint(run);
+    let calls = 0;
+    const provider = {
+      async generate() {
+        calls += 1;
+        if (calls === 1) {
+          return {
+            ok: true as const,
+            operations: [
+              {
+                type: "update" as const,
+                path: assertNormalizedPath("package.json"),
+                content: '{ "name": "must-fail-static-validation" }',
+              },
+            ],
+            rawText: "{}",
+            attempt: 1 as const,
+          };
+        }
+        return {
+          ok: false as const,
+          code: "PROVIDER_SCHEMA" as const,
+          message: "schema failure",
+          retryable: false,
+        };
+      },
+    };
+
+    const result = await authorizeAndGenerate({
+      runId: run.runId as RunId,
+      clientKeyHash: "stage-repair-provider-failure",
+      store,
+      provider,
+      forceDeterministic: false,
+    });
+
+    expect(calls).toBe(2);
+    expect(result).toMatchObject({ ok: false, code: "PROVIDER_SCHEMA", status: 502 });
+    expect(result.run?.phase).toBe("sequence_stopped");
+    if (result.run?.phase === "sequence_stopped") {
+      expect(result.run.reason).toBe("validation_rollback");
+      expect(snapshotFingerprint(result.run)).toEqual(before);
+      expect(result.run.validationReport?.finalOutcome).toBe("failed_rolled_back");
+      expect(result.run.validationReport?.attempts).toHaveLength(2);
+      expect(result.run.validationReport?.attempts[1]).toMatchObject({
+        attempt: 2,
+        passed: false,
+        checks: [
+          {
+            id: "provider_generation",
+            outcome: "failed",
+            detail: "Provider repair generation failed (PROVIDER_SCHEMA)",
+          },
+        ],
+        structuredErrors: ["provider_failure:PROVIDER_SCHEMA"],
+      });
+      expect(JSON.stringify(result.run.validationReport)).not.toContain("schema failure");
+    }
+  });
+
+  it("preserves one repair attempt when its provider transport request retries", async () => {
+    const store = new RunStore();
+    const run = await readyRun(store, "stage-repair-transport-retry");
+    let calls = 0;
+    const requestBodies: Array<{ messages?: Array<{ content?: string }> }> = [];
+    const badOperations = {
+      operations: [
+        {
+          type: "update",
+          path: "package.json",
+          content: '{ "name": "must-fail-static-validation" }',
+        },
+      ],
+    };
+    const provider = new OpenAiCompatibleProvider({
+      fetchImpl: (async (_url: string, init?: RequestInit) => {
+        calls += 1;
+        requestBodies.push(JSON.parse(String(init?.body)));
+        if (calls === 2) return new Response("retry", { status: 429 });
+        return new Response(
+          JSON.stringify({
+            choices: [{ message: { content: JSON.stringify(badOperations) } }],
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }) as typeof fetch,
+      baseUrl: "https://example.test/v1",
+      apiKey: "test-key",
+      model: "test-model",
+      tokenBudgets: { input: 100_000, output: 100_000 },
+    });
+
+    const result = await authorizeAndGenerate({
+      runId: run.runId as RunId,
+      clientKeyHash: "stage-repair-transport-retry",
+      store,
+      provider,
+      forceDeterministic: false,
+    });
+
+    expect(calls).toBe(3);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.run.phase).toBe("sequence_stopped");
+    expect(result.validationReport?.attempts).toHaveLength(2);
+    expect(requestBodies[1]?.messages?.[1]?.content).toContain("Previous validation errors");
+    expect(requestBodies[2]?.messages?.[1]?.content).toContain("Previous validation errors");
   });
 
   it("accepts behaviour capture and advances to domain_module", async () => {
@@ -197,6 +402,7 @@ describe("stage runner", () => {
 
     const store3 = new RunStore();
     const run3 = await readyRun(store3, "stage-e");
+    const beforeRun3 = snapshotFingerprint(run3);
 
     // Override: two calls both return bad ops — first generation + repair
     let calls = 0;
@@ -227,10 +433,8 @@ describe("stage runner", () => {
       expect(result.run.reason).toBe("validation_rollback");
       expect(result.validationReport?.attempts.length).toBeGreaterThanOrEqual(2);
       expect(result.validationReport?.finalOutcome).toBe("failed_rolled_back");
-      // snapshot unchanged (no characterization file)
-      expect(
-        [...result.run.snapshot.files.keys()].some((p) => p.includes("characterization")),
-      ).toBe(false);
+      // Rollback restores the complete path-and-content snapshot, not only one expected file.
+      expect(snapshotFingerprint(result.run)).toEqual(beforeRun3);
     }
     expect(calls).toBe(2);
 

@@ -1,40 +1,175 @@
 @import "tailwindcss";
 
-:root {
-  --background: #f4f5f7;
-  --foreground: #0b1220;
-  --surface: #ffffff;
-  --surface-raised: #ffffff;
-  --surface-muted: #eef1f5;
-  --border: #d8dee8;
+/*
+  White + blue shell with dark terminal insets.
+  Default light theme is cool white/gray + utility blue (not warm cream paper).
+  Dark theme is an explicit user choice via data-theme (never automatic
+  prefers-color-scheme inversion). Terminal insets stay cooler/darker than the
+  surrounding shell in both themes. Token names keep *-paper roles for class
+  compatibility; values are white/blue product surfaces.
+*/
+:root,
+html[data-theme="light"] {
+  /* Cool white surfaces — near-white canvas, pure white cards */
+  --canvas-paper: #f7f8fa;
+  --surface-paper: #ffffff;
+  --surface-inset: #eef1f6;
+
+  /* Text — AA on white surfaces */
+  --text-primary: #0b1220;
+  --text-secondary: #5b667a;
+  --text-quiet: #7b879a;
+
+  /* Borders and focus */
+  --border-subtle: #d8dee8;
   --border-strong: #b8c2d1;
-  --muted: #5b667a;
-  --muted-soft: #7b879a;
-  --accent: #0b5fff;
-  --accent-hover: #0847c7;
-  --accent-foreground: #ffffff;
-  --accent-soft: #e8f0ff;
-  --ink: #0b1220;
+  --focus: #0b5fff;
+
+  /* Accents and status */
+  --accent-action: #0b5fff;
+  --accent-action-hover: #0847c7;
+  --accent-action-foreground: #ffffff;
+  --accent-action-soft: #e8f0ff;
   --success: #0f7a45;
-  --danger: #c81e4a;
   --warning: #a35b00;
-  --panel-head: #f0f3f7;
-  --code-bg: #0f172a;
-  --code-fg: #e2e8f0;
-  --grid: rgba(11, 18, 32, 0.045);
+  --danger: #c81e4a;
+
+  /* Terminal surfaces (always dark insets) */
+  --surface-terminal: #0f172a;
+  --surface-terminal-raised: #151c29;
+  --terminal-fg: #e2e8f0;
+  --terminal-fg-muted: #94a3b8;
+  --terminal-border: #243044;
+
+  /* Diff semantics on terminal */
+  --diff-add: #3dd68c;
+  --diff-add-bg: rgba(61, 214, 140, 0.14);
+  --diff-change: #e0b44d;
+  --diff-change-bg: rgba(224, 180, 77, 0.14);
+  --diff-delete: #f0718b;
+  --diff-delete-bg: rgba(240, 113, 139, 0.14);
+
+  /* Shape / elevation */
+  --radius: 8px;
   --shadow-soft: 0 1px 0 rgba(11, 18, 32, 0.04), 0 1px 2px rgba(11, 18, 32, 0.04);
   --shadow-lift: 0 1px 0 rgba(11, 18, 32, 0.05), 0 8px 24px rgba(11, 18, 32, 0.08);
-  --radius: 8px;
+  --grid: rgba(11, 18, 32, 0.045);
+
+  /* Legacy aliases → shell/terminal roles */
+  --background: var(--canvas-paper);
+  --foreground: var(--text-primary);
+  --surface: var(--surface-paper);
+  --surface-raised: var(--surface-paper);
+  --surface-muted: var(--surface-inset);
+  --border: var(--border-subtle);
+  --muted: var(--text-secondary);
+  --muted-soft: var(--text-quiet);
+  --accent: var(--accent-action);
+  --accent-hover: var(--accent-action-hover);
+  --accent-foreground: var(--accent-action-foreground);
+  --accent-soft: var(--accent-action-soft);
+  --ink: var(--text-primary);
+  --panel-head: #f0f3f7;
+  --code-bg: var(--surface-terminal);
+  --code-fg: var(--terminal-fg);
+  color-scheme: light;
+}
+
+/*
+  Explicit dark theme — cool slate shell, deeper terminal inset.
+  Opt-in only through data-theme="dark" (user toggle + localStorage).
+*/
+html[data-theme="dark"] {
+  --canvas-paper: #0a0e14;
+  --surface-paper: #111722;
+  --surface-inset: #1a2231;
+
+  --text-primary: #e6ebf2;
+  --text-secondary: #93a0b5;
+  --text-quiet: #6d7b91;
+
+  --border-subtle: #243044;
+  --border-strong: #334560;
+  --focus: #6aa0ff;
+
+  --accent-action: #4c8dff;
+  --accent-action-hover: #6aa0ff;
+  --accent-action-foreground: #041022;
+  --accent-action-soft: #13233f;
+  --success: #3ecf8e;
+  --warning: #e8b34a;
+  --danger: #f0718b;
+
+  --surface-terminal: #080c12;
+  --surface-terminal-raised: #0f1622;
+  --terminal-fg: #d7e0ee;
+  --terminal-fg-muted: #8b9bb0;
+  --terminal-border: #2a3a52;
+
+  --diff-add: #3dd68c;
+  --diff-add-bg: rgba(61, 214, 140, 0.16);
+  --diff-change: #e0b44d;
+  --diff-change-bg: rgba(224, 180, 77, 0.16);
+  --diff-delete: #f0718b;
+  --diff-delete-bg: rgba(240, 113, 139, 0.16);
+
+  --shadow-soft: 0 1px 0 rgba(0, 0, 0, 0.35);
+  --shadow-lift: 0 1px 0 rgba(0, 0, 0, 0.35), 0 12px 28px rgba(0, 0, 0, 0.45);
+  --grid: rgba(230, 235, 242, 0.035);
+
+  --background: var(--canvas-paper);
+  --foreground: var(--text-primary);
+  --surface: var(--surface-paper);
+  --surface-raised: var(--surface-paper);
+  --surface-muted: var(--surface-inset);
+  --border: var(--border-subtle);
+  --muted: var(--text-secondary);
+  --muted-soft: var(--text-quiet);
+  --accent: var(--accent-action);
+  --accent-hover: var(--accent-action-hover);
+  --accent-foreground: var(--accent-action-foreground);
+  --accent-soft: var(--accent-action-soft);
+  --ink: var(--text-primary);
+  --panel-head: #0f1622;
+  --code-bg: var(--surface-terminal);
+  --code-fg: var(--terminal-fg);
+  color-scheme: dark;
 }
 
 @theme inline {
+  /* New paper + terminal roles */
+  --color-canvas-paper: var(--canvas-paper);
+  --color-surface-paper: var(--surface-paper);
+  --color-surface-inset: var(--surface-inset);
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-quiet: var(--text-quiet);
+  --color-border-subtle: var(--border-subtle);
+  --color-border-strong: var(--border-strong);
+  --color-focus: var(--focus);
+  --color-accent-action: var(--accent-action);
+  --color-accent-action-hover: var(--accent-action-hover);
+  --color-accent-action-foreground: var(--accent-action-foreground);
+  --color-accent-action-soft: var(--accent-action-soft);
+  --color-surface-terminal: var(--surface-terminal);
+  --color-surface-terminal-raised: var(--surface-terminal-raised);
+  --color-terminal-fg: var(--terminal-fg);
+  --color-terminal-fg-muted: var(--terminal-fg-muted);
+  --color-terminal-border: var(--terminal-border);
+  --color-diff-add: var(--diff-add);
+  --color-diff-add-bg: var(--diff-add-bg);
+  --color-diff-change: var(--diff-change);
+  --color-diff-change-bg: var(--diff-change-bg);
+  --color-diff-delete: var(--diff-delete);
+  --color-diff-delete-bg: var(--diff-delete-bg);
+
+  /* Legacy utility colors */
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-surface: var(--surface);
   --color-surface-raised: var(--surface-raised);
   --color-surface-muted: var(--surface-muted);
   --color-border: var(--border);
-  --color-border-strong: var(--border-strong);
   --color-muted: var(--muted);
   --color-muted-soft: var(--muted-soft);
   --color-accent: var(--accent);
@@ -48,52 +183,78 @@
   --color-panel-head: var(--panel-head);
   --color-code-bg: var(--code-bg);
   --color-code-fg: var(--code-fg);
+
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  --font-serif: ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
   --shadow-soft: var(--shadow-soft);
   --shadow-lift: var(--shadow-lift);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0e14;
-    --foreground: #e6ebf2;
-    --surface: #111722;
-    --surface-raised: #151c29;
-    --surface-muted: #1a2231;
-    --border: #243044;
-    --border-strong: #334560;
-    --muted: #93a0b5;
-    --muted-soft: #6d7b91;
-    --accent: #4c8dff;
-    --accent-hover: #6aa0ff;
-    --accent-foreground: #041022;
-    --accent-soft: #13233f;
-    --ink: #f2f5fa;
-    --success: #3ecf8e;
-    --danger: #f0718b;
-    --warning: #e8b34a;
-    --panel-head: #0f1622;
-    --code-bg: #080c12;
-    --code-fg: #d7e0ee;
-    --grid: rgba(230, 235, 242, 0.035);
-    --shadow-soft: 0 1px 0 rgba(0, 0, 0, 0.35);
-    --shadow-lift: 0 8px 28px rgba(0, 0, 0, 0.4);
-  }
+html {
+  /* Prefer clip over hidden so sticky header still works while blocking page overflow. */
+  overflow-x: clip;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
+  background: var(--canvas-paper);
+  color: var(--text-primary);
   font-family: var(--font-geist-sans), system-ui, sans-serif;
   font-feature-settings:
     "ss01" on,
     "cv11" on;
+  overflow-x: clip;
+}
+
+/* Keyboard focus — high contrast on paper and terminal */
+:focus {
+  outline: none;
+}
+
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.tb-skip-link {
+  position: absolute;
+  left: 1rem;
+  top: 0;
+  z-index: 100;
+  transform: translateY(-120%);
+  border-radius: 6px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface-paper);
+  color: var(--text-primary);
+  padding: 0.5rem 0.875rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  box-shadow: var(--shadow-lift);
+  transition: transform 120ms ease;
+}
+
+.tb-skip-link:focus,
+.tb-skip-link:focus-visible {
+  transform: translateY(0.75rem);
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.tb-shell-product {
+  width: 100%;
+  max-width: 1120px;
+  margin-inline: auto;
+}
+
+.tb-shell-console {
+  width: 100%;
+  max-width: 1440px;
+  margin-inline: auto;
 }
 
 .tb-panel {
-  border: 1px solid var(--border);
-  background: var(--surface);
+  border: 1px solid var(--border-subtle);
+  background: var(--surface-paper);
   border-radius: var(--radius);
   box-shadow: var(--shadow-soft);
 }
@@ -103,9 +264,51 @@ body {
   align-items: center;
   justify-content: space-between;
   gap: 0.75rem;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--border-subtle);
   background: var(--panel-head);
   padding: 0.625rem 0.875rem;
+}
+
+/*
+  Inside the guided main card, drop nested panel chrome so content is not
+  double-framed. Keep terminal surfaces intact for code/evidence.
+*/
+.guided-main .tb-panel {
+  border: none;
+  background: transparent;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.guided-main .tb-panel + .tb-panel {
+  border-top: 1px solid var(--border-subtle);
+  padding-top: 1rem;
+  margin-top: 0.25rem;
+}
+
+.guided-main .tb-panel-head {
+  background: transparent;
+  border-bottom-color: var(--border-subtle);
+  padding-left: 0;
+  padding-right: 0;
+}
+
+.guided-main .tb-panel > :not(.tb-panel-head):not(.tb-terminal) {
+  /* Keep body content readable without extra card padding stacking */
+}
+
+.guided-main .rounded-2xl.border,
+.guided-main .rounded-xl.border,
+.guided-main .rounded-lg.border {
+  /* Soften nested rounded cards that reintroduce double frames */
+  box-shadow: none;
+}
+
+.tb-terminal {
+  border: 1px solid var(--terminal-border);
+  background: var(--surface-terminal);
+  color: var(--terminal-fg);
+  border-radius: var(--radius);
 }
 
 .tb-chip {
@@ -113,32 +316,39 @@ body {
   align-items: center;
   gap: 0.35rem;
   border-radius: 999px;
-  border: 1px solid var(--border);
-  background: var(--surface-muted);
+  border: 1px solid var(--border-subtle);
+  background: var(--surface-inset);
   padding: 0.15rem 0.5rem;
   font-family: var(--font-geist-mono), ui-monospace, monospace;
   font-size: 10px;
   line-height: 1.4;
   letter-spacing: 0.02em;
-  color: var(--muted);
+  color: var(--text-quiet);
 }
 
 .tb-chip-ok {
-  border-color: color-mix(in srgb, var(--success) 30%, var(--border));
+  border-color: color-mix(in srgb, var(--success) 30%, var(--border-subtle));
   background: color-mix(in srgb, var(--success) 12%, transparent);
   color: var(--success);
 }
 
 .tb-chip-warn {
-  border-color: color-mix(in srgb, var(--warning) 30%, var(--border));
+  border-color: color-mix(in srgb, var(--warning) 30%, var(--border-subtle));
   background: color-mix(in srgb, var(--warning) 12%, transparent);
   color: var(--warning);
 }
 
 .tb-chip-accent {
-  border-color: color-mix(in srgb, var(--accent) 30%, var(--border));
-  background: var(--accent-soft);
-  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent-action) 40%, var(--border-subtle));
+  background: color-mix(in srgb, var(--accent-action-soft) 88%, var(--surface-paper));
+  color: var(--accent-action);
+}
+
+html[data-theme="dark"] .tb-chip-accent {
+  /* Keep small mono chips above AA on dark paper insets */
+  background: color-mix(in srgb, var(--surface-terminal) 55%, var(--surface-paper));
+  border-color: color-mix(in srgb, var(--accent-action) 45%, var(--terminal-border));
+  color: var(--accent-action);
 }
 
 .tb-btn {
@@ -158,61 +368,104 @@ body {
     opacity 120ms ease;
 }
 
+.tb-theme-toggle {
+  border: 1px solid var(--border-subtle);
+  background: var(--surface-inset);
+  color: var(--text-primary);
+}
+
+.tb-theme-toggle:hover:not(:disabled) {
+  border-color: var(--border-strong);
+  background: var(--surface-paper);
+  color: var(--text-primary);
+}
+
+.tb-theme-toggle[aria-pressed="true"] {
+  border-color: var(--border-strong);
+  background: var(--surface-inset);
+  color: var(--text-primary);
+}
+
+html[data-theme="dark"] .tb-theme-toggle,
+html[data-theme="dark"] .tb-theme-toggle[aria-pressed="true"] {
+  border-color: var(--border-strong);
+  background: var(--surface-inset);
+  color: var(--text-primary);
+}
+
 .tb-btn:disabled {
   opacity: 0.55;
   cursor: not-allowed;
 }
 
 .tb-btn-primary {
-  background: var(--accent);
-  color: var(--accent-foreground);
+  background: var(--accent-action);
+  color: var(--accent-action-foreground);
 }
 
 .tb-btn-primary:hover:not(:disabled) {
-  background: var(--accent-hover);
+  background: var(--accent-action-hover);
+}
+
+html[data-theme="dark"] .tb-btn-primary {
+  background: #d7e6ff;
+  color: #071018;
+}
+
+html[data-theme="dark"] .tb-btn-primary:hover:not(:disabled) {
+  background: #eaf2ff;
+  color: #071018;
 }
 
 .tb-btn-secondary {
   border: 1px solid var(--border-strong);
-  background: var(--surface);
-  color: var(--ink);
+  background: var(--surface-paper);
+  color: var(--text-primary);
 }
 
 .tb-btn-secondary:hover:not(:disabled) {
-  border-color: var(--accent);
-  color: var(--accent);
+  border-color: var(--border-strong);
+  background: var(--surface-inset);
+  color: var(--text-primary);
+}
+
+html[data-theme="dark"] .tb-btn-secondary {
+  border-color: var(--border-strong);
+  background: var(--surface-inset);
+  color: var(--text-primary);
 }
 
 .tb-btn-ghost {
   border: 1px solid transparent;
   background: transparent;
-  color: var(--muted);
+  color: var(--text-secondary);
 }
 
 .tb-btn-ghost:hover:not(:disabled) {
-  background: var(--surface-muted);
-  color: var(--ink);
+  background: var(--surface-inset);
+  color: var(--text-primary);
 }
 
 .tb-input {
   height: 2.25rem;
   width: 100%;
   border-radius: 6px;
-  border: 1px solid var(--border);
-  background: var(--background);
+  border: 1px solid var(--border-subtle);
+  background: var(--canvas-paper);
   padding: 0 0.75rem;
   font-size: 0.8125rem;
-  color: var(--foreground);
+  color: var(--text-primary);
   outline: none;
 }
 
 .tb-input::placeholder {
-  color: var(--muted-soft);
+  color: var(--text-quiet);
 }
 
-.tb-input:focus {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
+.tb-input:focus-visible {
+  border-color: var(--focus);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--focus) 22%, transparent);
+  outline: none;
 }
 
 .tb-input:disabled {
@@ -220,23 +473,116 @@ body {
 }
 
 .tb-kbd {
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-subtle);
   border-bottom-width: 2px;
   border-radius: 4px;
-  background: var(--surface-muted);
+  background: var(--surface-inset);
   padding: 0.05rem 0.35rem;
   font-family: var(--font-geist-mono), ui-monospace, monospace;
   font-size: 10px;
-  color: var(--muted);
+  color: var(--text-quiet);
 }
 
 .tb-mono {
   font-family: var(--font-geist-mono), ui-monospace, monospace;
 }
 
+.tb-serif {
+  font-family: var(--font-serif);
+}
+
 .tb-rule {
   height: 1px;
-  background: var(--border);
+  background: var(--border-subtle);
+}
+
+/* Coarse pointers: practical 44px minimum targets for primary actions */
+@media (pointer: coarse) {
+  .tb-btn {
+    height: auto;
+    min-height: 2.75rem;
+    min-width: 2.75rem;
+    padding-inline: 0.9rem;
+  }
+
+  .tb-input {
+    height: auto;
+    min-height: 2.75rem;
+  }
+
+  .tb-theme-toggle {
+    min-height: 2.75rem;
+    min-width: 2.75rem;
+  }
+
+  .tb-header-nav a,
+  .tb-header-brand {
+    min-height: 2.75rem;
+    display: inline-flex;
+    align-items: center;
+  }
+
+  .tb-header-nav a {
+    padding-inline: 0.75rem;
+  }
+}
+
+/* Narrow viewports and high zoom: keep console chrome from forcing page scroll */
+@media (max-width: 360px) {
+  .tb-chip {
+    max-width: 100%;
+    overflow-wrap: anywhere;
+  }
+}
+
+/* Authorize / generation progress — indeterminate only (no fake %) */
+@keyframes tb-progress-indeterminate {
+  0% {
+    transform: translateX(-120%);
+  }
+  100% {
+    transform: translateX(220%);
+  }
+}
+
+@keyframes tb-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.tb-progress-track {
+  position: relative;
+  height: 0.375rem;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--surface-inset);
+  border: 1px solid var(--border-subtle);
+}
+
+.tb-progress-indeterminate {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 40%;
+  border-radius: inherit;
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--accent-action) 15%, transparent),
+    var(--accent-action),
+    color-mix(in srgb, var(--accent-action) 15%, transparent)
+  );
+  animation: tb-progress-indeterminate 1.35s ease-in-out infinite;
+}
+
+.tb-spinner {
+  display: inline-block;
+  width: 1rem;
+  height: 1rem;
+  border-radius: 999px;
+  border: 2px solid color-mix(in srgb, var(--accent-action) 25%, var(--border-subtle));
+  border-top-color: var(--accent-action);
+  animation: tb-spin 0.75s linear infinite;
+  flex-shrink: 0;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -246,5 +592,22 @@ body {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
+  }
+
+  .tb-skip-link {
+    transition: none;
+  }
+
+  .tb-progress-indeterminate {
+    width: 100%;
+    transform: none;
+    animation: none;
+    opacity: 0.55;
+  }
+
+  .tb-spinner {
+    animation: none;
+    border-top-color: var(--accent-action);
+    opacity: 0.85;
   }
 }

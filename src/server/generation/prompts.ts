@@ -45,9 +45,10 @@ function pickRelevantFiles(
   let bytes = 0;
   for (const f of selected.slice(0, maxFiles)) {
     const chunk = `// FILE: ${f.path}\n${f.content}`;
-    if (bytes + chunk.length > maxBytes) break;
+    const chunkBytes = Buffer.byteLength(chunk, "utf8");
+    if (bytes + chunkBytes > maxBytes) break;
     parts.push(chunk);
-    bytes += chunk.length;
+    bytes += chunkBytes;
   }
   return parts.join("\n\n");
 }

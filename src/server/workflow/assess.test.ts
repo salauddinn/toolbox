@@ -1,7 +1,8 @@
 import { describe, expect, it, beforeEach } from "vitest";
+import { beginLoading } from "@/core/run-state";
 import { RunStore } from "@/server/run-store";
 import { globalRateLimiter } from "@/server/ai/rate-limit";
-import { startAssessment } from "./assess";
+import { endAssessmentRun, startAssessment } from "./assess";
 import { selectDomainCandidate } from "./select";
 import { toPublicRunView } from "./public-view";
 import type { RunId } from "@/core/run-state";
@@ -129,5 +130,91 @@ describe("assessment workflow", () => {
     });
     expect(blocked.ok).toBe(false);
     if (!blocked.ok) expect(blocked.code).toBe("RATE_LIMIT_STARTS");
+  });
+
+  it("ends an owned idle run and immediately allows another assessment", async () => {
+    const store = new RunStore();
+    const assessed = await startAssessment({
+      clientKeyHash: "owner",
+      source: { type: "fixture", fixtureId: "controlled-example" },
+      store,
+    });
+    expect(assessed.ok).toBe(true);
+    if (!assessed.ok) return;
+
+    expect(
+      endAssessmentRun({
+        runId: assessed.run.runId,
+        clientKeyHash: "owner",
+        store,
+      }),
+    ).toEqual({ ok: true });
+    expect(store.get(assessed.run.runId)).toBeUndefined();
+
+    const restarted = await startAssessment({
+      clientKeyHash: "owner",
+      source: { type: "fixture", fixtureId: "controlled-example" },
+      store,
+    });
+    expect(restarted.ok).toBe(true);
+  });
+
+  it("does not end another client's run or a server-busy run", async () => {
+    const store = new RunStore();
+    const assessed = await startAssessment({
+      clientKeyHash: "owner",
+      source: { type: "fixture", fixtureId: "controlled-example" },
+      store,
+    });
+    expect(assessed.ok).toBe(true);
+    if (!assessed.ok) return;
+
+    expect(
+      endAssessmentRun({
+        runId: assessed.run.runId,
+        clientKeyHash: "other",
+        store,
+      }),
+    ).toMatchObject({ ok: false, code: "RUN_FORBIDDEN", status: 403 });
+    expect(store.get(assessed.run.runId)).toBeDefined();
+
+    const busyStore = new RunStore();
+    const created = busyStore.create("busy-owner");
+    const loading = beginLoading(created, "fixture:test");
+    expect(loading.ok).toBe(true);
+    if (!loading.ok) return;
+    busyStore.set(loading.state);
+
+    expect(
+      endAssessmentRun({
+        runId: loading.state.runId,
+        clientKeyHash: "busy-owner",
+        store: busyStore,
+      }),
+    ).toMatchObject({ ok: false, code: "RUN_BUSY", status: 409 });
+    expect(busyStore.get(loading.state.runId)).toBeDefined();
+  });
+
+  it("returns the replaceable run id with an active-client limit", async () => {
+    const store = new RunStore();
+    const assessed = await startAssessment({
+      clientKeyHash: "owner",
+      source: { type: "fixture", fixtureId: "controlled-example" },
+      store,
+    });
+    expect(assessed.ok).toBe(true);
+    if (!assessed.ok) return;
+
+    const blocked = await startAssessment({
+      clientKeyHash: "owner",
+      source: { type: "fixture", fixtureId: "controlled-example" },
+      store,
+    });
+    expect(blocked.ok).toBe(false);
+    if (blocked.ok) return;
+    expect(blocked).toMatchObject({
+      code: "RATE_LIMIT_ACTIVE_CLIENT",
+      activeRunId: assessed.run.runId,
+    });
   });
 });

@@ -1,866 +1,709 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
+import { AssessmentDecision } from "./assessment/assessment-decision";
+import { EvidenceInspector } from "./assessment/evidence-inspector";
+import type { EvidenceInspectorState, InspectRequest } from "./assessment/evidence-types";
+import { toInspectorState } from "./assessment/evidence-types";
+import { GateFailure } from "./assessment/gate-failure";
+import { resolveGuidedOutcome, resolveGuidedStep } from "./assessment/guided-flow";
+import { GuidedShell } from "./assessment/guided-shell";
+import {
+  DURABLE_RUN_PHASES,
+  presentationFor,
+  type CandidateSelectionReadiness,
+  type PresentationAction,
+  type PresentationState,
+  type ReviewReadiness,
+} from "./assessment/presentation-state";
+import { RepositoryStart, SupportedContractDetails } from "./assessment/repository-start";
+import { ChangeSetReview } from "./assessment/change-set-review";
+import { CompletionArtifact } from "./assessment/completion-artifact";
+import { SequenceOutcome } from "./assessment/sequence-outcome";
+import {
+  OperationStatusView,
+  StagePlanView,
+  type StageOperationPhase,
+  type StagePlanStage,
+} from "./assessment/stage-plan-view";
+import { useAssessmentRun } from "./assessment/use-assessment-run";
 import { DependencyGraph, type GraphPayload } from "./dependency-graph";
 
-const SUPPORTED_CONTRACT = [
-  "Public GitHub repository that passes Safety Screening",
-  "Single-root npm project with package.json",
-  "JavaScript CommonJS (no type: module)",
-  "Express.js and Mongoose declared dependencies",
-  "Recognizable entry (app.js, server.js, or index.js)",
-  "At least one route and one Mongoose model",
-  "Existing CommonJS Jest/Supertest harness via npm test for transformation",
-  "At most 150 analyzed source files and 2 MB analyzed source",
-] as const;
-
-type Evidence = {
-  ruleId: string;
-  message: string;
-  severity: string;
-  file: string;
-  line: number;
-  snippet: string;
-};
-
-type PublicCandidate = {
-  id: string;
-  name: string;
-  technicalScore: number;
-  confidence: number;
-  routes: readonly {
-    method: string;
-    path: string;
-    file: string;
-    line: number;
-    mountPrefix?: string;
-  }[];
-  primaryModel?: {
-    modelName: string;
-    collectionName?: string;
-    file: string;
-    line: number;
-  };
-  files: readonly string[];
-  signals: readonly Evidence[];
-  conflictingEvidence: readonly Evidence[];
-};
-
-type PublicReadiness = {
-  ready: boolean;
-  candidateId: string;
-  rules: readonly {
-    ruleId: string;
-    passed: boolean;
-    summary: string;
-    evidence: readonly Evidence[];
-  }[];
-  failedRules?: readonly {
-    ruleId: string;
-    passed: false;
-    summary: string;
-    evidence: readonly Evidence[];
-  }[];
-};
-
-type PublicStage = {
-  id: string;
-  kind: string;
-  title: string;
-  purpose: string;
-  conditional: boolean;
-  evidence: readonly Evidence[];
-  expectedFiles: readonly string[];
-  validationCriteria: readonly {
-    id: string;
-    description: string;
-    kind: string;
-  }[];
-};
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type RunView = Record<string, any> & {
-  runId: string;
-  phase: string;
-};
-
-async function postJson(
-  url: string,
-  body: unknown,
-): Promise<{ ok: boolean; status: number; data: unknown }> {
-  const response = await fetch(url, {
-    method: "POST",
-    credentials: "same-origin",
-    headers: {
-      "Content-Type": "application/json",
-      Accept: "application/json",
-    },
-    body: JSON.stringify(body),
-  });
-  const data = await response.json().catch(() => ({}));
-  return { ok: response.ok, status: response.status, data };
+function reviewReadiness(
+  run: Extract<
+    NonNullable<ReturnType<typeof useAssessmentRun>["run"]>,
+    { phase: "awaiting_acceptance" }
+  >,
+  refreshingReview = false,
+): ReviewReadiness {
+  if (refreshingReview) return "loading";
+  const review = run.reviewPayload;
+  if (!review) return "incomplete";
+  if (
+    review.changeSetId !== run.changeSet.id ||
+    review.attempt !== run.changeSet.attempt ||
+    review.validationReport.changeSetId !== run.changeSet.id ||
+    review.validationReport.stageId !== run.changeSet.stageId
+  ) {
+    return "stale";
+  }
+  if (
+    review.validationReport.finalOutcome !== "passed" ||
+    !review.validationReport.attempts.some(
+      (attempt) => attempt.attempt === run.changeSet.attempt && attempt.passed,
+    )
+  ) {
+    return "failed";
+  }
+  return "complete-current";
 }
 
-function EvidenceList({
-  items,
-  onFile,
-}: {
-  items: readonly Evidence[];
-  onFile?: (f: string) => void;
-}) {
-  if (items.length === 0) {
-    return <p className="text-xs text-muted">No evidence attached.</p>;
+function presentationStateFor(
+  run: ReturnType<typeof useAssessmentRun>["run"],
+  pendingState: ReturnType<typeof useAssessmentRun>["pendingState"],
+  operationError: ReturnType<typeof useAssessmentRun>["operationError"],
+  blockedStart: ReturnType<typeof useAssessmentRun>["blockedStart"],
+  pickedCandidateId: string | null,
+  refreshingReview = false,
+): PresentationState {
+  if (pendingState) return { kind: "local", state: pendingState };
+  if (blockedStart) return { kind: "local", state: "active-run-conflict" };
+  if (operationError) {
+    return {
+      kind: "operation-error",
+      step: operationError.step,
+      operation: operationError.operation,
+      retryable: operationError.retryable,
+    };
   }
-  return (
-    <ul className="space-y-2">
-      {items.map((e, i) => (
-        <li
-          key={`${e.ruleId}-${e.file}-${e.line}-${i}`}
-          className="rounded-md border border-border bg-background p-2 text-xs"
-        >
-          <button
-            type="button"
-            className="font-mono text-accent hover:underline"
-            onClick={() => onFile?.(e.file)}
-          >
-            {e.file}:{e.line}
-          </button>
-          <p className="mt-1 text-foreground">{e.message}</p>
-          {e.snippet ? (
-            <pre className="mt-1 overflow-x-auto rounded bg-surface p-2 text-[11px] text-muted">
-              {e.snippet}
-            </pre>
-          ) : null}
-        </li>
-      ))}
-    </ul>
-  );
+  if (!run) return { kind: "local", state: "no-run" };
+  if (!DURABLE_RUN_PHASES.includes(run.phase)) return { kind: "unknown-phase", phase: run.phase };
+
+  if (run.phase === "assessed") {
+    const candidateSelection: CandidateSelectionReadiness =
+      pickedCandidateId && run.readinessByCandidateId[pickedCandidateId]?.ready
+        ? "ready"
+        : pickedCandidateId
+          ? "not-ready"
+          : "none";
+    return { kind: "run", phase: run.phase, candidateSelection };
+  }
+  if (run.phase === "awaiting_acceptance") {
+    return { kind: "run", phase: run.phase, review: reviewReadiness(run, refreshingReview) };
+  }
+  return { kind: "run", phase: run.phase };
 }
 
 export function AssessmentApp() {
   const [url, setUrl] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [run, setRun] = useState<RunView | null>(null);
-  const [selectedEvidenceFile, setSelectedEvidenceFile] = useState<string | null>(null);
-  const [intent, setIntent] = useState("");
-  const [pickedCandidateId, setPickedCandidateId] = useState<string | null>(null);
-  const [pendingDiff, setPendingDiff] = useState<{
-    created: number;
-    updated: number;
-    deleted: number;
-    files: { path: string; kind: string; beforePreview?: string; afterPreview?: string }[];
-  } | null>(null);
+  const [inspector, setInspector] = useState<EvidenceInspectorState | null>(null);
+  const inspectorTriggerRef = useRef<HTMLElement | null>(null);
+  const [confirmingEnd, setConfirmingEnd] = useState(false);
+  const [confirmingReplace, setConfirmingReplace] = useState(false);
+  const [refreshingReview, setRefreshingReview] = useState(false);
+  const assessment = useAssessmentRun();
+  const { run, busy, error, blockedStart, pickedCandidateId, setPickedCandidateId } = assessment;
+  const state = presentationStateFor(
+    run,
+    assessment.pendingState,
+    assessment.operationError,
+    blockedStart,
+    pickedCandidateId,
+    refreshingReview,
+  );
+  const presentation = presentationFor(state);
+  const can = (action: PresentationAction) => presentation.actions.includes(action);
+  const unknownPhase = state.kind === "unknown-phase";
+  const gatePhase =
+    run?.phase === "eligibility_failed" ||
+    run?.phase === "safety_failed" ||
+    run?.phase === "not_ready"
+      ? run.phase
+      : null;
+  /** Terminal sequence/artifact screens own end-run confirmation and deletion recovery. */
+  const outcomePhase =
+    run?.phase === "stage_failed_rolled_back" ||
+    run?.phase === "sequence_stopped" ||
+    run?.phase === "completed"
+      ? run.phase
+      : null;
 
-  const startFixture = useCallback(async () => {
-    setBusy(true);
-    setError(null);
-    setSelectedEvidenceFile(null);
-    try {
-      const result = await postJson("/api/runs", {
-        source: "fixture",
-        fixtureId: "controlled-example",
-      });
-      const data = result.data as { ok?: boolean; run?: RunView; message?: string; code?: string };
-      if (!result.ok || !data.ok || !data.run) {
-        setError(data.message ?? data.code ?? `Request failed (${result.status})`);
-        setRun(null);
-        return;
-      }
-      setRun(data.run);
-      setPendingDiff(null);
-      setPickedCandidateId(data.run.ranking?.safestTechnicalCandidateId ?? null);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setBusy(false);
-    }
+  const openInspect = useCallback((request: InspectRequest) => {
+    const active = document.activeElement;
+    inspectorTriggerRef.current =
+      active instanceof HTMLElement && active !== document.body ? active : null;
+    setInspector(toInspectorState(request));
   }, []);
 
-  const startGithub = useCallback(async () => {
-    setBusy(true);
-    setError(null);
-    setSelectedEvidenceFile(null);
-    setPendingDiff(null);
-    try {
-      const result = await postJson("/api/runs", {
-        source: "github",
-        url: url.trim(),
-      });
-      const data = result.data as { ok?: boolean; run?: RunView; message?: string; code?: string };
-      if (!result.ok || !data.ok || !data.run) {
-        setError(data.message ?? data.code ?? `Request failed (${result.status})`);
-        setRun(null);
-        return;
-      }
-      setRun(data.run);
-      setPickedCandidateId(data.run.ranking?.safestTechnicalCandidateId ?? null);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setBusy(false);
-    }
-  }, [url]);
+  const closeInspector = useCallback(() => {
+    setInspector(null);
+  }, []);
 
-  const confirmSelection = useCallback(async () => {
-    if (!run || !pickedCandidateId) return;
-    setBusy(true);
-    setError(null);
-    try {
-      const result = await postJson(`/api/runs/${run.runId}/select`, {
-        candidateId: pickedCandidateId,
-        modernizationIntent: intent.trim() || undefined,
-      });
-      const data = result.data as { ok?: boolean; run?: RunView; message?: string; code?: string };
-      if (!result.ok || !data.ok || !data.run) {
-        setError(data.message ?? data.code ?? `Request failed (${result.status})`);
-        return;
-      }
-      setRun(data.run);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setBusy(false);
-    }
-  }, [run, pickedCandidateId, intent]);
-
-  const authorizeStage = useCallback(async () => {
-    if (!run) return;
-    setBusy(true);
-    setError(null);
-    try {
-      const result = await postJson(`/api/runs/${run.runId}/authorize`, {});
-      const data = result.data as {
-        ok?: boolean;
-        run?: RunView;
-        message?: string;
-        code?: string;
-        diff?: {
-          created: number;
-          updated: number;
-          deleted: number;
-          files: {
-            path: string;
-            kind: string;
-            beforePreview?: string;
-            afterPreview?: string;
-          }[];
-        };
-        validationReport?: unknown;
+  const navigateInspector = useCallback((index: number) => {
+    setInspector((current) => {
+      if (!current || current.mode !== "evidence") return current;
+      const max = Math.max(0, current.items.length - 1);
+      return {
+        ...current,
+        index: Math.min(Math.max(0, index), max),
       };
-      if (!result.ok || !data.ok || !data.run) {
-        if (data.run) setRun(data.run);
-        setError(data.message ?? data.code ?? `Request failed (${result.status})`);
-        return;
-      }
-      setRun(data.run);
-      setPendingDiff(data.diff ?? null);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setBusy(false);
-    }
-  }, [run]);
-
-  const acceptStage = useCallback(async () => {
-    if (!run) return;
-    setBusy(true);
-    setError(null);
-    try {
-      const result = await postJson(`/api/runs/${run.runId}/accept`, {});
-      const data = result.data as { ok?: boolean; run?: RunView; message?: string; code?: string };
-      if (!result.ok || !data.ok || !data.run) {
-        setError(data.message ?? data.code ?? `Request failed (${result.status})`);
-        return;
-      }
-      setRun(data.run);
-      setPendingDiff(null);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setBusy(false);
-    }
-  }, [run]);
-
-  const rejectStage = useCallback(async () => {
-    if (!run) return;
-    setBusy(true);
-    setError(null);
-    try {
-      const result = await postJson(`/api/runs/${run.runId}/reject`, {});
-      const data = result.data as { ok?: boolean; run?: RunView; message?: string; code?: string };
-      if (!result.ok || !data.ok || !data.run) {
-        setError(data.message ?? data.code ?? `Request failed (${result.status})`);
-        return;
-      }
-      setRun(data.run);
-      setPendingDiff(null);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setBusy(false);
-    }
-  }, [run]);
+    });
+  }, []);
 
   const graph: GraphPayload | null = useMemo(() => {
-    if (!run?.analysis?.graph) return null;
-    return run.analysis.graph as GraphPayload;
+    if ((run?.phase !== "assessed" && run?.phase !== "not_ready") || !run.analysis?.graph) {
+      return null;
+    }
+    return run.analysis.graph;
   }, [run]);
 
-  const candidates: PublicCandidate[] = run?.ranking?.candidates ?? [];
-  const readinessMap: Record<string, PublicReadiness> = run?.readinessByCandidateId ?? {};
+  const candidates =
+    run?.phase === "assessed" || run?.phase === "not_ready" ? run.ranking?.candidates ?? [] : [];
+  const readinessMap =
+    run?.phase === "assessed" || run?.phase === "not_ready" ? run.readinessByCandidateId : {};
+  const sequence = run && "sequence" in run ? run.sequence : undefined;
+  const stageIndex = run && "stageIndex" in run ? run.stageIndex : undefined;
+  const selectedDomain =
+    run && "selectedCandidate" in run ? run.selectedCandidate?.name : undefined;
+  const currentStageTitle = run && "currentStage" in run ? run.currentStage.title : undefined;
+  const validationReport = run && "validationReport" in run ? run.validationReport : undefined;
+  const authorizePending = assessment.pendingState === "authorize-request-pending";
+  const sequencePhases: readonly StageOperationPhase[] = [
+    "awaiting_authorization",
+    "generating",
+    "validating",
+    "repairing",
+    "awaiting_acceptance",
+    "stage_failed_rolled_back",
+    "sequence_stopped",
+    "completed",
+  ];
+  const isSequencePhase = run != null && sequencePhases.includes(run.phase as StageOperationPhase);
+  const stagePlanStages: readonly StagePlanStage[] =
+    sequence?.stages.map((stage) => ({
+      id: stage.id,
+      kind: stage.kind,
+      title: stage.title,
+      purpose: stage.purpose,
+      conditional: stage.conditional,
+      evidence: stage.evidence,
+      expectedFiles: stage.expectedFiles,
+      validationCriteria: stage.validationCriteria,
+      budgets: stage.budgets,
+    })) ?? [];
+  const acceptanceReview =
+    run?.phase === "awaiting_acceptance" ? reviewReadiness(run, refreshingReview) : undefined;
 
-  return (
-    <div className="space-y-4">
-      <section className="tb-panel overflow-hidden">
-        <div className="tb-panel-head">
-          <div className="min-w-0">
-            <p className="tb-mono text-[10px] uppercase tracking-wide text-muted">work console</p>
-            <h1 className="truncate text-[14px] font-semibold text-ink">
-              {run ? "Modernization Assessment" : "Start assessment"}
-            </h1>
+  async function refreshReview() {
+    if (!run || run.phase !== "awaiting_acceptance" || refreshingReview) return;
+    setRefreshingReview(true);
+    try {
+      await assessment.refresh();
+    } finally {
+      setRefreshingReview(false);
+    }
+  }
+
+  const readinessFailures =
+    run?.phase === "not_ready"
+      ? candidates
+          .map((candidate) => {
+            const readiness = readinessMap[candidate.id];
+            if (!readiness || readiness.ready) return null;
+            return {
+              candidateName: candidate.name,
+              failedRules: readiness.failedRules ?? [],
+            };
+          })
+          .filter((entry): entry is NonNullable<typeof entry> => entry !== null)
+      : [];
+
+  function requestEndRun() {
+    if (!can("end_run")) return;
+    setConfirmingEnd(true);
+  }
+
+  function performEndRun() {
+    setConfirmingEnd(false);
+    setConfirmingReplace(false);
+    setInspector(null);
+    void assessment.endCurrentRun();
+  }
+
+  const graphSection =
+    graph != null ? (
+      <div className="min-w-0 space-y-2">
+        <h3 className="text-sm font-medium">Entry-reachable dependency graph</h3>
+        <p className="text-xs text-muted">
+          Supporting evidence only. Node and edge selection open available path/line file context —
+          never fabricated evidence fields. Graph context is not the primary decision surface.
+        </p>
+        <DependencyGraph
+          graph={graph}
+          onSelectFileContext={(selection) =>
+            openInspect({
+              kind: "file-context",
+              file: selection.file,
+              line: selection.line,
+              origin: "graph",
+            })
+          }
+        />
+      </div>
+    ) : null;
+
+  const currentStep = resolveGuidedStep({
+    phase: run?.phase ?? null,
+    localState:
+      assessment.pendingState ?? (blockedStart ? "active-run-conflict" : !run ? "no-run" : null),
+    unknownPhase,
+  });
+  const guidedOutcome = resolveGuidedOutcome(run?.phase ?? null);
+
+  const guidedSubtitle = !run
+    ? "Choose how to begin. We’ll guide you one step at a time."
+    : gatePhase
+      ? "This run stopped before modernization. Review the reason, then start over."
+      : guidedOutcome === "rolled_back"
+        ? "This stage failed validation and was rolled back. End the run to start over."
+        : guidedOutcome === "stopped"
+          ? "The sequence stopped. End the run to return to start."
+          : presentation.explanation;
+
+  const outcomeFooter =
+    outcomePhase && can("end_run") ? (
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <p className="text-[13px] leading-relaxed text-muted">
+          {guidedOutcome === "rolled_back"
+            ? "Rolled-back output was not accepted. End the run to continue."
+            : "This run cannot continue. End it to return to repository start."}
+        </p>
+        {confirmingEnd ? (
+          <div className="flex flex-wrap gap-2" role="group" aria-label="Confirm end run">
+            <button
+              type="button"
+              disabled={busy}
+              onClick={performEndRun}
+              className="tb-btn tb-btn-primary h-11 min-h-11 px-4 text-[13px] font-semibold"
+            >
+              Confirm end run
+            </button>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => setConfirmingEnd(false)}
+              className="tb-btn tb-btn-ghost h-11 min-h-11 px-4 text-[13px]"
+            >
+              Cancel
+            </button>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
-            {run ? (
-              <>
-                <span className="tb-chip tb-chip-accent">phase: {run.phase}</span>
-                <span className="tb-chip">run: {run.runId.slice(0, 10)}…</span>
+        ) : (
+          <button
+            type="button"
+            disabled={busy}
+            onClick={requestEndRun}
+            className="tb-btn tb-btn-primary h-11 min-h-11 px-4 text-[13px] font-semibold"
+            data-testid="guided-outcome-end-run"
+          >
+            End run / Start over
+          </button>
+        )}
+      </div>
+    ) : null;
+
+  const headerActions = (
+    <>
+      {run ? (
+        <>
+          <span className="tb-chip">run: {run.runId.slice(0, 10)}…</span>
+          {can("end_run") ? (
+            confirmingEnd && !gatePhase && !outcomePhase ? (
+              <div
+                className="flex flex-wrap items-center gap-2"
+                role="group"
+                aria-label="Confirm end run"
+              >
                 <button
                   type="button"
                   disabled={busy}
-                  onClick={() => {
-                    setRun(null);
-                    setPendingDiff(null);
-                    setError(null);
-                    setSelectedEvidenceFile(null);
-                  }}
-                  className="tb-btn tb-btn-secondary h-8 px-2.5 text-[12px]"
+                  onClick={performEndRun}
+                  className="tb-btn tb-btn-primary h-9 min-h-11 px-3 text-[13px]"
                 >
-                  New
+                  Confirm end run
                 </button>
                 <button
                   type="button"
                   disabled={busy}
-                  onClick={() => void startFixture()}
-                  className="tb-btn tb-btn-primary h-8 px-2.5 text-[12px]"
+                  onClick={() => setConfirmingEnd(false)}
+                  className="tb-btn tb-btn-ghost h-9 min-h-11 px-3 text-[13px]"
                 >
-                  Retry example
+                  Cancel
                 </button>
-              </>
-            ) : (
-              <>
-                <span className="tb-chip">no active run</span>
-                <Link href="/" className="tb-btn tb-btn-ghost h-8 px-2.5 text-[12px]">
-                  Product page
-                </Link>
-              </>
-            )}
-          </div>
-        </div>
-      </section>
-
-      {!run ? (
-        <section className="tb-panel overflow-hidden">
-          <div className="tb-panel-head">
-            <p className="tb-mono text-[11px] font-medium text-ink">new run</p>
-            <span className="tb-mono text-[10px] text-muted">POST /api/runs</span>
-          </div>
-          <div className="space-y-4 p-5">
-            <p className="max-w-2xl text-[13px] leading-relaxed text-muted">
-              Deterministic checks build the assessment before any AI call. After you confirm a
-              Domain Candidate, AI generates only within the approved Stage Plan and static
-              validation checks every proposed change.
-            </p>
-            <div className="flex flex-col gap-2 sm:flex-row">
+              </div>
+            ) : !gatePhase && !outcomePhase ? (
               <button
                 type="button"
                 disabled={busy}
-                onClick={() => void startFixture()}
-                className="tb-btn tb-btn-primary sm:shrink-0"
+                onClick={requestEndRun}
+                className="tb-btn tb-btn-secondary h-9 min-h-11 px-3 text-[13px]"
               >
-                {busy ? "Running…" : "Try controlled example"}
+                End run / Start over
               </button>
-              <div className="flex min-w-0 flex-1 gap-2">
-                <label className="sr-only" htmlFor="github-url">
-                  Public GitHub repository URL
-                </label>
-                <input
-                  id="github-url"
-                  name="github-url"
-                  type="url"
-                  value={url}
-                  onChange={(e) => setUrl(e.target.value)}
-                  disabled={busy}
-                  placeholder="https://github.com/owner/repo"
-                  className="tb-input tb-mono"
-                />
-                <button
-                  type="button"
-                  disabled={busy || url.trim().length === 0}
-                  onClick={() => void startGithub()}
-                  className="tb-btn tb-btn-secondary shrink-0"
-                >
-                  Assess
-                </button>
-              </div>
-            </div>
-            {error ? (
-              <p
-                className="rounded border border-danger/25 bg-danger/8 px-2.5 py-2 text-[12px] text-danger"
-                role="alert"
-              >
-                {error}
-              </p>
-            ) : null}
-            {busy ? (
-              <p className="tb-mono text-[11px] text-muted" aria-live="polite">
-                load → safety → eligibility → analyze → rank…
-              </p>
-            ) : null}
-          </div>
-        </section>
-      ) : null}
+            ) : null
+          ) : null}
+        </>
+      ) : (
+        <>
+          <span className="tb-chip">no active run</span>
+          <Link href="/" className="tb-btn tb-btn-ghost h-9 min-h-11 px-3 text-[13px]">
+            Product page
+          </Link>
+        </>
+      )}
+    </>
+  );
 
-      {run && error ? (
-        <p
-          className="rounded-md border border-danger/25 bg-danger/8 px-3 py-2.5 text-[13px] text-danger"
-          role="alert"
+  return (
+    <div className="min-w-0">
+      <div inert={inspector ? true : undefined} className="min-w-0">
+        <GuidedShell
+          currentStep={currentStep}
+          outcome={guidedOutcome}
+          title={unknownPhase ? presentation.heading : undefined}
+          subtitle={guidedSubtitle}
+          actions={headerActions}
+          footer={outcomeFooter}
         >
-          {error}
-        </p>
-      ) : null}
-      {run && busy ? (
-        <p className="tb-mono text-[11px] text-muted" aria-live="polite">
-          working…
-        </p>
-      ) : null}
-
-      <section className="tb-panel overflow-hidden">
-        <div className="tb-panel-head">
-          <p className="tb-mono text-[11px] font-medium text-ink">supported contract</p>
-        </div>
-        <ul className="grid gap-0 sm:grid-cols-2">
-          {SUPPORTED_CONTRACT.map((item, i) => (
-            <li
-              key={item}
-              className="flex gap-2 border-b border-border px-3.5 py-2 text-[12px] text-muted last:border-b-0 sm:odd:border-r"
-            >
-              <span className="tb-mono text-[10px] text-muted-soft">
-                {String(i + 1).padStart(2, "0")}
-              </span>
-              <span>{item}</span>
-            </li>
-          ))}
-        </ul>
-      </section>
-
-      {run ? (
-        <section className="tb-panel space-y-6 p-5 sm:p-6">
-          <div className="flex flex-wrap items-baseline justify-between gap-2">
-            <h2 className="text-[15px] font-semibold text-ink">Assessment detail</h2>
-            <p className="tb-mono text-[11px] text-muted">phase={run.phase}</p>
-          </div>
-
-          {run.phase === "eligibility_failed" ? (
-            <div className="space-y-3">
-              <p className="text-sm font-medium text-red-600 dark:text-red-400">
-                Repository is not eligible
-              </p>
-              <ul className="space-y-2 text-sm">
-                {(run.eligibility?.rejections ?? []).map(
-                  (r: { code: string; message: string; evidence?: Evidence[] }, i: number) => (
-                    <li key={`${r.code}-${i}`} className="rounded-md border border-border p-3">
-                      <p className="font-mono text-xs text-muted">{r.code}</p>
-                      <p>{r.message}</p>
-                      {r.evidence ? (
-                        <div className="mt-2">
-                          <EvidenceList items={r.evidence} onFile={setSelectedEvidenceFile} />
-                        </div>
-                      ) : null}
-                    </li>
-                  ),
-                )}
-              </ul>
-            </div>
+          {!run ? (
+            <RepositoryStart
+              url={url}
+              onUrlChange={setUrl}
+              busy={busy}
+              error={error}
+              blockedStart={blockedStart}
+              confirmingReplace={confirmingReplace}
+              onConfirmingReplaceChange={setConfirmingReplace}
+              onStartFixture={() => void assessment.startFixture()}
+              onStartGithub={(nextUrl) => void assessment.startGithub(nextUrl)}
+              onReplacePreviousRun={() => void assessment.replacePreviousRun()}
+              onDismissConflict={() => assessment.dismissStartConflict()}
+            />
           ) : null}
 
-          {run.phase === "safety_failed" ? (
-            <div className="space-y-3">
-              <p className="text-sm font-medium text-red-600 dark:text-red-400">
-                Safety Screening rejected this repository
-              </p>
-              <p className="text-xs text-muted">
-                Passing Safety Screening is not malware certification.
-              </p>
-              <ul className="space-y-2 text-sm">
-                {(run.safety?.rejections ?? []).map(
-                  (r: { code: string; message: string; evidence?: Evidence[] }, i: number) => (
-                    <li key={`${r.code}-${i}`} className="rounded-md border border-border p-3">
-                      <p className="font-mono text-xs text-muted">{r.code}</p>
-                      <p>{r.message}</p>
-                      {r.evidence ? (
-                        <div className="mt-2">
-                          <EvidenceList items={r.evidence} onFile={setSelectedEvidenceFile} />
-                        </div>
-                      ) : null}
-                    </li>
-                  ),
-                )}
-              </ul>
+          {run ? <SupportedContractDetails defaultOpen={false} /> : null}
+
+          {run && error && !gatePhase ? (
+            <div className="tb-panel overflow-hidden" role="alert">
+              <div className="tb-panel-head">
+                <p className="text-[13px] font-semibold text-danger">
+                  {assessment.operationError
+                    ? presentation.heading
+                    : "The requested action did not complete"}
+                </p>
+                <span className="tb-chip tb-chip-warn">preserved</span>
+              </div>
+              <div className="tb-terminal overflow-hidden border-0 border-t border-terminal-border">
+                <pre className="overflow-x-auto p-3 tb-mono text-[11px] leading-relaxed text-terminal-fg">
+                  {error}
+                </pre>
+              </div>
             </div>
           ) : null}
+          {run && busy ? (
+            <p className="tb-mono text-[11px] text-muted" aria-live="polite">
+              working…
+            </p>
+          ) : null}
 
-          {run.phase === "assessed" || run.phase === "not_ready" ? (
+          {run && unknownPhase ? (
+            <section className="tb-panel p-5 sm:p-6" role="alert">
+              <h2 className="text-[15px] font-semibold text-ink">{presentation.heading}</h2>
+              <p className="mt-2 text-sm text-muted">{presentation.explanation}</p>
+              <p className="mt-3 text-[12px] text-text-quiet">
+                No unsupported mutations are offered for this phase.
+              </p>
+            </section>
+          ) : null}
+
+          {run && run.phase === "eligibility_failed" ? (
+            <GateFailure
+              kind="eligibility_failed"
+              presentation={presentation}
+              sourceLabel={run.sourceLabel}
+              rejections={run.eligibility.rejections}
+              busy={busy}
+              confirmingEnd={confirmingEnd}
+              onConfirmingEndChange={setConfirmingEnd}
+              onEndRun={performEndRun}
+              onInspect={openInspect}
+            />
+          ) : null}
+
+          {run && run.phase === "safety_failed" ? (
+            <GateFailure
+              kind="safety_failed"
+              presentation={presentation}
+              sourceLabel={run.sourceLabel}
+              rejections={run.safety.rejections}
+              busy={busy}
+              confirmingEnd={confirmingEnd}
+              onConfirmingEndChange={setConfirmingEnd}
+              onEndRun={performEndRun}
+              onInspect={openInspect}
+            />
+          ) : null}
+
+          {run && run.phase === "not_ready" ? (
             <>
-              <div className="grid gap-4 sm:grid-cols-3">
-                <div className="rounded-lg border border-border p-3">
-                  <p className="text-xs text-muted">Source</p>
-                  <p className="truncate text-sm font-medium">{run.sourceLabel}</p>
+              <GateFailure
+                kind="not_ready"
+                presentation={presentation}
+                sourceLabel={run.sourceLabel}
+                readinessFailures={readinessFailures}
+                busy={busy}
+                confirmingEnd={confirmingEnd}
+                onConfirmingEndChange={setConfirmingEnd}
+                onEndRun={performEndRun}
+                onInspect={openInspect}
+              />
+              <section className="tb-panel space-y-6 overflow-hidden p-5 sm:p-6">
+                <div className="flex flex-wrap items-baseline justify-between gap-2">
+                  <h2 className="text-[15px] font-semibold text-ink">
+                    Assessment evidence (read-only)
+                  </h2>
+                  <p className="tb-mono text-[11px] text-muted">phase={run.phase}</p>
                 </div>
-                <div className="rounded-lg border border-border p-3">
-                  <p className="text-xs text-muted">Routes / models</p>
-                  <p className="text-sm font-medium">
-                    {run.analysis?.routeCount ?? 0} / {run.analysis?.modelCount ?? 0}
-                  </p>
-                </div>
-                <div className="rounded-lg border border-border p-3">
-                  <p className="text-xs text-muted">Entry</p>
-                  <p className="font-mono text-sm">{run.analysis?.entryPath}</p>
-                </div>
-              </div>
 
-              {run.phase === "not_ready" ? (
-                <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm">
-                  Assessment-only: no Domain Candidate passed Transformation Readiness. Ranking is
-                  technical evidence only — not business priority. AI was not called.
-                </p>
-              ) : (
-                <p className="text-sm text-muted">
-                  Up to three technical Domain Candidates. The highlighted candidate is the safest
-                  technical start; it is not a business priority ranking.
-                </p>
-              )}
+                <AssessmentDecision
+                  sourceLabel={run.sourceLabel}
+                  entryPath={run.analysis?.entryPath ?? "—"}
+                  routeCount={run.analysis?.routeCount ?? 0}
+                  modelCount={run.analysis?.modelCount ?? 0}
+                  cycleCount={graph?.cycles.length ?? 0}
+                  candidates={candidates}
+                  readinessByCandidateId={readinessMap}
+                  safestTechnicalCandidateId={run.ranking?.safestTechnicalCandidateId}
+                  pickedCandidateId={pickedCandidateId}
+                  onPickCandidate={setPickedCandidateId}
+                  allowConfirmation={false}
+                  canConfirm={false}
+                  busy={busy}
+                  onConfirm={() => undefined}
+                  onInspect={openInspect}
+                />
 
-              {graph ? (
-                <div className="space-y-2">
-                  <h3 className="text-sm font-medium">Entry-reachable dependency graph</h3>
-                  <p className="text-xs text-muted">
-                    Red animated edges are entry-reachable cycles. Click a node to focus evidence.
-                  </p>
-                  <DependencyGraph graph={graph} onSelectFile={setSelectedEvidenceFile} />
-                </div>
-              ) : null}
-
-              {selectedEvidenceFile ? (
-                <p className="text-xs text-muted">
-                  Focused file:{" "}
-                  <span className="font-mono text-foreground">{selectedEvidenceFile}</span>
-                </p>
-              ) : null}
-
-              <div className="space-y-4">
-                <h3 className="text-sm font-medium">Domain Candidates</h3>
-                {candidates.map((c) => {
-                  const readiness = readinessMap[c.id];
-                  const safest = run.ranking?.safestTechnicalCandidateId === c.id;
-                  const selected = pickedCandidateId === c.id;
-                  return (
-                    <article
-                      key={c.id}
-                      className={`rounded-lg border p-4 ${
-                        safest ? "border-accent" : "border-border"
-                      } ${selected ? "ring-2 ring-accent/40" : ""}`}
-                    >
-                      <div className="flex flex-wrap items-start justify-between gap-2">
-                        <div>
-                          <h4 className="font-medium">
-                            {c.name}{" "}
-                            {safest ? (
-                              <span className="ml-2 text-xs font-normal text-accent">
-                                safest technical candidate
-                              </span>
-                            ) : null}
-                          </h4>
-                          <p className="text-xs text-muted">
-                            technical score {c.technicalScore.toFixed(2)} · evidence strength{" "}
-                            {c.confidence.toFixed(2)} · {readiness?.ready ? "ready" : "not ready"}
-                          </p>
-                        </div>
-                        {run.phase === "assessed" && readiness?.ready ? (
-                          <button
-                            type="button"
-                            className="rounded-md border border-border px-3 py-1 text-xs font-medium"
-                            onClick={() => setPickedCandidateId(c.id)}
-                          >
-                            {selected ? "Selected" : "Select"}
-                          </button>
-                        ) : null}
-                      </div>
-
-                      <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                        <div>
-                          <p className="mb-1 text-xs font-medium">Signals</p>
-                          <EvidenceList items={c.signals} onFile={setSelectedEvidenceFile} />
-                        </div>
-                        <div>
-                          <p className="mb-1 text-xs font-medium">Conflicting evidence</p>
-                          <EvidenceList
-                            items={c.conflictingEvidence}
-                            onFile={setSelectedEvidenceFile}
-                          />
-                        </div>
-                      </div>
-
-                      {readiness && !readiness.ready ? (
-                        <div className="mt-3">
-                          <p className="mb-1 text-xs font-medium text-red-600 dark:text-red-400">
-                            Failed readiness rules
-                          </p>
-                          <ul className="space-y-1 text-xs">
-                            {(readiness.failedRules ?? []).map((rule) => (
-                              <li key={rule.ruleId}>
-                                <span className="font-mono">{rule.ruleId}</span>: {rule.summary}
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      ) : null}
-
-                      {c.routes.length > 0 ? (
-                        <p className="mt-2 text-xs text-muted">
-                          Routes:{" "}
-                          {c.routes
-                            .slice(0, 6)
-                            .map((r) => `${r.method.toUpperCase()} ${r.mountPrefix ?? ""}${r.path}`)
-                            .join(", ")}
-                        </p>
-                      ) : null}
-                    </article>
-                  );
-                })}
-              </div>
-
-              {run.phase === "assessed" ? (
-                <div className="space-y-3 border-t border-border pt-4">
-                  <label className="block text-sm font-medium" htmlFor="intent">
-                    Modernization Intent (optional)
-                  </label>
-                  <textarea
-                    id="intent"
-                    value={intent}
-                    onChange={(e) => setIntent(e.target.value)}
-                    rows={2}
-                    maxLength={500}
-                    placeholder="Optional constraints for the selected domain (not a free-form AI prompt)"
-                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
-                  />
-                  <button
-                    type="button"
-                    disabled={busy || !pickedCandidateId}
-                    onClick={() => void confirmSelection()}
-                    className="tb-btn tb-btn-primary"
-                  >
-                    Confirm Domain Candidate
-                  </button>
-                </div>
-              ) : null}
+                {graphSection}
+              </section>
             </>
           ) : null}
 
-          {run.phase === "awaiting_authorization" ||
-          run.phase === "generating" ||
-          run.phase === "validating" ||
-          run.phase === "awaiting_acceptance" ||
-          run.phase === "sequence_stopped" ||
-          run.phase === "completed" ||
-          run.phase === "stage_failed_rolled_back" ? (
-            <div className="space-y-4">
-              <p className="text-sm">
-                Selected domain:{" "}
-                <strong>{run.selectedCandidate?.name ?? run.currentStage?.title}</strong>
-              </p>
-              {run.phase === "sequence_stopped" ? (
-                <p className="rounded-lg border border-red-500/40 bg-red-500/10 p-3 text-sm">
-                  Sequence stopped ({run.reason}). Current snapshot was kept; rejected or
-                  rolled-back output did not leak forward.
-                </p>
-              ) : null}
-              {run.phase === "completed" ? (
-                <div className="space-y-3 rounded-lg border border-accent/40 bg-accent/10 p-3 text-sm">
-                  <p>
-                    Modernization Sequence completed with {run.acceptedChangeSetCount} accepted
-                    Change Set(s).
-                  </p>
-                  {run.downloadAvailable && run.downloadPath ? (
-                    <a href={run.downloadPath} className="tb-btn tb-btn-primary">
-                      Download result ZIP
-                    </a>
-                  ) : null}
-                  <p className="text-xs text-muted">
-                    ZIP contains repository/ (accepted snapshot only) and
-                    toolbox-validation-report.json. External generated tests: not executed.
-                  </p>
-                </div>
-              ) : null}
-              {run.sequence?.pendingConditional ? (
-                <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm">
-                  Pending conditional stage: {run.sequence.pendingConditional.reason}. Final
-                  insertion is decided only after Domain Module acceptance.
-                </p>
-              ) : null}
-              <ol className="space-y-3">
-                {(run.sequence?.stages as PublicStage[] | undefined)?.map((stage, index) => (
-                  <li
-                    key={stage.id}
-                    className={`rounded-lg border p-4 ${
-                      index === run.stageIndex ? "border-accent" : "border-border"
-                    }`}
-                  >
-                    <p className="text-xs text-muted">
-                      Stage {index + 1}
-                      {stage.conditional ? " · conditional" : ""}
-                      {index === run.stageIndex ? " · current" : ""}
-                    </p>
-                    <h4 className="font-medium">{stage.title}</h4>
-                    <p className="mt-1 text-sm text-muted">{stage.purpose}</p>
-                    <p className="mt-2 text-xs font-medium">Expected files</p>
-                    <ul className="font-mono text-xs text-muted">
-                      {stage.expectedFiles.map((f) => (
-                        <li key={f}>{f}</li>
-                      ))}
-                    </ul>
-                    <p className="mt-2 text-xs font-medium">Validation criteria</p>
-                    <ul className="list-disc pl-5 text-xs text-muted">
-                      {stage.validationCriteria.map((c) => (
-                        <li key={c.id}>
-                          [{c.kind}] {c.description}
-                        </li>
-                      ))}
-                    </ul>
-                    <div className="mt-2">
-                      <p className="mb-1 text-xs font-medium">Evidence</p>
-                      <EvidenceList items={stage.evidence} onFile={setSelectedEvidenceFile} />
-                    </div>
-                  </li>
-                ))}
-              </ol>
+          {run && !unknownPhase && !gatePhase ? (
+            <section className="tb-panel min-w-0 space-y-6 overflow-hidden p-5 sm:p-6">
+              <div className="flex flex-wrap items-baseline justify-between gap-2">
+                <h2 className="text-[15px] font-semibold text-ink">Assessment detail</h2>
+                <p className="tb-mono text-[11px] text-muted">phase={run.phase}</p>
+              </div>
 
-              {run.phase === "awaiting_authorization" ? (
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={() => void authorizeStage()}
-                  className="tb-btn tb-btn-primary"
-                >
-                  Authorize AI generation for this stage
-                </button>
+              {run.phase === "assessed" ? (
+                <>
+                  <AssessmentDecision
+                    sourceLabel={run.sourceLabel}
+                    entryPath={run.analysis?.entryPath ?? "—"}
+                    routeCount={run.analysis?.routeCount ?? 0}
+                    modelCount={run.analysis?.modelCount ?? 0}
+                    cycleCount={graph?.cycles.length ?? 0}
+                    candidates={candidates}
+                    readinessByCandidateId={readinessMap}
+                    safestTechnicalCandidateId={run.ranking?.safestTechnicalCandidateId}
+                    pickedCandidateId={pickedCandidateId}
+                    onPickCandidate={setPickedCandidateId}
+                    allowConfirmation={can("select_candidate") || can("confirm_candidate")}
+                    canConfirm={can("confirm_candidate")}
+                    busy={busy}
+                    onConfirm={() => void assessment.confirmSelection()}
+                    onInspect={openInspect}
+                  />
+
+                  {graphSection}
+                </>
               ) : null}
 
-              {run.phase === "awaiting_acceptance" ? (
-                <div className="space-y-3 rounded-lg border border-border p-4">
-                  <p className="text-sm font-medium">
-                    AI-generated, validated Change Set — review before acceptance
+              {run.phase === "candidate_selected" ? (
+                <div className="space-y-3 rounded-lg border border-border-subtle bg-surface-inset/40 p-4">
+                  <h3 className="text-[14px] font-semibold text-ink">{presentation.heading}</h3>
+                  <p className="text-[13px] leading-relaxed text-text-secondary">
+                    {presentation.explanation}
                   </p>
-                  <p className="text-xs text-muted">
-                    Attempt {run.changeSet?.attempt} · {run.changeSet?.operations?.length ?? 0}{" "}
-                    operations · candidate files {run.candidateFileCount}
-                  </p>
-                  {run.validationReport?.externalTestsLabel === "not_executed" ? (
-                    <p className="text-xs text-amber-700 dark:text-amber-300">
-                      External generated tests: not executed
+                  {"selectedCandidate" in run && run.selectedCandidate ? (
+                    <p className="text-[13px] text-text-primary">
+                      Confirmed Domain Candidate: <strong>{run.selectedCandidate.name}</strong>
                     </p>
                   ) : null}
-                  {pendingDiff ? (
-                    <div className="space-y-2">
-                      <p className="text-xs font-medium">
-                        Candidate snapshot diff (+{pendingDiff.created} ~{pendingDiff.updated} −
-                        {pendingDiff.deleted})
-                      </p>
-                      <ul className="max-h-56 space-y-2 overflow-auto text-xs">
-                        {pendingDiff.files.map((f) => (
-                          <li
-                            key={`${f.kind}-${f.path}`}
-                            className="rounded border border-border p-2"
-                          >
-                            <p className="font-mono">
-                              {f.kind} {f.path}
-                            </p>
-                            {f.beforePreview ? (
-                              <pre className="mt-1 max-h-24 overflow-auto bg-background p-1 text-[10px] text-muted">
-                                − {f.beforePreview}
-                              </pre>
-                            ) : null}
-                            {f.afterPreview ? (
-                              <pre className="mt-1 max-h-24 overflow-auto bg-background p-1 text-[10px] text-muted">
-                                + {f.afterPreview}
-                              </pre>
-                            ) : null}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
+                  <p className="text-[12px] text-text-quiet">
+                    No Stage Plan is assumed until the server exposes a sequence for this decision.
+                  </p>
+                </div>
+              ) : null}
+
+              {isSequencePhase ? (
+                <div className="space-y-6">
+                  {stagePlanStages.length > 0 && stageIndex != null ? (
+                    <StagePlanView
+                      stages={stagePlanStages}
+                      stageIndex={stageIndex}
+                      phase={run.phase as StageOperationPhase}
+                      selectedDomain={selectedDomain}
+                      pendingConditional={sequence?.pendingConditional}
+                      presentation={
+                        authorizePending
+                          ? presentationFor({ kind: "local", state: "authorize-request-pending" })
+                          : run.phase === "awaiting_authorization"
+                            ? presentation
+                            : presentationFor({ kind: "run", phase: "awaiting_authorization" })
+                      }
+                      authorizePending={authorizePending}
+                      canAuthorize={can("authorize_stage")}
+                      busy={busy}
+                      onAuthorize={() => void assessment.authorize()}
+                      onInspect={openInspect}
+                      hideAuthorizeAction={
+                        authorizePending ||
+                        run.phase === "generating" ||
+                        run.phase === "validating" ||
+                        run.phase === "repairing" ||
+                        run.phase === "awaiting_acceptance" ||
+                        run.phase === "stage_failed_rolled_back" ||
+                        run.phase === "sequence_stopped" ||
+                        run.phase === "completed"
+                      }
+                    />
                   ) : null}
-                  <ul className="max-h-40 overflow-auto font-mono text-xs text-muted">
-                    {(run.changeSet?.operations ?? []).map(
-                      (op: { type: string; path: string; bytes?: number }, i: number) => (
-                        <li key={`${op.type}-${op.path}-${i}`}>
-                          {op.type} {op.path}
-                          {op.bytes != null ? ` (${op.bytes} B)` : ""}
-                        </li>
-                      ),
-                    )}
-                  </ul>
-                  <div className="flex flex-wrap gap-2">
-                    <button
-                      type="button"
-                      disabled={busy}
-                      onClick={() => void acceptStage()}
-                      className="tb-btn tb-btn-primary"
-                    >
-                      Accept Change Set
-                    </button>
-                    <button
-                      type="button"
-                      disabled={busy}
-                      onClick={() => void rejectStage()}
-                      className="tb-btn tb-btn-secondary"
-                    >
-                      Reject and stop
-                    </button>
-                  </div>
+
+                  {authorizePending ? (
+                    <OperationStatusView
+                      kind="authorize-pending"
+                      presentation={presentationFor({
+                        kind: "local",
+                        state: "authorize-request-pending",
+                      })}
+                      currentStageTitle={currentStageTitle}
+                    />
+                  ) : null}
+
+                  {!authorizePending && run.phase === "generating" ? (
+                    <OperationStatusView
+                      kind="durable-generating"
+                      presentation={presentation}
+                      currentStageTitle={currentStageTitle}
+                    />
+                  ) : null}
+
+                  {!authorizePending && run.phase === "validating" ? (
+                    <OperationStatusView
+                      kind="durable-validating"
+                      presentation={presentation}
+                      currentStageTitle={currentStageTitle}
+                    />
+                  ) : null}
+
+                  {!authorizePending && run.phase === "repairing" ? (
+                    <OperationStatusView
+                      kind="durable-repairing"
+                      presentation={presentation}
+                      currentStageTitle={currentStageTitle}
+                    />
+                  ) : null}
+
+                  {!authorizePending && run.phase === "awaiting_acceptance" ? (
+                    <ChangeSetReview
+                      presentation={presentation}
+                      review={acceptanceReview ?? "incomplete"}
+                      reviewPayload={run.reviewPayload}
+                      currentStageTitle={currentStageTitle}
+                      canAccept={can("accept_change_set")}
+                      canReject={can("reject_change_set")}
+                      busy={busy || refreshingReview}
+                      onAccept={() => void assessment.accept()}
+                      onReject={() => void assessment.reject()}
+                      onRefreshReview={() => void refreshReview()}
+                    />
+                  ) : null}
+
+                  {!authorizePending && run.phase === "stage_failed_rolled_back" ? (
+                    <SequenceOutcome
+                      kind="stage_failed_rolled_back"
+                      presentation={presentation}
+                      sourceLabel={"sourceLabel" in run ? run.sourceLabel : undefined}
+                      selectedCandidateName={selectedDomain}
+                      currentStageTitle={currentStageTitle}
+                      acceptedChangeSetCount={run.acceptedChangeSetCount}
+                      validationReport={validationReport}
+                      busy={busy}
+                      confirmingEnd={confirmingEnd}
+                      onConfirmingEndChange={setConfirmingEnd}
+                      onEndRun={performEndRun}
+                      endError={assessment.operationError?.operation === "end-run" ? error : null}
+                    />
+                  ) : null}
+
+                  {!authorizePending && run.phase === "sequence_stopped" ? (
+                    <SequenceOutcome
+                      kind="sequence_stopped"
+                      presentation={presentation}
+                      sourceLabel={"sourceLabel" in run ? run.sourceLabel : undefined}
+                      selectedCandidateName={selectedDomain}
+                      currentStageTitle={currentStageTitle}
+                      acceptedChangeSetCount={run.acceptedChangeSetCount}
+                      validationReport={validationReport}
+                      stopReason={run.reason}
+                      busy={busy}
+                      confirmingEnd={confirmingEnd}
+                      onConfirmingEndChange={setConfirmingEnd}
+                      onEndRun={performEndRun}
+                      endError={assessment.operationError?.operation === "end-run" ? error : null}
+                    />
+                  ) : null}
+
+                  {!authorizePending && run.phase === "completed" ? (
+                    <CompletionArtifact
+                      presentation={presentation}
+                      sourceLabel={"sourceLabel" in run ? run.sourceLabel : undefined}
+                      selectedCandidateName={selectedDomain}
+                      acceptedChangeSetCount={run.acceptedChangeSetCount}
+                      validationReports={"validationReports" in run ? run.validationReports : []}
+                      downloadAvailable={run.downloadAvailable}
+                      downloadPath={run.downloadPath}
+                      busy={busy}
+                      confirmingEnd={confirmingEnd}
+                      onConfirmingEndChange={setConfirmingEnd}
+                      onEndRun={performEndRun}
+                      endError={assessment.operationError?.operation === "end-run" ? error : null}
+                    />
+                  ) : null}
+
+                  {run.phase !== "stage_failed_rolled_back" &&
+                  run.phase !== "sequence_stopped" &&
+                  run.phase !== "completed" ? (
+                    <p className="text-[12px] text-text-quiet">
+                      Authorization and Change Acceptance are separate controls. Only Change
+                      Acceptance promotes the validated candidate snapshot.
+                    </p>
+                  ) : null}
                 </div>
               ) : null}
-
-              {run.validationReport ? (
-                <div className="rounded-lg border border-border p-3 text-xs">
-                  <p className="font-medium">Validation Report</p>
-                  <p className="text-muted">final: {run.validationReport.finalOutcome}</p>
-                  <ul className="mt-2 space-y-1">
-                    {(run.validationReport.attempts ?? []).map(
-                      (a: {
-                        attempt: number;
-                        passed: boolean;
-                        checks: { id: string; outcome: string; detail?: string }[];
-                      }) => (
-                        <li key={a.attempt}>
-                          Attempt {a.attempt}: {a.passed ? "passed" : "failed"} (
-                          {a.checks?.filter((c) => c.outcome === "failed").length ?? 0} failures)
-                        </li>
-                      ),
-                    )}
-                  </ul>
-                </div>
-              ) : null}
-
-              <p className="text-xs text-muted">
-                AI cannot change stage count, trigger outcome, or purpose. Only Change Acceptance
-                promotes the candidate snapshot.
-              </p>
-            </div>
+            </section>
           ) : null}
-        </section>
-      ) : null}
+        </GuidedShell>
+      </div>
+
+      <EvidenceInspector
+        state={inspector}
+        onClose={closeInspector}
+        onNavigate={navigateInspector}
+        triggerRef={inspectorTriggerRef}
+        fallbackFocusId="assessment-workspace-heading"
+      />
     </div>
   );
 }

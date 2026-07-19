@@ -320,47 +320,45 @@ module.exports = {
         `module.exports = { create${input.candidate.name}Module: function create() { return {}; } };\n`;
 
       const paymentsPath = assertNormalizedPath("routes/payments.js");
-      const ordersLegacy = assertNormalizedPath("routes/orders.js");
       const payments = input.files.find((f) => f.path === paymentsPath);
-      const orders = input.files.find((f) => f.path === ordersLegacy);
       const entry = input.files.find((f) => f.path === input.analysis.entryPath);
 
       const ops: FileOperation[] = [];
 
-      // Break cycle: payments should not require orders statically for listOpenOrderIds
+      // Break the original entry-reachable Orders ↔ Payments edge. The public
+      // Orders factory receives the Payments facade below, from the app root.
       if (payments && /require\(["']\.\/orders["']\)/.test(payments.content)) {
-        const fixed = payments.content.replace(
-          /const\s+\w+\s*=\s*require\(["']\.\/orders["']\);?/,
-          "/* cycle broken: orders injected via composition root */\nlet ordersApi = { listOpenOrderIds: function () { return []; } };\nfunction setOrdersApi(api) { ordersApi = api; }",
-        );
-        // also fix usages of previous binding if needed - keep summarize
-        const withExport = fixed + `\nmodule.exports.setOrdersApi = setOrdersApi;\n`;
-        ops.push({ type: "update", path: paymentsPath, content: withExport });
+        const fixed = payments.content
+          .replace(
+            /\/\/ Completes the supported Orders ↔ Payments circular require \(static edge\)\.\nconst orders = require\(["']\.\/orders["']\);?/,
+            "// Orders is composed through the public Orders module factory in app.js.",
+          )
+          .replace(
+            /orders\s*&&\s*typeof orders\.listOpenOrderIds === "function"\s*\? orders\.listOpenOrderIds\(\)\s*:\s*\[\]/,
+            "[]",
+          );
+        ops.push({ type: "update", path: paymentsPath, content: fixed });
       }
 
-      if (orders && /require\(["']\.\/payments["']\)/.test(orders.content)) {
-        // leave orders requiring payments OR inject - prefer remove static require if module exists
-        const fixed = orders.content.replace(
-          /const\s+payments\s*=\s*require\(["']\.\/payments["']\);?/,
-          "let payments = { summarizeForOrder: function () { return { status: 'quoted' }; } };",
-        );
-        ops.push({ type: "update", path: ordersLegacy, content: fixed });
-      }
+      // Retain the legacy one-way Orders → Payments read until integration/cleanup.
 
-      const factoryIndex = indexContent.includes("create")
-        ? indexContent
-        : indexContent +
-          `\nfunction create${input.candidate.name}Module(deps) {\n  return { deps: deps || {}, router: module.exports.router };\n}\nmodule.exports.create${input.candidate.name}Module = create${input.candidate.name}Module;\n`;
-      if (existingIndex) {
+      const factoryName = `create${input.candidate.name}Module`;
+      const factoryIndex = indexContent
+        .replace(
+          `function ${factoryName}(deps) {`,
+          `function ${factoryName}({ paymentsApi }) {\n  if (!paymentsApi || typeof paymentsApi.summarizeForOrder !== "function") {\n    throw new Error("paymentsApi is required by the Orders module");\n  }`,
+        )
+        .replace("deps: deps || {},", "paymentsApi: paymentsApi,");
+      if (existingIndex && factoryIndex !== indexContent) {
         ops.push({ type: "update", path: indexPath, content: factoryIndex });
       }
 
       if (entry) {
-        let entryContent = entry.content;
-        if (!/setOrdersApi|createOrdersModule|create.*Module/.test(entryContent)) {
-          entryContent =
-            entryContent +
-            `\n// composition-root injection for cycle repair\ntry {\n  const paymentsRouter = require("./routes/payments");\n  const ordersMod = require("./src/modules/${slug}");\n  if (paymentsRouter && typeof paymentsRouter.setOrdersApi === "function" && ordersMod) {\n    paymentsRouter.setOrdersApi(ordersMod);\n  }\n} catch (_e) {}\n`;
+        const entryContent = entry.content.replace(
+          /const ordersRouter = ordersModule\.router;\nconst paymentsRouter = require\(["']\.\/routes\/payments["']\);/,
+          'const paymentsRouter = require("./routes/payments");\nconst ordersRouter = ordersModule.router;\nordersModule.createOrdersModule({ paymentsApi: paymentsRouter });',
+        );
+        if (entryContent !== entry.content) {
           ops.push({
             type: "update",
             path: assertNormalizedPath(input.analysis.entryPath),

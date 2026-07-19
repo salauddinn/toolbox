@@ -68,21 +68,31 @@ describe("loadGitHubRepository", () => {
         name: "acme-app-abc123/app.js",
         content: "const express = require('express');\nmodule.exports = express();\n",
       },
+      {
+        name: "acme-app-abc123/package-lock.json",
+        content: '{"private":"lockfile-content-must-not-survive"}',
+      },
     ]);
 
     const fetchImpl: typeof fetch = async (input) => {
       const url = String(input);
       if (url.includes("api.github.com/repos/") && !url.includes("tarball")) {
-        return new Response(JSON.stringify({ private: false, full_name: "acme/app" }), {
-          status: 200,
-          headers: { "content-type": "application/json" },
-        });
+        return new Response(
+          JSON.stringify({ private: false, full_name: "acme/app", default_branch: "main" }),
+          {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          },
+        );
       }
-      if (url.includes("/tarball/")) {
+      if (url.includes("/tarball/main")) {
         return new Response(new Uint8Array(tarball), {
           status: 200,
           headers: { "content-type": "application/octet-stream" },
         });
+      }
+      if (url.includes("/tarball/HEAD")) {
+        return new Response("missing", { status: 404 });
       }
       throw new Error(`unexpected fetch ${url}`);
     };
@@ -93,6 +103,11 @@ describe("loadGitHubRepository", () => {
       expect(result.snapshot.sourceLabel).toBe("https://github.com/acme/app");
       expect(result.snapshot.files.has("app.js" as never)).toBe(true);
       expect(result.snapshot.files.has("package.json" as never)).toBe(true);
+      expect(result.snapshot.files.has("package-lock.json" as never)).toBe(false);
+      expect(result.snapshot.packageManagerEvidence).toEqual([
+        { path: "package-lock.json", manager: "npm" },
+      ]);
+      expect(JSON.stringify(result.snapshot)).not.toContain("lockfile-content-must-not-survive");
       expect(result.snapshot.contentHash.length).toBeGreaterThan(10);
     }
   });

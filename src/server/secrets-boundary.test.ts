@@ -2,6 +2,7 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { SECRET_ENV_KEYS } from "./env";
+import { materializeEntries } from "./github/extract";
 
 const SRC_ROOT = path.join(__dirname, "..");
 
@@ -45,6 +46,26 @@ describe("client secret boundary", () => {
       const source = readFileSync(file, "utf8");
       expect(source, file).not.toMatch(/NEXT_PUBLIC_AI_/);
       expect(source, file).not.toMatch(/NEXT_PUBLIC_GITHUB_/);
+    }
+  });
+
+  it("retains package-manager names without retaining untrusted lockfile content", () => {
+    const secret = "registry-token=not-for-analysis-or-prompts";
+    const result = materializeEntries([
+      {
+        headerPath: "owner-repo/package-lock.json",
+        type: "file",
+        size: Buffer.byteLength(secret),
+        content: Buffer.from(secret),
+      },
+    ]);
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.packageManagerEvidence).toEqual([
+        { path: "package-lock.json", manager: "npm" },
+      ]);
+      expect(JSON.stringify(result)).not.toContain(secret);
     }
   });
 });

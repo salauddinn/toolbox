@@ -208,7 +208,11 @@ export async function loadGitHubRepository(
     };
   }
 
-  const meta = (await metaResponse.json()) as { private?: boolean; full_name?: string };
+  const meta = (await metaResponse.json()) as {
+    private?: boolean;
+    full_name?: string;
+    default_branch?: string;
+  };
   if (meta.private === true) {
     return {
       ok: false,
@@ -224,6 +228,13 @@ export async function loadGitHubRepository(
     };
   }
 
+  // Prefer the repository default branch. A bare HEAD tarball redirect can 404 on
+  // codeload for some public repos even when refs/heads/<default_branch> works.
+  const defaultBranch =
+    typeof meta.default_branch === "string" && meta.default_branch.trim().length > 0
+      ? meta.default_branch.trim()
+      : "main";
+
   // Tarball download: do not force application/octet-stream (GitHub returns 415).
   // Keep auth + User-Agent; Accept */* so redirects to codeload succeed.
   const archiveHeaders: Record<string, string> = {
@@ -235,7 +246,7 @@ export async function loadGitHubRepository(
   }
 
   const archive = await followGitHubRedirects(
-    githubTarballUrl(parsed.ref),
+    githubTarballUrl(parsed.ref, defaultBranch),
     {
       method: "GET",
       headers: archiveHeaders,
@@ -296,6 +307,7 @@ export async function loadGitHubRepository(
     sourceLabel: parsed.ref.canonicalUrl,
     files: extracted.files,
     contentHash,
+    packageManagerEvidence: extracted.packageManagerEvidence,
   });
 
   return { ok: true, snapshot, ref: parsed.ref };

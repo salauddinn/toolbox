@@ -178,11 +178,11 @@ Done when the deliberate double-failure fixture proves rollback and blocks later
 ### Phase 1–4 review follow-ups (before / during Phase 5)
 
 - [x] Full controlled-example E2E: behaviour → module → optional cycle → integration → completed
-- [ ] Wire unsupported syntax evidence into Transformation Readiness (ADR-0008)
-- [ ] Package-manager lockfile detection without dropping names at extract
-- [ ] Token budgets on AI provider input/output
+- [x] Wire unsupported syntax evidence into Transformation Readiness (ADR-0008)
+- [x] Package-manager lockfile detection without dropping names at extract
+- [x] Token budgets on AI provider input/output
 - [x] Tighten integration path envelope (not `**/*.js`) — consumers from graph + candidate files
-- [ ] Stronger composition-root injection validation for cycle repair
+- [x] Stronger composition-root injection validation for cycle repair
 
 ### 13. Produce the finished artifact
 
@@ -197,17 +197,22 @@ Done when the result ZIP's `repository/` folder reflects only accepted Change Se
 
 ### 14. Pass the release gate
 
-- [ ] Complete the successful external-repository scenario. (needs live URL + network)
-- [x] Complete the honest-rejection scenario with zero generation calls. (fixture ESM path covered in E2E)
+Gate records: `docs/P0-RELEASE-GATE.md` (UI GO) and `docs/R01-RELEASE-GATE.md` (2026-07-19 local release pass). Local correctness and U01–U11 UI work are complete; remaining items below are scheduled release/deploy verification and still block submission.
+
+- [x] Complete the successful external-repository modernization scenario. (2026-07-19 local `next start`: public `https://github.com/salauddinn/toolbox-external-smoke` → assessed Orders → 4 accepted Change Sets → completed + ZIP; see `docs/R01-RELEASE-GATE.md`)
+- [x] Complete the honest-rejection scenario with zero generation calls. (fixture ESM path covered in E2E; live public ESM repo also stopped at eligibility)
 - [x] Complete the double-failure repair/rollback scenario. (stage-runner tests)
-- [ ] Run the controlled example tests and record the real result. (run on deploy host)
-- [ ] Test the deployed application in an incognito browser.
-- [x] Verify one long-lived application process retains run state across all stage requests. (RunStore + E2E)
-- [ ] Verify process restart discards active runs cleanly and the health endpoint recovers.
+- [x] Run the controlled example tests and record the real local result. (2026-07-19: controlled E2E + full Vitest/build/e2e; see `docs/R01-RELEASE-GATE.md`)
+- [ ] Re-run the controlled example tests on the deploy host and record that result. (scheduled — needs deploy host)
+- [ ] Test the deployed application in an incognito browser. (scheduled — needs public URL)
+- [x] Verify one long-lived application process retains run state across all stage requests. (RunStore + E2E + local `next start` GET after create)
+- [x] Verify process restart discards active runs cleanly and the health endpoint recovers. (local `next start` recycle 2026-07-19: health ok, prior run 404, new run ok; deploy-host repeat still recommended)
 - [x] Confirm API secrets are absent from client assets and the public repository. (secrets-boundary tests)
-- [ ] Confirm the full demo path fits within three minutes.
+- [ ] Confirm the full demo path fits within three minutes. (scheduled — after deploy URL)
 
 Done when all three release scenarios work on the deployed URL.
+
+UI redesign authorization: **GO** for U01–U11 per `docs/P0-RELEASE-GATE.md`. Submission remains **NO-GO** until this section and §15 are complete.
 
 ### 15. Submit
 
@@ -226,3 +231,5 @@ Done when all three release scenarios work on the deployed URL.
 - [ ] Optional pitch deck
 
 P1 work must not begin while a P0 acceptance criterion is failing.
+
+Broad UI redesign (U01–U11) may proceed under the documented P0 gate GO while only deploy/network/demo P0 items remain open. Optional P1 polish stays blocked until submission P0 is clear or explicitly re-gated.
