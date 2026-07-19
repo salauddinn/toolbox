@@ -241,3 +241,309 @@ describe("AssessmentApp active-run recovery", () => {
     expect(ordersRadio!.checked).toBe(true);
   });
 });
+
+const stageFixture = {
+  id: "stage-behavior",
+  kind: "behavior_capture",
+  title: "Capture current behaviour",
+  purpose: "Freeze observable behaviour before modularization.",
+  conditional: false,
+  evidence: [
+    {
+      ruleId: "EVIDENCE_ROUTE_CLUSTER",
+      message: "Orders routes form a cluster",
+      severity: "info",
+      file: "routes/orders.js",
+      line: 12,
+      snippet: "router.get('/orders'",
+    },
+  ],
+  expectedFiles: ["tests/behavior/orders.test.js"],
+  validationCriteria: [
+    {
+      id: "static-parse",
+      description: "Candidate snapshot must parse",
+      kind: "static",
+    },
+  ],
+  budgets: {
+    maxOperations: 20,
+    maxBytesPerFile: 131072,
+    maxTotalChangedBytes: 524288,
+  },
+};
+
+const sequenceFixture = {
+  stages: [
+    stageFixture,
+    {
+      ...stageFixture,
+      id: "stage-module",
+      kind: "domain_module",
+      title: "Extract Domain Module",
+      purpose: "Move exclusive ownership into a Domain Module.",
+      evidence: [],
+      expectedFiles: ["src/domains/orders/index.js"],
+    },
+    {
+      ...stageFixture,
+      id: "stage-cleanup",
+      kind: "integration_cleanup",
+      title: "Integrate and clean up",
+      purpose: "Wire the module and remove dead paths.",
+      evidence: [],
+      expectedFiles: ["app.js"],
+    },
+  ],
+  hasConditionalStage: false,
+};
+
+describe("AssessmentApp Stage Plan and operation status (U08)", () => {
+  let container: HTMLDivElement;
+  let root: Root;
+
+  beforeEach(() => {
+    (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+    container = document.createElement("div");
+    document.body.append(container);
+    root = createRoot(container);
+  });
+
+  afterEach(async () => {
+    await act(async () => root.unmount());
+    container.remove();
+    vi.restoreAllMocks();
+  });
+
+  it("renders authorization gate with Stage Plan contract and no acceptance control", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      jsonResponse(200, {
+        ok: true,
+        run: {
+          runId: "auth-run",
+          phase: "awaiting_authorization",
+          sourceLabel: "fixture:controlled-example",
+          selectedCandidate: { id: "orders", name: "Orders" },
+          sequence: sequenceFixture,
+          stageIndex: 0,
+          currentStage: stageFixture,
+          acceptedChangeSetCount: 0,
+        },
+      }),
+    );
+
+    await act(async () => root.render(<AssessmentApp />));
+    await act(async () => buttonByText(container, "Try controlled example")!.click());
+
+    expect(container.querySelector('[data-testid="stage-plan-view"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="authorization-gate"]')).not.toBeNull();
+    expect(container.textContent).toContain("Freeze observable behaviour before modularization.");
+    expect(container.textContent).toContain("tests/behavior/orders.test.js");
+    expect(container.textContent).toContain("Max operations:");
+    expect(container.textContent).toContain("Candidate snapshot must parse");
+    expect(container.textContent).toContain("Authorize AI generation for this stage");
+    expect(container.textContent).toMatch(/not Change Acceptance/i);
+    expect(buttonByText(container, "Accept Change Set")).toBeUndefined();
+    expect(container.querySelector('[data-testid="accept-change-set-button"]')).toBeNull();
+  });
+
+  it("shows honest authorize-pending status without acceptance or fabricated progress", async () => {
+    let resolveAuthorize: ((value: Response) => void) | undefined;
+    const authorizeResponse = new Promise<Response>((resolve) => {
+      resolveAuthorize = resolve;
+    });
+
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const url = String(input);
+      if (url === "/api/runs" && init?.method === "POST") {
+        return jsonResponse(200, {
+          ok: true,
+          run: {
+            runId: "pending-auth-run",
+            phase: "awaiting_authorization",
+            sourceLabel: "fixture:controlled-example",
+            selectedCandidate: { id: "orders", name: "Orders" },
+            sequence: sequenceFixture,
+            stageIndex: 0,
+            currentStage: stageFixture,
+            acceptedChangeSetCount: 0,
+          },
+        });
+      }
+      if (url === "/api/runs/pending-auth-run/authorize" && init?.method === "POST") {
+        return authorizeResponse;
+      }
+      throw new Error(`Unexpected fetch: ${url} ${init?.method}`);
+    });
+
+    await act(async () => root.render(<AssessmentApp />));
+    await act(async () => buttonByText(container, "Try controlled example")!.click());
+
+    const authorize = buttonByText(container, "Authorize AI generation for this stage");
+    expect(authorize).toBeDefined();
+
+    await act(async () => {
+      authorize!.click();
+    });
+
+    expect(container.querySelector('[data-testid="honest-authorize-pending"]')).not.toBeNull();
+    expect(container.textContent).toContain("Generating and validating the authorized stage");
+    expect(container.textContent).toContain("no live subphase, percentage, or polling feed");
+    expect(container.textContent).not.toMatch(/\d+%/);
+    expect(buttonByText(container, "Accept Change Set")).toBeUndefined();
+    expect(container.querySelector('[data-testid="authorization-gate"]')).toBeNull();
+
+    await act(async () => {
+      resolveAuthorize?.(
+        jsonResponse(200, {
+          ok: true,
+          run: {
+            runId: "pending-auth-run",
+            phase: "awaiting_acceptance",
+            sourceLabel: "fixture:controlled-example",
+            selectedCandidate: { id: "orders", name: "Orders" },
+            sequence: sequenceFixture,
+            stageIndex: 0,
+            currentStage: stageFixture,
+            acceptedChangeSetCount: 0,
+            changeSet: {
+              id: "cs-1",
+              stageId: stageFixture.id,
+              stageKind: stageFixture.kind,
+              status: "validated",
+              attempt: 1,
+              operations: [{ type: "create", path: "tests/behavior/orders.test.js", bytes: 120 }],
+            },
+            candidateFileCount: 12,
+            reviewPayload: {
+              changeSetId: "cs-1",
+              attempt: 1,
+              totals: { created: 1, updated: 0, deleted: 0 },
+              files: [{ path: "tests/behavior/orders.test.js", kind: "create", bytes: 120 }],
+              validationReport: {
+                stageId: stageFixture.id,
+                changeSetId: "cs-1",
+                finalOutcome: "passed",
+                externalTestsLabel: "not_executed",
+                attempts: [
+                  {
+                    attempt: 1,
+                    passed: true,
+                    checks: [
+                      {
+                        id: "static-parse",
+                        kind: "static",
+                        title: "parse",
+                        outcome: "passed",
+                      },
+                    ],
+                  },
+                ],
+              },
+              truncationLabels: [],
+            },
+            validationReport: {
+              stageId: stageFixture.id,
+              changeSetId: "cs-1",
+              finalOutcome: "passed",
+              externalTestsLabel: "not_executed",
+              attempts: [
+                {
+                  attempt: 1,
+                  passed: true,
+                  checks: [
+                    {
+                      id: "static-parse",
+                      kind: "static",
+                      title: "parse",
+                      outcome: "passed",
+                    },
+                  ],
+                },
+              ],
+            },
+          },
+        }),
+      );
+    });
+
+    expect(container.querySelector('[data-testid="review-totals-terminal"]')).not.toBeNull();
+    expect(container.textContent).toContain("validation: passed");
+    expect(container.querySelector('[data-testid="accept-change-set-button"]')).not.toBeNull();
+  });
+
+  it("keeps Accept unavailable when review payload is incomplete", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      jsonResponse(200, {
+        ok: true,
+        run: {
+          runId: "incomplete-review-run",
+          phase: "awaiting_acceptance",
+          sourceLabel: "fixture:controlled-example",
+          selectedCandidate: { id: "orders", name: "Orders" },
+          sequence: sequenceFixture,
+          stageIndex: 0,
+          currentStage: stageFixture,
+          acceptedChangeSetCount: 0,
+          changeSet: {
+            id: "cs-missing",
+            stageId: stageFixture.id,
+            stageKind: stageFixture.kind,
+            status: "validated",
+            attempt: 1,
+            operations: [],
+          },
+          candidateFileCount: 10,
+          reviewPayload: null,
+          validationReport: undefined,
+        },
+      }),
+    );
+
+    await act(async () => root.render(<AssessmentApp />));
+    await act(async () => buttonByText(container, "Try controlled example")!.click());
+
+    expect(container.querySelector('[data-testid="operation-status"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="accept-unavailable"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="accept-change-set-button"]')).toBeNull();
+    expect(container.textContent).toMatch(/Acceptance stays unavailable/i);
+  });
+
+  it("distinguishes durable rollback status without acceptance", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      jsonResponse(200, {
+        ok: true,
+        run: {
+          runId: "rollback-run",
+          phase: "stage_failed_rolled_back",
+          sourceLabel: "fixture:controlled-example",
+          selectedCandidate: { id: "orders", name: "Orders" },
+          sequence: sequenceFixture,
+          stageIndex: 0,
+          currentStage: stageFixture,
+          acceptedChangeSetCount: 0,
+          validationReport: {
+            stageId: stageFixture.id,
+            changeSetId: "cs-fail",
+            finalOutcome: "failed",
+            attempts: [{ attempt: 2, passed: false, checks: [] }],
+          },
+        },
+      }),
+    );
+
+    await act(async () => root.render(<AssessmentApp />));
+    await act(async () => buttonByText(container, "Try controlled example")!.click());
+
+    expect(container.querySelector('[data-status-kind="rolled-back"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="rollback-status"]')?.textContent).toMatch(
+      /stage_failed_rolled_back/,
+    );
+    expect(container.querySelector('[data-testid="accept-change-set-button"]')).toBeNull();
+    expect(
+      container
+        .querySelector('[data-testid="stage-rail-stage-behavior"]')
+        ?.getAttribute("data-stage-label"),
+    ).toBe("failed");
+  });
+});
