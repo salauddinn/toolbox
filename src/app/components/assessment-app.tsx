@@ -723,14 +723,14 @@ export function AssessmentApp({ demo = false }: { demo?: boolean }) {
                         onEndRun={performEndRun}
                         endError={assessment.operationError?.operation === "end-run" ? error : null}
                       />
-                      {run.manualRepairRetries < 2 ? (
+                      {(run.manualRepairRetries ?? 0) < 2 ? (
                         <button
                           type="button"
                           disabled={busy}
                           onClick={() => void assessment.retryStage()}
                           className="tb-btn tb-btn-secondary"
                         >
-                          Retry failed stage ({2 - run.manualRepairRetries} remaining)
+                          Retry failed stage ({2 - (run.manualRepairRetries ?? 0)} remaining)
                         </button>
                       ) : null}
                       {run.currentStage.kind === "cycle_repair" && run.currentStage.conditional ? (

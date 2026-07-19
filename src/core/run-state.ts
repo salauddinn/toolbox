@@ -592,7 +592,7 @@ export function retryRolledBackStage(state: RunState): TransitionResult {
   if (state.phase !== "stage_failed_rolled_back") {
     return invalid(state.phase, "retryRolledBackStage", "Retry requires a rolled-back stage");
   }
-  if (state.manualRepairRetries >= 2) {
+  if ((state.manualRepairRetries ?? 0) >= 2) {
     return invalid(
       state.phase,
       "retryRolledBackStage",
@@ -612,7 +612,7 @@ export function retryRolledBackStage(state: RunState): TransitionResult {
     ok: true,
     state: {
       ...baseOf(state),
-      manualRepairRetries: state.manualRepairRetries + 1,
+      manualRepairRetries: (state.manualRepairRetries ?? 0) + 1,
       phase: "repairing",
       snapshot: state.snapshot,
       initialSnapshot: state.initialSnapshot,
