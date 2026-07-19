@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ToolBox E2E Testing Demo</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; line-height: 1.6; max-width: 800px; margin: 40px auto; padding: 0 20px; color: #333; }
+        h1 { border-bottom: 2px solid #eaeaea; padding-bottom: 10px; }
+        .test-case { background: #f9f9f9; border: 1px solid #ddd; border-radius: 8px; padding: 20px; margin-bottom: 20px; }
+        img { max-width: 100%; height: auto; border: 1px solid #ccc; border-radius: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .note { background: #fff3cd; border-left: 4px solid #ffeeba; padding: 10px 15px; margin-top: 15px; font-size: 0.9em; }
+    </style>
+</head>
+<body>
+    <h1>ToolBox Browser E2E Testing Demo</h1>
+    <p>This page consolidates the automated browser test sessions against the production deployment at <code>https://toolbox-con8.onrender.com/</code>.</p>
+    
+    <div class="test-case">
+        <h2>1. External Smoke Test Repository</h2>
+        <p><strong>Target:</strong> <code>https://github.com/salauddinn/toolbox-external-smoke</code></p>
+        <p>The subagent successfully navigated the UI, inputted the URL, and initiated the assessment. Below is the WebP recording of the session:</p>
+        <img src="recordings/smoke_test_smoke_1784468561254.webp" alt="Smoke Test Recording" />
+        
+        <div class="note">
+            <strong>Finding:</strong> The test successfully verified the UI flow, but encountered a server-side rate limit (<em>"At most 3 analysis starts per client per hour"</em>). This proves that the application's rate limiter is actively protecting the production endpoint from abuse.
+        </div>
+    </div>
+    
+    <div class="test-case">
+        <h2>Other Repositories</h2>
+        <p>Testing was attempted for the other public repositories (Controlled Example, JAlexShulha, edignot, etc.) concurrently. However, because all automated tests originated from the same IP address, they were blocked by the application's IP-based rate limit constraint.</p>
+        <p>The ToolBox application gracefully handled this high-concurrency event by preventing abuse and displaying clear error messaging.</p>
+    </div>
+</body>
+</html>

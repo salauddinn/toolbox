@@ -115,6 +115,9 @@ These URLs are runtime inputs, not hard-coded product outcomes. ToolBox reruns e
 5. **Eligibility and Safety Screening rejection:** [Anouar-Dhahri/testing-rest-api-nodejs-mongo](https://github.com/Anouar-Dhahri/testing-rest-api-nodejs-mongo)
    Recognized private-key material and ESM configuration stop the workflow before analysis or AI usage.
 
+6. **External Smoke Test:** [salauddinn/toolbox-external-smoke](https://github.com/salauddinn/toolbox-external-smoke)
+   A dedicated repository added for end-to-end smoke testing of the ToolBox pipeline.
+
 ## Requirements
 
 - Node.js 24.11+
@@ -126,7 +129,9 @@ These URLs are runtime inputs, not hard-coded product outcomes. ToolBox reruns e
 ```bash
 npm install
 cp .env.example .env.local
-# Fill AI_BASE_URL, AI_API_KEY, and AI_MODEL for normal AI generation.
+# Set AI_API_KEY from ClinePass for normal AI generation.
+# ClinePass MiniMax M3 is preconfigured as https://api.cline.bot/api/v1 with model
+# cline-pass/minimax-m3. GEMINI_API_KEY and OPENAI_API_KEY are optional fallbacks.
 # Optional AI_INPUT_TOKEN_BUDGET (65536 default; 1000000 maximum) and
 # AI_OUTPUT_TOKEN_BUDGET (32768 default; 131072 maximum) are server-side provider request budgets.
 # They use deterministic UTF-8 byte estimates plus a chat framing safety reserve, not exact tokenizer counts.
@@ -143,8 +148,9 @@ Never prefix secrets with `NEXT_PUBLIC_`. API keys remain server-side.
 
 | Mode | How | Use when |
 | --- | --- | --- |
-| **Normal AI** (default) | Leave `TOOLBOX_DETERMINISTIC_GENERATION` unset/`0`. Set `AI_*`. | Live authorize/generate with your provider |
-| **Toolbox deterministic** | `TOOLBOX_DETERMINISTIC_GENERATION=1` | Offline demos, fixtures, or when you want no live model call |
+| **Normal AI** (default) | Leave `TOOLBOX_DETERMINISTIC_GENERATION` unset/`0`. Set `AI_API_KEY`. | ClinePass MiniMax M3; Gemini then OpenAI can take over after retryable failures |
+| **Toolbox deterministic** | `TOOLBOX_DETERMINISTIC_GENERATION=1` | Offline fixtures or when you want no live model call |
+| **Built-in no-AI demo** | Open `/demo` or choose **See how it works — no AI** on the home page. | Controlled example with deterministic generation; no provider credentials are loaded |
 
 Run one mode per process. For slow providers, raise `AI_REQUEST_TIMEOUT_MS` (for example `300000`) instead of switching modes.
 
@@ -172,7 +178,7 @@ docker build -t toolbox .
 docker run --env-file .env.local -p 3000:3000 toolbox
 ```
 
-Configure `AI_BASE_URL`, `AI_API_KEY`, and `AI_MODEL` as server-side host secrets. Leave `TOOLBOX_DETERMINISTIC_GENERATION` unset so authorized stages use the configured AI provider. Set the health-check path to `/api/health` and keep the service available through the judging period.
+Configure `AI_API_KEY` as the ClinePass server-side secret. `AI_BASE_URL` and `AI_MODEL` default to Cline's documented MiniMax M3 endpoint and model slug; configure `GEMINI_API_KEY` and/or `OPENAI_API_KEY` only when you want fallback providers. Leave `TOOLBOX_DETERMINISTIC_GENERATION` unset so authorized stages use the configured provider chain. Set the health-check path to `/api/health` and keep the service available through the judging period.
 
 After deployment, verify the landing page, controlled example, AI generation, Change Acceptance, and ZIP download in an incognito browser. A process restart intentionally discards active runs.
 

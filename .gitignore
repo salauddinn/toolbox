@@ -50,3 +50,6 @@ next-env.d.ts
 .opencode/
 .pi-subagents/
 .playwright-cli/
+
+# reports
+/reports/
