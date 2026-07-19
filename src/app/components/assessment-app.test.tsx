@@ -666,7 +666,7 @@ describe("AssessmentApp Stage Plan and operation status (U08)", () => {
           validationReport: {
             stageId: stageFixture.id,
             changeSetId: "cs-fail",
-            finalOutcome: "failed",
+            finalOutcome: "failed_rolled_back",
             attempts: [{ attempt: 2, passed: false, checks: [] }],
           },
         },
@@ -676,15 +676,150 @@ describe("AssessmentApp Stage Plan and operation status (U08)", () => {
     await act(async () => root.render(<AssessmentApp />));
     await act(async () => buttonByText(container, "Try controlled example")!.click());
 
-    expect(container.querySelector('[data-status-kind="rolled-back"]')).not.toBeNull();
+    expect(
+      container
+        .querySelector('[data-testid="sequence-outcome"]')
+        ?.getAttribute("data-outcome-kind"),
+    ).toBe("stage_failed_rolled_back");
     expect(container.querySelector('[data-testid="rollback-status"]')?.textContent).toMatch(
       /stage_failed_rolled_back/,
     );
+    expect(container.querySelector('[data-testid="outcome-not-promoted"]')?.textContent).toMatch(
+      /not promoted|Failed candidate/i,
+    );
     expect(container.querySelector('[data-testid="accept-change-set-button"]')).toBeNull();
+    expect(container.querySelector('[data-testid="download-result-zip"]')).toBeNull();
     expect(
       container
         .querySelector('[data-testid="stage-rail-stage-behavior"]')
         ?.getAttribute("data-stage-label"),
     ).toBe("failed");
+  });
+
+  it("renders developer-rejected stop with retained accepted state and no download", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      jsonResponse(200, {
+        ok: true,
+        run: {
+          runId: "stopped-run",
+          phase: "sequence_stopped",
+          sourceLabel: "fixture:controlled-example",
+          selectedCandidate: { id: "orders", name: "Orders" },
+          reason: "developer_rejected",
+          acceptedChangeSetCount: 1,
+          validationReport: {
+            stageId: stageFixture.id,
+            changeSetId: "cs-reject",
+            finalOutcome: "passed",
+            attempts: [{ attempt: 1, passed: true, checks: [] }],
+          },
+        },
+      }),
+    );
+
+    await act(async () => root.render(<AssessmentApp />));
+    await act(async () => buttonByText(container, "Try controlled example")!.click());
+
+    expect(
+      container
+        .querySelector('[data-testid="sequence-outcome"]')
+        ?.getAttribute("data-outcome-kind"),
+    ).toBe("sequence_stopped");
+    expect(container.querySelector('[data-testid="outcome-stop-reason"]')?.textContent).toBe(
+      "developer_rejected",
+    );
+    expect(container.querySelector('[data-testid="outcome-accepted-count"]')?.textContent).toBe(
+      "1",
+    );
+    expect(container.querySelector('[data-testid="download-result-zip"]')).toBeNull();
+    expect(container.querySelector('[data-testid="accept-change-set-button"]')).toBeNull();
+    expect(container.textContent).toMatch(/not a completed Modernization Sequence/i);
+  });
+
+  it("renders completion with accepted summary and download only when provided", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      jsonResponse(200, {
+        ok: true,
+        run: {
+          runId: "done-run",
+          phase: "completed",
+          sourceLabel: "fixture:controlled-example",
+          selectedCandidate: { id: "orders", name: "Orders" },
+          sequence: sequenceFixture,
+          acceptedChangeSetCount: 2,
+          downloadAvailable: true,
+          downloadPath: "/api/runs/done-run/download",
+          validationReports: [
+            {
+              stageId: "stage-behavior",
+              changeSetId: "cs-1",
+              finalOutcome: "passed",
+              externalTestsLabel: "not_executed",
+              attempts: [{ attempt: 1, passed: true, checkCount: 3, failedCheckIds: [] }],
+            },
+          ],
+        },
+      }),
+    );
+
+    await act(async () => root.render(<AssessmentApp />));
+    await act(async () => buttonByText(container, "Try controlled example")!.click());
+
+    expect(container.querySelector('[data-testid="completion-artifact"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="completion-accepted-count"]')?.textContent).toBe(
+      "2",
+    );
+    expect(
+      container.querySelector('[data-testid="completion-external-tests"]')?.textContent,
+    ).toMatch(/not executed/i);
+    expect(
+      container.querySelector('[data-testid="download-result-zip"]')?.getAttribute("href"),
+    ).toBe("/api/runs/done-run/download");
+    expect(container.querySelector('[data-testid="accept-change-set-button"]')).toBeNull();
+    expect(container.textContent).toMatch(/does not mean Runtime Validation/i);
+  });
+
+  it("preserves completed run when end-run deletion fails and allows retry", async () => {
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(
+        jsonResponse(200, {
+          ok: true,
+          run: {
+            runId: "done-run",
+            phase: "completed",
+            sourceLabel: "fixture:controlled-example",
+            selectedCandidate: { id: "orders", name: "Orders" },
+            acceptedChangeSetCount: 1,
+            downloadAvailable: true,
+            downloadPath: "/api/runs/done-run/download",
+            validationReports: [],
+          },
+        }),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse(500, {
+          ok: false,
+          code: "DELETE_FAILED",
+          message: "Could not delete run",
+        }),
+      );
+
+    await act(async () => root.render(<AssessmentApp />));
+    await act(async () => buttonByText(container, "Try controlled example")!.click());
+
+    await act(async () => buttonByText(container, "End run / Start over")!.click());
+    await act(async () => buttonByText(container, "Confirm end run")!.click());
+
+    expect(fetchMock.mock.calls.map(([url, init]) => [url, init?.method])).toEqual([
+      ["/api/runs", "POST"],
+      ["/api/runs/done-run", "DELETE"],
+    ]);
+    expect(container.querySelector('[data-testid="completion-artifact"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="download-result-zip"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="completion-end-error"]')?.textContent).toMatch(
+      /Could not delete run|did not complete/i,
+    );
+    expect(buttonByText(container, "Retry end run / Start over")).toBeDefined();
   });
 });

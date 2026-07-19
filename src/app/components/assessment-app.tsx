@@ -17,6 +17,8 @@ import {
 } from "./assessment/presentation-state";
 import { RepositoryStart, SupportedContractDetails } from "./assessment/repository-start";
 import { ChangeSetReview } from "./assessment/change-set-review";
+import { CompletionArtifact } from "./assessment/completion-artifact";
+import { SequenceOutcome } from "./assessment/sequence-outcome";
 import {
   OperationStatusView,
   StagePlanView,
@@ -115,6 +117,13 @@ export function AssessmentApp() {
     run?.phase === "eligibility_failed" ||
     run?.phase === "safety_failed" ||
     run?.phase === "not_ready"
+      ? run.phase
+      : null;
+  /** Terminal sequence/artifact screens own end-run confirmation and deletion recovery. */
+  const outcomePhase =
+    run?.phase === "stage_failed_rolled_back" ||
+    run?.phase === "sequence_stopped" ||
+    run?.phase === "completed"
       ? run.phase
       : null;
 
@@ -275,7 +284,7 @@ export function AssessmentApp() {
                   </span>
                   <span className="tb-chip">run: {run.runId.slice(0, 10)}…</span>
                   {can("end_run") ? (
-                    confirmingEnd && !gatePhase ? (
+                    confirmingEnd && !gatePhase && !outcomePhase ? (
                       <div
                         className="flex flex-wrap items-center gap-2"
                         role="group"
@@ -298,7 +307,7 @@ export function AssessmentApp() {
                           Cancel
                         </button>
                       </div>
-                    ) : !gatePhase ? (
+                    ) : !gatePhase && !outcomePhase ? (
                       <button
                         type="button"
                         disabled={busy}
@@ -309,7 +318,7 @@ export function AssessmentApp() {
                       </button>
                     ) : null
                   ) : null}
-                  {!unknownPhase && !gatePhase ? (
+                  {!unknownPhase && !gatePhase && !outcomePhase ? (
                     <button
                       type="button"
                       disabled={busy}
@@ -588,56 +597,65 @@ export function AssessmentApp() {
                 ) : null}
 
                 {!authorizePending && run.phase === "stage_failed_rolled_back" ? (
-                  <OperationStatusView
-                    kind="rolled-back"
+                  <SequenceOutcome
+                    kind="stage_failed_rolled_back"
                     presentation={presentation}
+                    sourceLabel={"sourceLabel" in run ? run.sourceLabel : undefined}
+                    selectedCandidateName={selectedDomain}
                     currentStageTitle={currentStageTitle}
                     acceptedChangeSetCount={run.acceptedChangeSetCount}
+                    validationReport={validationReport}
+                    busy={busy}
+                    confirmingEnd={confirmingEnd}
+                    onConfirmingEndChange={setConfirmingEnd}
+                    onEndRun={performEndRun}
+                    endError={assessment.operationError?.operation === "end-run" ? error : null}
                   />
                 ) : null}
 
                 {!authorizePending && run.phase === "sequence_stopped" ? (
-                  <OperationStatusView
-                    kind="sequence-stopped"
+                  <SequenceOutcome
+                    kind="sequence_stopped"
                     presentation={presentation}
-                    stopReason={run.reason}
+                    sourceLabel={"sourceLabel" in run ? run.sourceLabel : undefined}
+                    selectedCandidateName={selectedDomain}
+                    currentStageTitle={currentStageTitle}
                     acceptedChangeSetCount={run.acceptedChangeSetCount}
+                    validationReport={validationReport}
+                    stopReason={run.reason}
+                    busy={busy}
+                    confirmingEnd={confirmingEnd}
+                    onConfirmingEndChange={setConfirmingEnd}
+                    onEndRun={performEndRun}
+                    endError={assessment.operationError?.operation === "end-run" ? error : null}
                   />
                 ) : null}
 
                 {!authorizePending && run.phase === "completed" ? (
-                  <OperationStatusView
-                    kind="completed-summary"
+                  <CompletionArtifact
                     presentation={presentation}
+                    sourceLabel={"sourceLabel" in run ? run.sourceLabel : undefined}
+                    selectedCandidateName={selectedDomain}
                     acceptedChangeSetCount={run.acceptedChangeSetCount}
+                    validationReports={"validationReports" in run ? run.validationReports : []}
                     downloadAvailable={run.downloadAvailable}
                     downloadPath={run.downloadPath}
+                    busy={busy}
+                    confirmingEnd={confirmingEnd}
+                    onConfirmingEndChange={setConfirmingEnd}
+                    onEndRun={performEndRun}
+                    endError={assessment.operationError?.operation === "end-run" ? error : null}
                   />
                 ) : null}
 
-                {validationReport &&
-                (run.phase === "stage_failed_rolled_back" || run.phase === "sequence_stopped") ? (
-                  <div
-                    className="tb-terminal overflow-hidden"
-                    data-testid="validation-report-summary"
-                  >
-                    <pre className="overflow-x-auto p-3 tb-mono text-[11px] leading-relaxed text-terminal-fg">
-                      {[
-                        "validation_report",
-                        `final: ${validationReport.finalOutcome}`,
-                        ...(validationReport.attempts ?? []).map(
-                          (a) =>
-                            `attempt_${a.attempt}: ${a.passed ? "passed" : "failed"} (failed_checks=${a.checks?.filter((c) => c.outcome === "failed").length ?? 0})`,
-                        ),
-                      ].join("\n")}
-                    </pre>
-                  </div>
+                {run.phase !== "stage_failed_rolled_back" &&
+                run.phase !== "sequence_stopped" &&
+                run.phase !== "completed" ? (
+                  <p className="text-[12px] text-text-quiet">
+                    Authorization and Change Acceptance are separate controls. Only Change
+                    Acceptance promotes the validated candidate snapshot.
+                  </p>
                 ) : null}
-
-                <p className="text-[12px] text-text-quiet">
-                  Authorization and Change Acceptance are separate controls. Only Change Acceptance
-                  promotes the validated candidate snapshot.
-                </p>
               </div>
             ) : null}
           </section>
