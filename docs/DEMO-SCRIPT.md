@@ -40,7 +40,7 @@ Use this if a judge asks, or compress one sentence into the video.
 
 | Time | Screen | Say | Do |
 | --- | --- | --- | --- |
-| **0:00–0:25** | Landing `/` | “Anyone can ask an agent to turn a monolith into microservices. That’s unsafe when you don’t know the first cut. ToolBox finds a domain you can modularize safely, proves it with code evidence, then lets AI change only what you authorize — still one deploy, not a fake service split.” | Scroll hero; point at **first safe cut** chip and judge callout. |
+| **0:00–0:25** | Landing `/` | “Anyone can ask an agent to turn a monolith into microservices. That’s unsafe when you don’t know the first cut. ToolBox finds a domain you can modularize safely, proves it with code evidence, then lets AI change only what you authorize — still one deploy, not a fake service split.” | Scroll hero; point at **first safe cut** chip and sample assessment card. |
 | **0:25–0:40** | Landing → `/app` | “Facts come from static analysis. AI only writes after I authorize a Stage Plan. I accept every change. Authorize and accept are separate.” | Click **Open work console**. |
 | **0:40–0:55** | Start | “Reliable path: controlled example—Orders, Payments, Users, and a known cycle. No random GitHub roulette.” | Click **Try controlled example**. Wait for assessed. |
 | **0:55–1:25** | Choose | “Candidates are ranked from code evidence, not business priority. Orders is ready. Evidence opens the exact file and line — an agent chat usually just asserts this.” | Select **Orders** (or top ready). Open one evidence item; show snippet; close. Confirm Modernization Decision. |

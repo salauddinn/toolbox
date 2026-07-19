@@ -107,60 +107,36 @@ const BOUNDARIES = [
   },
 ] as const;
 
-const SPECIMEN_LINES = [
-  { tone: "muted", text: "# Modernization Assessment · specimen (illustrative)" },
-  { tone: "muted", text: "# Input: public GitHub root · static analysis only" },
-  { tone: "plain", text: "" },
-  { tone: "key", text: "source          github:acme/orders-api" },
-  { tone: "key", text: "eligibility     pass · express+mongoose · commonjs" },
-  { tone: "key", text: "safety          pass · no supported risk signal" },
-  { tone: "key", text: "analysis        routes=9  models=3  cycles=1" },
-  { tone: "plain", text: "" },
-  { tone: "muted", text: "# Domain Candidates ranked by code evidence" },
+const SAMPLE_CANDIDATES = [
   {
-    tone: "ok",
-    text: "01  Orders     score=0.86  ready     exclusive write · 4 routes · Order",
+    rank: "01",
+    name: "Orders",
+    score: "0.86",
+    state: "ready" as const,
+    detail: "Exclusive write ownership · 4 routes · Order",
   },
   {
-    tone: "ok",
-    text: "02  Payments   score=0.71  ready     cycle w/ Orders · 3 routes · Payment",
+    rank: "02",
+    name: "Payments",
+    score: "0.71",
+    state: "ready" as const,
+    detail: "Cycle with Orders · 3 routes · Payment",
   },
   {
-    tone: "warn",
-    text: "03  Users      score=0.54  blocked   shared writes · readiness fails",
-  },
-  { tone: "plain", text: "" },
-  { tone: "muted", text: "# Next human controls (not automatic)" },
-  { tone: "accent", text: "decision       confirm ready candidate → Modernization Decision" },
-  {
-    tone: "accent",
-    text: "authorize      Stage Plan · path envelope · then validate + accept",
+    rank: "03",
+    name: "Users",
+    score: "0.54",
+    state: "blocked" as const,
+    detail: "Shared writes · readiness fails",
   },
 ] as const;
-
-function specimenClass(tone: (typeof SPECIMEN_LINES)[number]["tone"]): string {
-  switch (tone) {
-    case "muted":
-      return "text-terminal-fg-muted";
-    case "ok":
-      return "text-diff-add";
-    case "warn":
-      return "text-diff-change";
-    case "accent":
-      return "text-terminal-fg";
-    case "key":
-      return "text-terminal-fg";
-    default:
-      return "text-terminal-fg";
-  }
-}
 
 export function MarketingLanding() {
   return (
     <div className="space-y-10 pb-6 sm:space-y-12">
       <section
         aria-labelledby="landing-hero-heading"
-        className="grid items-start gap-6 lg:grid-cols-[1.05fr_0.95fr] lg:gap-8"
+        className="grid items-start gap-6 lg:grid-cols-[1.1fr_0.9fr] lg:gap-8"
       >
         <div className="min-w-0 space-y-6">
           <div className="flex flex-wrap gap-2">
@@ -169,60 +145,42 @@ export function MarketingLanding() {
               for engineering teams
             </span>
             <span className="tb-chip">express · mongoose · commonjs</span>
-            <span className="tb-chip">same deploy boundary</span>
             <span className="tb-chip tb-chip-accent">first safe cut</span>
           </div>
 
-          <div className="space-y-4">
+          <div className="space-y-3">
             <h1
               id="landing-hero-heading"
-              className="max-w-2xl text-[2rem] font-semibold leading-[1.15] tracking-tight text-text-primary sm:text-[2.55rem]"
+              className="max-w-2xl text-[2rem] font-semibold leading-[1.12] tracking-tight text-text-primary sm:text-[2.5rem]"
             >
-              Find a domain you can modularize safely. Prove it with code evidence. Let AI change
-              only what you authorize.
+              Turn one tangled Express domain into a verified module.
             </h1>
             <p className="max-w-xl text-[15px] leading-relaxed text-text-secondary sm:text-base">
-              Turn one tangled Express domain into an accepted Domain Module inside the same deploy
-              boundary—no rewrite, no fake microservice split.
-            </p>
-            <p className="max-w-xl text-[15px] leading-relaxed text-text-secondary sm:text-base">
-              <strong className="font-medium text-text-primary">Input:</strong> public GitHub root or
-              controlled example.{" "}
-              <strong className="font-medium text-text-primary">Outcome:</strong> evidence-ranked
-              candidates, then bounded Change Sets you authorize and accept. AI never self-applies.
-              Static Validation is not Runtime Validation.
+              ToolBox finds a safe domain from code evidence, lets AI propose changes only after you
+              authorize a Stage Plan, and applies nothing until you accept. Same deploy—not a fake
+              microservice split.
             </p>
           </div>
-
-          <aside
-            className="max-w-xl rounded-md border border-accent-action/25 bg-accent-action/5 px-3.5 py-3"
-            aria-label="Hackathon demo path"
-          >
-            <p className="tb-mono text-[10px] uppercase tracking-wide text-accent-action">
-              hackathon judges · ~3 minutes
-            </p>
-            <p className="mt-1 text-[13px] leading-relaxed text-text-secondary">
-              Open the work console and use{" "}
-              <strong className="font-medium text-text-primary">Try controlled example</strong>.
-              Ranked candidates → click evidence → authorize one Stage Plan → accept the Change Set
-              → download the result ZIP. Prefer the fixture path over a random public repository.
-            </p>
-          </aside>
 
           <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center">
             <Link href="/app" className="tb-btn tb-btn-primary h-11 px-5 text-sm">
               Open work console
             </Link>
             <a href="#how-it-works" className="tb-btn tb-btn-secondary h-11 px-5 text-sm">
-              See the workflow
+              See how it works
             </a>
           </div>
 
-          <dl className="grid max-w-xl grid-cols-1 gap-2 min-[420px]:grid-cols-3">
+          <p className="max-w-xl text-[12px] leading-relaxed text-text-quiet">
+            Reliable demo: work console →{" "}
+            <span className="font-medium text-text-secondary">Try controlled example</span>
+          </p>
+
+          <dl className="grid max-w-lg grid-cols-3 gap-2 pt-1">
             {[
-              { k: "AI role", v: "Bounded generation" },
-              { k: "Authorization", v: "Per Stage Plan" },
-              { k: "Acceptance", v: "Developer only" },
+              { k: "Stages", v: "3–4" },
+              { k: "AI role", v: "Bounded" },
+              { k: "Deploy split", v: "Never" },
             ].map((item) => (
               <div
                 key={item.k}
@@ -237,35 +195,81 @@ export function MarketingLanding() {
           </dl>
         </div>
 
-        <aside
-          className="tb-terminal min-w-0 overflow-hidden"
-          aria-label="Illustrative Modernization Assessment specimen"
-        >
-          <div className="flex items-center justify-between gap-3 border-b border-terminal-border bg-surface-terminal-raised px-3 py-2">
+        <aside className="tb-panel min-w-0 overflow-hidden" aria-label="Sample Modernization Assessment">
+          <div className="tb-panel-head">
             <div className="min-w-0">
-              <p className="tb-mono text-[10px] uppercase tracking-wide text-terminal-fg-muted">
-                assessment specimen
+              <p className="tb-mono text-[10px] uppercase tracking-wide text-text-quiet">
+                sample output
               </p>
-              <p className="truncate text-[12px] font-medium text-terminal-fg">
-                Evidence summary · not a live run
+              <p className="text-[12px] font-medium text-text-primary">Modernization Assessment</p>
+            </div>
+            <span className="tb-chip tb-chip-accent">phase: assessed</span>
+          </div>
+          <div className="space-y-3 p-3.5">
+            <div className="grid grid-cols-4 gap-1.5">
+              {[
+                { k: "routes", v: "9" },
+                { k: "models", v: "3" },
+                { k: "cycles", v: "1" },
+                { k: "ready", v: "2" },
+              ].map((m) => (
+                <div
+                  key={m.k}
+                  className="rounded border border-border-subtle bg-surface-muted/60 px-2 py-1.5"
+                >
+                  <p className="tb-mono text-[9px] uppercase text-text-quiet">{m.k}</p>
+                  <p className="tb-mono text-sm font-semibold tabular-nums text-text-primary">{m.v}</p>
+                </div>
+              ))}
+            </div>
+
+            <div className="overflow-hidden rounded border border-border-subtle">
+              <div className="grid grid-cols-[2.25rem_1fr_3.25rem_3.5rem] gap-2 border-b border-border-subtle bg-surface-inset px-2.5 py-1.5 tb-mono text-[9px] uppercase tracking-wide text-text-quiet">
+                <span>#</span>
+                <span>candidate</span>
+                <span className="text-right">score</span>
+                <span className="text-right">state</span>
+              </div>
+              {SAMPLE_CANDIDATES.map((c) => (
+                <div
+                  key={c.name}
+                  className={`grid grid-cols-[2.25rem_1fr_3.25rem_3.5rem] items-center gap-2 border-b border-border-subtle px-2.5 py-2 last:border-b-0 ${
+                    c.rank === "01" ? "bg-accent-action/8" : "bg-surface-paper"
+                  }`}
+                >
+                  <span className="tb-mono text-[11px] text-text-quiet">{c.rank}</span>
+                  <div className="min-w-0">
+                    <p className="truncate text-[12px] font-medium text-text-primary">{c.name}</p>
+                    <p className="truncate tb-mono text-[10px] text-text-quiet">{c.detail}</p>
+                  </div>
+                  <span className="tb-mono text-right text-[12px] tabular-nums text-text-primary">
+                    {c.score}
+                  </span>
+                  <span className="text-right">
+                    {c.state === "ready" ? (
+                      <span className="tb-chip tb-chip-ok">ready</span>
+                    ) : (
+                      <span className="tb-chip tb-chip-warn">block</span>
+                    )}
+                  </span>
+                </div>
+              ))}
+            </div>
+
+            <div className="rounded border border-border-subtle bg-surface-inset px-3 py-2.5">
+              <p className="tb-mono text-[10px] uppercase tracking-wide text-text-quiet">
+                stage plan · pending
+              </p>
+              <p className="mt-1.5 text-[12px] font-medium text-text-primary">
+                Extract Orders Domain Module
+              </p>
+              <p className="mt-1 tb-mono text-[10px] leading-relaxed text-text-quiet">
+                envelope: src/modules/orders/** · maxOps: 20
+                <br />
+                protect: route table · schema fingerprints
               </p>
             </div>
-            <span className="tb-mono shrink-0 rounded border border-terminal-border bg-surface-terminal px-1.5 py-0.5 text-[10px] text-terminal-fg-muted">
-              static only
-            </span>
           </div>
-          <pre
-            className="overflow-x-auto p-3.5 tb-mono text-[11px] leading-[1.55] selection:bg-accent-action/35 selection:text-terminal-fg"
-            tabIndex={0}
-          >
-            <code>
-              {SPECIMEN_LINES.map((line, index) => (
-                <span key={`${index}-${line.text}`} className={`block ${specimenClass(line.tone)}`}>
-                  {line.text || "\u00a0"}
-                </span>
-              ))}
-            </code>
-          </pre>
         </aside>
       </section>
 

@@ -23,55 +23,56 @@ afterEach(() => {
 });
 
 describe("product landing", () => {
-  it("offers the work console and explains input, outcome, and human controls", () => {
+  it("offers a clean hero with work console CTA and sample assessment", () => {
     render(<MarketingLanding />);
 
     expect(
       screen.getByRole("heading", {
         level: 1,
-        name: /Find a domain you can modularize safely/i,
+        name: /Turn one tangled Express domain into a verified module/i,
       }),
     ).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Open work console" })).toHaveAttribute("href", "/app");
+    expect(screen.getByRole("link", { name: "See how it works" })).toHaveAttribute(
+      "href",
+      "#how-it-works",
+    );
     expect(screen.getByRole("link", { name: "Go to work console" })).toHaveAttribute(
       "href",
       "/app",
     );
 
     const hero = screen.getByRole("region", {
-      name: /Find a domain you can modularize safely/i,
+      name: /Turn one tangled Express domain into a verified module/i,
     });
     expect(hero).toHaveTextContent(/first safe cut/i);
-    expect(hero).toHaveTextContent(/Input:/i);
-    expect(hero).toHaveTextContent(/public GitHub root/i);
-    expect(hero).toHaveTextContent(/controlled example/i);
-    expect(hero).toHaveTextContent(/Outcome:/i);
-    expect(hero).toHaveTextContent(/Domain Module/i);
-    expect(hero).toHaveTextContent(/authorize and accept/i);
-    expect(hero).toHaveTextContent(/AI never self-applies/i);
-    expect(hero).toHaveTextContent(/Static Validation is not Runtime Validation/i);
-    expect(screen.getByRole("complementary", { name: "Hackathon demo path" })).toHaveTextContent(
-      /Try controlled example/i,
-    );
-    expect(screen.getByText("Bounded generation")).toBeInTheDocument();
-    expect(screen.getByText("Per Stage Plan")).toBeInTheDocument();
-    expect(screen.getByText("Developer only")).toBeInTheDocument();
+    expect(hero).toHaveTextContent(/code evidence/i);
+    expect(hero).toHaveTextContent(/authorize a Stage Plan/i);
+    expect(hero).toHaveTextContent(/applies nothing until you accept/i);
+    expect(hero).toHaveTextContent(/Same deploy/i);
+    expect(hero).toHaveTextContent(/Try controlled example/i);
+    expect(hero).toHaveTextContent("3–4");
+    expect(hero).toHaveTextContent("Bounded");
+    expect(hero).toHaveTextContent("Never");
+    expect(screen.queryByRole("complementary", { name: "Hackathon demo path" })).toBeNull();
     expect(
       screen.getByRole("heading", { name: "Ready for the first safe cut?" }),
     ).toBeInTheDocument();
   });
 
-  it("shows a selectable terminal assessment specimen with meaningful evidence text", () => {
+  it("shows a sample assessment card with ranked candidates", () => {
     render(<MarketingLanding />);
 
-    const specimen = screen.getByRole("complementary", {
-      name: "Illustrative Modernization Assessment specimen",
+    const sample = screen.getByRole("complementary", {
+      name: "Sample Modernization Assessment",
     });
-    expect(specimen).toHaveTextContent("Orders");
-    expect(specimen).toHaveTextContent("exclusive write");
-    expect(specimen).toHaveTextContent(/authorize/i);
-    expect(specimen).toHaveTextContent(/Modernization Decision/i);
-    expect(specimen.querySelector("pre")).not.toBeNull();
+    expect(sample).toHaveTextContent("Orders");
+    expect(sample).toHaveTextContent(/Exclusive write ownership/i);
+    expect(sample).toHaveTextContent("Payments");
+    expect(sample).toHaveTextContent("Users");
+    expect(sample).toHaveTextContent(/Extract Orders Domain Module/i);
+    expect(sample).toHaveTextContent(/phase: assessed/i);
+    expect(sample.querySelector("pre")).toBeNull();
   });
 
   it("presents the five-step workflow separating selection, authorization, validation, and acceptance", () => {
