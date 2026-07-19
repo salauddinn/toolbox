@@ -50,6 +50,14 @@ describe("modernization sequence planner", () => {
       entryPath: analysis.entryPath,
     });
     expect(stillCyclic.conditionalStage?.kind).toBe("cycle_repair");
+    expect(
+      stillCyclic.conditionalStage?.validationCriteria.map((criterion) => criterion.id),
+    ).toEqual([
+      "cycle-absent",
+      "factory-injection",
+      "composition-root-injection",
+      "no-create-delete",
+    ]);
     expect(listSequenceStages(stillCyclic)).toHaveLength(4);
 
     // Simulate cycle gone: empty files graph

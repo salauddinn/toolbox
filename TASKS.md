@@ -178,11 +178,11 @@ Done when the deliberate double-failure fixture proves rollback and blocks later
 ### Phase 1–4 review follow-ups (before / during Phase 5)
 
 - [x] Full controlled-example E2E: behaviour → module → optional cycle → integration → completed
-- [ ] Wire unsupported syntax evidence into Transformation Readiness (ADR-0008)
-- [ ] Package-manager lockfile detection without dropping names at extract
-- [ ] Token budgets on AI provider input/output
+- [x] Wire unsupported syntax evidence into Transformation Readiness (ADR-0008)
+- [x] Package-manager lockfile detection without dropping names at extract
+- [x] Token budgets on AI provider input/output
 - [x] Tighten integration path envelope (not `**/*.js`) — consumers from graph + candidate files
-- [ ] Stronger composition-root injection validation for cycle repair
+- [x] Stronger composition-root injection validation for cycle repair
 
 ### 13. Produce the finished artifact
 

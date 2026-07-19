@@ -46,6 +46,7 @@ describe("controlled-example end-to-end sequence", () => {
     let run = await selectReady(store, client);
     const runId = run.runId as RunId;
     const maxStages = 4;
+    const generatedStageKinds: string[] = [];
 
     for (let i = 0; i < maxStages; i += 1) {
       const current = store.get(runId);
@@ -69,6 +70,23 @@ describe("controlled-example end-to-end sequence", () => {
         throw new Error(`expected awaiting_acceptance, got ${generated.run.phase}`);
       }
       expect(generated.validationReport?.finalOutcome).toBe("passed");
+      generatedStageKinds.push(generated.run.currentStage.kind);
+      if (generated.run.currentStage.kind === "cycle_repair") {
+        expect(generated.validationReport?.attempts[0]?.checks).toContainEqual({
+          id: "factory-injection",
+          kind: "static",
+          title: "Public module factory has the supported injection shape",
+          outcome: "passed",
+          detail: "factory:createOrdersModule; dependency:paymentsApi",
+        });
+        expect(generated.validationReport?.attempts[0]?.checks).toContainEqual({
+          id: "composition-root-injection",
+          kind: "static",
+          title: "Recognized composition root supplies the factory dependency",
+          outcome: "passed",
+          detail: "root:app.js; paymentsApi:routes/payments.js",
+        });
+      }
 
       const accepted = acceptCurrentChangeSet({ runId, clientKeyHash: client, store });
       expect(accepted.ok).toBe(true);
@@ -79,8 +97,13 @@ describe("controlled-example end-to-end sequence", () => {
     expect(run.phase).toBe("completed");
     if (run.phase !== "completed") return;
 
-    expect(run.acceptedChangeSets.length).toBeGreaterThanOrEqual(3);
-    expect(run.acceptedChangeSets.length).toBeLessThanOrEqual(4);
+    expect(run.acceptedChangeSets).toHaveLength(4);
+    expect(generatedStageKinds).toEqual([
+      "behavior_capture",
+      "domain_module",
+      "cycle_repair",
+      "integration_cleanup",
+    ]);
     expect(run.validationReports).toHaveLength(run.acceptedChangeSets.length);
     expect(run.initialSnapshot.contentHash).not.toBe(run.snapshot.contentHash);
     expect([...run.snapshot.files.keys()].some((p) => p.includes("src/modules/"))).toBe(true);

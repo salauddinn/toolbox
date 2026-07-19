@@ -4,7 +4,10 @@ import type { DomainCandidate } from "@/core/candidates";
 import type { SourceSnapshot } from "@/core/repository";
 import type { StagePlan } from "@/core/stages";
 import type { ValidationCheck } from "@/core/validation";
+import type { NodePath } from "@babel/traverse";
+import * as t from "@babel/types";
 import { parseJavaScript } from "@/server/analysis/parse";
+import { traverse } from "@/server/analysis/babel-traverse";
 import { buildDependencyGraph, resolveRelativeRequire } from "@/server/analysis/graph";
 import { isForbiddenProtectedPath, pathAllowedInEnvelope } from "./envelope";
 import {
@@ -36,6 +39,385 @@ function domainSlug(candidate: DomainCandidate): string {
       .replace(/[^a-z0-9]+/g, "-")
       .replace(/^-|-$/g, "") || candidate.id
   );
+}
+
+type CycleInjectionContract = {
+  factoryName: string;
+  dependencyKey: string;
+  dependencyPath: string;
+};
+
+type InjectionValidation = {
+  check: ValidationCheck;
+  structuredError?: string;
+};
+
+function pathStem(path: string): string {
+  const basename =
+    path
+      .split("/")
+      .at(-1)
+      ?.replace(/\.[^.]+$/, "") ?? "dependency";
+  const words = basename.split(/[^a-zA-Z0-9]+/).filter(Boolean);
+  return words
+    .map((word, index) =>
+      index === 0 ? word.toLowerCase() : word.slice(0, 1).toUpperCase() + word.slice(1),
+    )
+    .join("");
+}
+
+function cycleInjectionContract(
+  analysis: AnalysisResult,
+  candidate: DomainCandidate,
+): CycleInjectionContract | null {
+  const candidateFiles = new Set(candidate.files);
+  const cycle = analysis.graph.cycles.find((item) =>
+    item.files.some((file) => candidateFiles.has(file)),
+  );
+  if (!cycle) return null;
+
+  const edge = cycle.edges
+    .filter((item) => candidateFiles.has(item.from) && !candidateFiles.has(item.to))
+    .sort((left, right) => `${left.from}:${left.to}`.localeCompare(`${right.from}:${right.to}`))[0];
+  if (!edge) return null;
+
+  const stem = pathStem(edge.to);
+  if (!stem) return null;
+  return {
+    factoryName: `create${candidate.name}Module`,
+    dependencyKey: `${stem}Api`,
+    dependencyPath: edge.to,
+  };
+}
+
+function isRequireCall(node: t.Node | null | undefined): node is t.CallExpression {
+  return Boolean(
+    node &&
+    t.isCallExpression(node) &&
+    t.isIdentifier(node.callee, { name: "require" }) &&
+    node.arguments.length === 1 &&
+    t.isStringLiteral(node.arguments[0]),
+  );
+}
+
+function isModuleExports(node: t.Node): boolean {
+  return (
+    t.isMemberExpression(node) &&
+    !node.computed &&
+    t.isIdentifier(node.object, { name: "module" }) &&
+    t.isIdentifier(node.property, { name: "exports" })
+  );
+}
+
+function isModuleExportsProperty(node: t.Node, propertyName: string): boolean {
+  return (
+    t.isMemberExpression(node) &&
+    !node.computed &&
+    isModuleExports(node.object) &&
+    t.isIdentifier(node.property, { name: propertyName })
+  );
+}
+
+function objectExportsFactory(object: t.ObjectExpression, factoryName: string): boolean {
+  return object.properties.some(
+    (property) =>
+      t.isObjectProperty(property) &&
+      !property.computed &&
+      ((t.isIdentifier(property.key) && property.key.name === factoryName) ||
+        (t.isStringLiteral(property.key) && property.key.value === factoryName)) &&
+      t.isIdentifier(property.value, { name: factoryName }),
+  );
+}
+
+/**
+ * Evaluate supported CommonJS assignment shapes in source order. A whole-object
+ * assignment replaces the effective export object, while an assignment to the
+ * expected property updates only that property. Ambiguous nested assignments
+ * are treated conservatively in their source order rather than ignored.
+ */
+function hasPublicFactoryExport(ast: t.File, factoryName: string): boolean {
+  const assignments: t.AssignmentExpression[] = [];
+  traverse(ast, {
+    AssignmentExpression(path) {
+      if (path.node.operator !== "=") return;
+      if (isModuleExports(path.node.left) || isModuleExportsProperty(path.node.left, factoryName)) {
+        assignments.push(path.node);
+      }
+    },
+  });
+  assignments.sort((left, right) => (left.start ?? 0) - (right.start ?? 0));
+
+  let exported = false;
+  for (const { left, right } of assignments) {
+    if (isModuleExports(left)) {
+      exported = t.isObjectExpression(right) && objectExportsFactory(right, factoryName);
+    } else {
+      exported = t.isIdentifier(right, { name: factoryName });
+    }
+  }
+  return exported;
+}
+
+function isDependencyInvocation(
+  node: t.Node | null | undefined,
+  dependencyKey: string,
+): node is t.CallExpression {
+  if (!node || !t.isCallExpression(node)) return false;
+  const callee = node.callee;
+  return (
+    t.isMemberExpression(callee) &&
+    !callee.computed &&
+    t.isIdentifier(callee.object, { name: dependencyKey }) &&
+    t.isIdentifier(callee.property)
+  );
+}
+
+function returnedValueUsesDependency(
+  node: t.Expression | null | undefined,
+  dependencyKey: string,
+  invocationResults: ReadonlyMap<string, number>,
+  returnStart: number,
+): boolean {
+  const isPriorInvocationResult = (candidate: t.Node): boolean =>
+    t.isIdentifier(candidate) &&
+    (invocationResults.get(candidate.name) ?? Number.POSITIVE_INFINITY) < returnStart;
+
+  if (!node) return false;
+  if (isDependencyInvocation(node, dependencyKey)) return true;
+  if (isPriorInvocationResult(node)) return true;
+  if (!t.isObjectExpression(node)) return false;
+
+  return node.properties.some((property) => {
+    if (!t.isObjectProperty(property) || property.computed) return false;
+    const keyMatches =
+      (t.isIdentifier(property.key) && property.key.name === dependencyKey) ||
+      (t.isStringLiteral(property.key) && property.key.value === dependencyKey);
+    if (keyMatches && t.isIdentifier(property.value, { name: dependencyKey })) return true;
+    if (t.isExpression(property.value)) {
+      return (
+        isDependencyInvocation(property.value, dependencyKey) ||
+        isPriorInvocationResult(property.value)
+      );
+    }
+    return false;
+  });
+}
+
+function hasObservableFactoryUse(
+  factoryPath: NodePath<t.FunctionDeclaration>,
+  dependencyKey: string,
+): boolean {
+  const invocationResults = new Map<string, number>();
+  factoryPath.traverse({
+    VariableDeclarator(path) {
+      if (path.getFunctionParent()?.node !== factoryPath.node) return;
+      if (!t.isIdentifier(path.node.id) || !isDependencyInvocation(path.node.init, dependencyKey)) {
+        return;
+      }
+      const binding = path.scope.getBinding(path.node.id.name);
+      if (binding?.constant) invocationResults.set(path.node.id.name, path.node.start ?? 0);
+    },
+  });
+
+  let observable = false;
+  factoryPath.traverse({
+    ReturnStatement(path) {
+      if (observable || path.getFunctionParent()?.node !== factoryPath.node) return;
+      const argument = path.node.argument;
+      if (
+        argument &&
+        t.isExpression(argument) &&
+        returnedValueUsesDependency(
+          argument,
+          dependencyKey,
+          invocationResults,
+          path.node.start ?? Number.POSITIVE_INFINITY,
+        )
+      ) {
+        observable = true;
+      }
+    },
+  });
+  return observable;
+}
+
+function validatePublicFactory(input: {
+  indexPath: string;
+  content: string;
+  contract: CycleInjectionContract;
+}): InjectionValidation {
+  const parsed = parseJavaScript(input.content, input.indexPath);
+  if (!parsed.ok) {
+    return {
+      check: fail(
+        "factory-injection",
+        "Public module factory has the supported injection shape",
+        `unsupported_factory_shape:${input.indexPath}:${input.contract.factoryName}`,
+      ),
+      structuredError: "unsupported_factory_shape",
+    };
+  }
+
+  let parameterShapeValid = false;
+  let injectedDependencyUsed = false;
+  traverse(parsed.ast, {
+    FunctionDeclaration(path) {
+      if (!path.node.id || path.node.id.name !== input.contract.factoryName) return;
+      const [parameter] = path.node.params;
+      if (
+        path.node.params.length !== 1 ||
+        !t.isObjectPattern(parameter) ||
+        parameter.properties.length !== 1
+      ) {
+        return;
+      }
+      const [property] = parameter.properties;
+      if (
+        !t.isObjectProperty(property) ||
+        property.computed ||
+        !t.isIdentifier(property.key, { name: input.contract.dependencyKey }) ||
+        !t.isIdentifier(property.value, { name: input.contract.dependencyKey })
+      ) {
+        return;
+      }
+      parameterShapeValid = true;
+      injectedDependencyUsed = hasObservableFactoryUse(path, input.contract.dependencyKey);
+    },
+  });
+
+  if (!parameterShapeValid) {
+    return {
+      check: fail(
+        "factory-injection",
+        "Public module factory has the supported injection shape",
+        `unsupported_factory_shape:${input.indexPath}:${input.contract.factoryName}({ ${input.contract.dependencyKey} })`,
+      ),
+      structuredError: "unsupported_factory_shape",
+    };
+  }
+  if (!hasPublicFactoryExport(parsed.ast, input.contract.factoryName)) {
+    return {
+      check: fail(
+        "factory-injection",
+        "Public module factory has the supported injection shape",
+        `factory_not_public_export:${input.indexPath}:${input.contract.factoryName}`,
+      ),
+      structuredError: "factory_not_public_export",
+    };
+  }
+  if (!injectedDependencyUsed) {
+    return {
+      check: fail(
+        "factory-injection",
+        "Public module factory has the supported injection shape",
+        `unused_injected_dependency:${input.indexPath}:${input.contract.dependencyKey}`,
+      ),
+      structuredError: "unused_injected_dependency",
+    };
+  }
+  return {
+    check: pass(
+      "factory-injection",
+      "Public module factory has the supported injection shape",
+      `factory:${input.contract.factoryName}; dependency:${input.contract.dependencyKey}`,
+    ),
+  };
+}
+
+function validateCompositionRootInjection(input: {
+  entryPath: string;
+  content: string;
+  fileSet: ReadonlySet<string>;
+  moduleIndexPath: string;
+  contract: CycleInjectionContract;
+}): InjectionValidation {
+  const parsed = parseJavaScript(input.content, input.entryPath);
+  if (!parsed.ok) {
+    return {
+      check: fail(
+        "composition-root-injection",
+        "Recognized composition root supplies the factory dependency",
+        `missing_composition_root_factory_call:${input.entryPath}:${input.contract.factoryName}`,
+      ),
+      structuredError: "missing_composition_root_factory_call",
+    };
+  }
+
+  const moduleBindings = new Set<string>();
+  const dependencyBindings = new Set<string>();
+  traverse(parsed.ast, {
+    VariableDeclarator(path) {
+      if (!t.isIdentifier(path.node.id) || !isRequireCall(path.node.init)) return;
+      const request = path.node.init.arguments[0];
+      if (!t.isStringLiteral(request)) return;
+      const resolved = resolveRelativeRequire(
+        input.entryPath as never,
+        request.value,
+        input.fileSet,
+      );
+      if (resolved === input.moduleIndexPath) moduleBindings.add(path.node.id.name);
+      if (resolved === input.contract.dependencyPath) dependencyBindings.add(path.node.id.name);
+    },
+  });
+
+  let foundFactoryCall = false;
+  let suppliedDependency = false;
+  traverse(parsed.ast, {
+    CallExpression(path) {
+      const { callee, arguments: args } = path.node;
+      if (
+        !t.isMemberExpression(callee) ||
+        callee.computed ||
+        !t.isIdentifier(callee.object) ||
+        !moduleBindings.has(callee.object.name) ||
+        !t.isIdentifier(callee.property, { name: input.contract.factoryName })
+      ) {
+        return;
+      }
+      foundFactoryCall = true;
+      if (args.length !== 1 || !t.isObjectExpression(args[0])) return;
+      const properties = args[0].properties;
+      if (properties.length !== 1) return;
+      const [property] = properties;
+      if (
+        t.isObjectProperty(property) &&
+        !property.computed &&
+        t.isIdentifier(property.key, { name: input.contract.dependencyKey }) &&
+        t.isIdentifier(property.value) &&
+        dependencyBindings.has(property.value.name)
+      ) {
+        suppliedDependency = true;
+      }
+    },
+  });
+
+  if (!foundFactoryCall) {
+    return {
+      check: fail(
+        "composition-root-injection",
+        "Recognized composition root supplies the factory dependency",
+        `missing_composition_root_factory_call:${input.entryPath}:${input.contract.factoryName}`,
+      ),
+      structuredError: "missing_composition_root_factory_call",
+    };
+  }
+  if (!suppliedDependency) {
+    return {
+      check: fail(
+        "composition-root-injection",
+        "Recognized composition root supplies the factory dependency",
+        `wrong_composition_root_factory_argument:${input.entryPath}:${input.contract.factoryName}({ ${input.contract.dependencyKey}: <${input.contract.dependencyPath}> })`,
+      ),
+      structuredError: "wrong_composition_root_factory_argument",
+    };
+  }
+  return {
+    check: pass(
+      "composition-root-injection",
+      "Recognized composition root supplies the factory dependency",
+      `root:${input.entryPath}; ${input.contract.dependencyKey}:${input.contract.dependencyPath}`,
+    ),
+  };
 }
 
 /**
@@ -300,36 +682,74 @@ export function validateChangeSetStatic(input: {
 
   if (input.stage.kind === "cycle_repair") {
     const graph = buildDependencyGraph(candidateFiles, entryPath);
-    const candidateFileSet = new Set(input.candidate.files);
-    const remaining = graph.cycles.filter((c) => c.files.some((f) => candidateFileSet.has(f)));
+    const contract = cycleInjectionContract(input.analysis, input.candidate);
+    const originalCycleFiles = new Set(
+      input.analysis.graph.cycles
+        .filter((cycle) => cycle.files.some((file) => input.candidate.files.includes(file)))
+        .flatMap((cycle) => cycle.files),
+    );
+    const remaining = graph.cycles.filter((cycle) =>
+      cycle.files.some((file) => originalCycleFiles.has(file)),
+    );
     if (remaining.length > 0) {
       checks.push(
         fail(
           "cycle-absent",
-          "Supported circular dependency must be removed",
-          remaining.map((c) => c.files.join("→")).join("; "),
+          "Original entry-reachable circular dependency must be removed",
+          `entry_reachable_cycle:${remaining.map((cycle) => cycle.files.join("→")).join("; ")}`,
         ),
       );
       structuredErrors.push("cycle_still_present");
     } else {
-      checks.push(pass("cycle-absent", "Entry-reachable cycle no longer present"));
+      checks.push(
+        pass(
+          "cycle-absent",
+          "Original entry-reachable circular dependency must be removed",
+          "entry_reachable_cycle_absent",
+        ),
+      );
     }
-    const index = input.candidateSnapshot.files.get(`${moduleRoot}/index.js` as typeof entryPath);
-    const hasFactory =
-      index &&
-      (/create\w*|factory|inject/i.test(index.content) ||
-        /module\.exports\.create/.test(index.content));
-    if (!hasFactory) {
+
+    const indexPath = `${moduleRoot}/index.js`;
+    const index = input.candidateSnapshot.files.get(indexPath as typeof entryPath);
+    if (!contract || !index) {
       checks.push(
         fail(
           "factory-injection",
-          "Public module factory required for cycle repair",
-          `${moduleRoot}/index.js`,
+          "Public module factory has the supported injection shape",
+          `unsupported_factory_shape:${indexPath}:missing_cycle_dependency_contract`,
         ),
       );
-      structuredErrors.push("missing_factory_export");
+      structuredErrors.push("unsupported_factory_shape");
+      checks.push(
+        fail(
+          "composition-root-injection",
+          "Recognized composition root supplies the factory dependency",
+          `missing_composition_root_factory_call:${entryPath}:missing_cycle_dependency_contract`,
+        ),
+      );
+      structuredErrors.push("missing_composition_root_factory_call");
     } else {
-      checks.push(pass("factory-injection", "Public factory present on module index"));
+      const factory = validatePublicFactory({
+        indexPath,
+        content: index.content,
+        contract,
+      });
+      checks.push(factory.check);
+      if (factory.structuredError) structuredErrors.push(factory.structuredError);
+
+      const root = input.candidateSnapshot.files.get(entryPath);
+      const compositionRoot = validateCompositionRootInjection({
+        entryPath,
+        content: root?.content ?? "",
+        fileSet: new Set(
+          candidateFiles.filter((file) => file.path.endsWith(".js")).map((file) => file.path),
+        ),
+        moduleIndexPath: indexPath,
+        contract,
+      });
+      checks.push(compositionRoot.check);
+      if (compositionRoot.structuredError) structuredErrors.push(compositionRoot.structuredError);
     }
   }
 
