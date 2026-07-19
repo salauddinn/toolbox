@@ -467,9 +467,12 @@ describe("AssessmentApp Stage Plan and operation status (U08)", () => {
       );
     });
 
+    expect(container.querySelector('[data-testid="change-set-review"]')).not.toBeNull();
     expect(container.querySelector('[data-testid="review-totals-terminal"]')).not.toBeNull();
     expect(container.textContent).toContain("validation: passed");
     expect(container.querySelector('[data-testid="accept-change-set-button"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="validation-ledger"]')).not.toBeNull();
+    expect(container.textContent).toMatch(/promotes the validated candidate snapshot/i);
   });
 
   it("keeps Accept unavailable when review payload is incomplete", async () => {
@@ -503,10 +506,148 @@ describe("AssessmentApp Stage Plan and operation status (U08)", () => {
     await act(async () => root.render(<AssessmentApp />));
     await act(async () => buttonByText(container, "Try controlled example")!.click());
 
-    expect(container.querySelector('[data-testid="operation-status"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="change-set-review"]')).not.toBeNull();
+    expect(
+      container
+        .querySelector('[data-testid="change-set-review"]')
+        ?.getAttribute("data-review-readiness"),
+    ).toBe("incomplete");
     expect(container.querySelector('[data-testid="accept-unavailable"]')).not.toBeNull();
     expect(container.querySelector('[data-testid="accept-change-set-button"]')).toBeNull();
+    expect(container.querySelector('[data-testid="review-recovery"]')).not.toBeNull();
     expect(container.textContent).toMatch(/Acceptance stays unavailable/i);
+  });
+
+  it("refreshes incomplete review payload from the same-origin run GET", async () => {
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(
+        jsonResponse(200, {
+          ok: true,
+          run: {
+            runId: "recover-review-run",
+            phase: "awaiting_acceptance",
+            sourceLabel: "fixture:controlled-example",
+            selectedCandidate: { id: "orders", name: "Orders" },
+            sequence: sequenceFixture,
+            stageIndex: 0,
+            currentStage: stageFixture,
+            acceptedChangeSetCount: 0,
+            changeSet: {
+              id: "cs-recover",
+              stageId: stageFixture.id,
+              stageKind: stageFixture.kind,
+              status: "validated",
+              attempt: 1,
+              operations: [{ type: "create", path: "tests/behavior/orders.test.js", bytes: 80 }],
+            },
+            candidateFileCount: 10,
+            reviewPayload: null,
+          },
+        }),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse(200, {
+          ok: true,
+          run: {
+            runId: "recover-review-run",
+            phase: "awaiting_acceptance",
+            sourceLabel: "fixture:controlled-example",
+            selectedCandidate: { id: "orders", name: "Orders" },
+            sequence: sequenceFixture,
+            stageIndex: 0,
+            currentStage: stageFixture,
+            acceptedChangeSetCount: 0,
+            changeSet: {
+              id: "cs-recover",
+              stageId: stageFixture.id,
+              stageKind: stageFixture.kind,
+              status: "validated",
+              attempt: 1,
+              operations: [{ type: "create", path: "tests/behavior/orders.test.js", bytes: 80 }],
+            },
+            candidateFileCount: 10,
+            reviewPayload: {
+              changeSetId: "cs-recover",
+              attempt: 1,
+              totals: { created: 1, updated: 0, deleted: 0 },
+              files: [
+                {
+                  path: "tests/behavior/orders.test.js",
+                  kind: "create",
+                  bytes: 80,
+                  afterPreview: "describe('orders')",
+                },
+              ],
+              validationReport: {
+                stageId: stageFixture.id,
+                changeSetId: "cs-recover",
+                finalOutcome: "passed",
+                externalTestsLabel: "not_executed",
+                attempts: [
+                  {
+                    attempt: 1,
+                    passed: true,
+                    checks: [
+                      {
+                        id: "static-parse",
+                        kind: "static",
+                        title: "parse",
+                        outcome: "passed",
+                      },
+                    ],
+                  },
+                ],
+              },
+              truncationLabels: [],
+            },
+            validationReport: {
+              stageId: stageFixture.id,
+              changeSetId: "cs-recover",
+              finalOutcome: "passed",
+              externalTestsLabel: "not_executed",
+              attempts: [
+                {
+                  attempt: 1,
+                  passed: true,
+                  checks: [
+                    {
+                      id: "static-parse",
+                      kind: "static",
+                      title: "parse",
+                      outcome: "passed",
+                    },
+                  ],
+                },
+              ],
+            },
+          },
+        }),
+      );
+
+    await act(async () => root.render(<AssessmentApp />));
+    await act(async () => buttonByText(container, "Try controlled example")!.click());
+
+    expect(
+      container
+        .querySelector('[data-testid="change-set-review"]')
+        ?.getAttribute("data-review-readiness"),
+    ).toBe("incomplete");
+    expect(container.querySelector('[data-testid="accept-change-set-button"]')).toBeNull();
+
+    await act(async () => buttonByText(container, "Refresh current review")!.click());
+
+    expect(fetchMock).toHaveBeenLastCalledWith(
+      "/api/runs/recover-review-run",
+      expect.objectContaining({ method: "GET" }),
+    );
+    expect(
+      container
+        .querySelector('[data-testid="change-set-review"]')
+        ?.getAttribute("data-review-readiness"),
+    ).toBe("complete-current");
+    expect(container.querySelector('[data-testid="accept-change-set-button"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="changed-file-navigator"]')).not.toBeNull();
   });
 
   it("distinguishes durable rollback status without acceptance", async () => {

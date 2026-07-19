@@ -16,10 +16,10 @@ import {
   type ReviewReadiness,
 } from "./assessment/presentation-state";
 import { RepositoryStart, SupportedContractDetails } from "./assessment/repository-start";
+import { ChangeSetReview } from "./assessment/change-set-review";
 import {
   OperationStatusView,
   StagePlanView,
-  type BoundedReviewSummary,
   type StageOperationPhase,
   type StagePlanStage,
 } from "./assessment/stage-plan-view";
@@ -31,7 +31,9 @@ function reviewReadiness(
     NonNullable<ReturnType<typeof useAssessmentRun>["run"]>,
     { phase: "awaiting_acceptance" }
   >,
+  refreshingReview = false,
 ): ReviewReadiness {
+  if (refreshingReview) return "loading";
   const review = run.reviewPayload;
   if (!review) return "incomplete";
   if (
@@ -59,6 +61,7 @@ function presentationStateFor(
   operationError: ReturnType<typeof useAssessmentRun>["operationError"],
   blockedStart: ReturnType<typeof useAssessmentRun>["blockedStart"],
   pickedCandidateId: string | null,
+  refreshingReview = false,
 ): PresentationState {
   if (pendingState) return { kind: "local", state: pendingState };
   if (blockedStart) return { kind: "local", state: "active-run-conflict" };
@@ -83,7 +86,7 @@ function presentationStateFor(
     return { kind: "run", phase: run.phase, candidateSelection };
   }
   if (run.phase === "awaiting_acceptance") {
-    return { kind: "run", phase: run.phase, review: reviewReadiness(run) };
+    return { kind: "run", phase: run.phase, review: reviewReadiness(run, refreshingReview) };
   }
   return { kind: "run", phase: run.phase };
 }
@@ -94,6 +97,7 @@ export function AssessmentApp() {
   const inspectorTriggerRef = useRef<HTMLElement | null>(null);
   const [confirmingEnd, setConfirmingEnd] = useState(false);
   const [confirmingReplace, setConfirmingReplace] = useState(false);
+  const [refreshingReview, setRefreshingReview] = useState(false);
   const assessment = useAssessmentRun();
   const { run, busy, error, blockedStart, pickedCandidateId, setPickedCandidateId } = assessment;
   const state = presentationStateFor(
@@ -102,6 +106,7 @@ export function AssessmentApp() {
     assessment.operationError,
     blockedStart,
     pickedCandidateId,
+    refreshingReview,
   );
   const presentation = presentationFor(state);
   const can = (action: PresentationAction) => presentation.actions.includes(action);
@@ -176,19 +181,18 @@ export function AssessmentApp() {
       validationCriteria: stage.validationCriteria,
       budgets: stage.budgets,
     })) ?? [];
-  const acceptanceReview = run?.phase === "awaiting_acceptance" ? reviewReadiness(run) : undefined;
-  const reviewSummary: BoundedReviewSummary | undefined =
-    run?.phase === "awaiting_acceptance" && run.reviewPayload
-      ? {
-          changeSetId: run.reviewPayload.changeSetId,
-          attempt: run.reviewPayload.attempt,
-          totals: run.reviewPayload.totals,
-          fileCount: run.reviewPayload.files.length,
-          validationOutcome: run.reviewPayload.validationReport.finalOutcome,
-          truncationLabels: run.reviewPayload.truncationLabels,
-          externalTestsLabel: run.reviewPayload.validationReport.externalTestsLabel,
-        }
-      : undefined;
+  const acceptanceReview =
+    run?.phase === "awaiting_acceptance" ? reviewReadiness(run, refreshingReview) : undefined;
+
+  async function refreshReview() {
+    if (!run || run.phase !== "awaiting_acceptance" || refreshingReview) return;
+    setRefreshingReview(true);
+    try {
+      await assessment.refresh();
+    } finally {
+      setRefreshingReview(false);
+    }
+  }
 
   const readinessFailures =
     run?.phase === "not_ready"
@@ -569,21 +573,17 @@ export function AssessmentApp() {
                 ) : null}
 
                 {!authorizePending && run.phase === "awaiting_acceptance" ? (
-                  <OperationStatusView
-                    kind={
-                      acceptanceReview === "failed" || acceptanceReview === "incomplete"
-                        ? "validation-failed"
-                        : "validation-passed-review"
-                    }
+                  <ChangeSetReview
                     presentation={presentation}
+                    review={acceptanceReview ?? "incomplete"}
+                    reviewPayload={run.reviewPayload}
                     currentStageTitle={currentStageTitle}
-                    review={acceptanceReview}
-                    reviewSummary={reviewSummary}
                     canAccept={can("accept_change_set")}
                     canReject={can("reject_change_set")}
-                    busy={busy}
+                    busy={busy || refreshingReview}
                     onAccept={() => void assessment.accept()}
                     onReject={() => void assessment.reject()}
+                    onRefreshReview={() => void refreshReview()}
                   />
                 ) : null}
 
@@ -616,9 +616,7 @@ export function AssessmentApp() {
                 ) : null}
 
                 {validationReport &&
-                (run.phase === "stage_failed_rolled_back" ||
-                  run.phase === "sequence_stopped" ||
-                  run.phase === "awaiting_acceptance") ? (
+                (run.phase === "stage_failed_rolled_back" || run.phase === "sequence_stopped") ? (
                   <div
                     className="tb-terminal overflow-hidden"
                     data-testid="validation-report-summary"

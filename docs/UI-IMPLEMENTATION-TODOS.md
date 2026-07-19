@@ -84,7 +84,7 @@ A cheaper model never marks its own work complete. The Sol parent reads the diff
 | U06 | Build the assessment and candidate decision workspace | Complete | U05 |
 | U07 | Build evidence inspector and dependency file context | Complete | U06 |
 | U08 | Build Stage Plan and honest operation-status views | Complete | U07 |
-| U09 | Build the Change Set review workspace | Pending | U08 |
+| U09 | Build the Change Set review workspace | Complete | U08 |
 | U10 | Build rollback, stop, and completion experiences | Pending | U09 |
 | U11 | Complete responsive and accessibility behavior | Pending | U10 |
 | R01 | Run the complete release and demo gate | Pending | U11 |
