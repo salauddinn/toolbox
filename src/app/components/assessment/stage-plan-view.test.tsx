@@ -257,7 +257,7 @@ describe("StagePlanView authorization gate", () => {
 
     expect(screen.queryByTestId("authorization-gate")).toBeNull();
     expect(screen.queryByTestId("accept-change-set-button")).toBeNull();
-    expect(screen.getByText(/Generating and validating the authorized stage/i)).toBeTruthy();
+    expect(screen.getByText(/Working on the authorized stage/i)).toBeTruthy();
   });
 });
 
@@ -279,8 +279,13 @@ describe("OperationStatusView status truths", () => {
     expect(screen.getByTestId("honest-authorize-pending").textContent).toMatch(
       /no live subphase, percentage, or polling feed/,
     );
+    expect(screen.getByTestId("indeterminate-progress")).toBeTruthy();
+    expect(screen.getByTestId("authorize-progress-steps").textContent).toMatch(
+      /AI generating bounded Change Set/i,
+    );
+    expect(screen.getByTestId("progress-elapsed").textContent).toMatch(/working/i);
     expect(screen.getByTestId("no-fabricated-progress").textContent).toMatch(/No percentage/);
-    expect(status.textContent).not.toMatch(/%/);
+    expect(status.textContent).not.toMatch(/\d+%/);
     expect(status.textContent).not.toMatch(/subphase 2/i);
     expect(screen.queryByTestId("accept-change-set-button")).toBeNull();
   });
@@ -297,8 +302,9 @@ describe("OperationStatusView status truths", () => {
       "durable-generating",
     );
     expect(screen.getByTestId("durable-operation-terminal").textContent).toMatch(
-      /server_phase: generating/,
+      /AI generating bounded Change Set/i,
     );
+    expect(screen.getByTestId("indeterminate-progress")).toBeTruthy();
     expect(screen.queryByTestId("accept-change-set-button")).toBeNull();
 
     rerender(

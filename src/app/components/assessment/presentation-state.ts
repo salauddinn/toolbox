@@ -277,8 +277,9 @@ const localPresentation = {
   },
   "authorize-request-pending": {
     step: "sequence",
-    heading: "Generating and validating the authorized stage",
-    explanation: "The request covers bounded generation and deterministic Static Validation.",
+    heading: "Working on the authorized stage",
+    explanation:
+      "AI is generating a bounded Change Set, then ToolBox runs Static Validation. This can take a minute — stay on this page until review opens.",
     screen: "sequence-progress",
     tone: "info",
     busy: true,

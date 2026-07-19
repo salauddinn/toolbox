@@ -387,7 +387,8 @@ describe("AssessmentApp Stage Plan and operation status (U08)", () => {
     });
 
     expect(container.querySelector('[data-testid="honest-authorize-pending"]')).not.toBeNull();
-    expect(container.textContent).toContain("Generating and validating the authorized stage");
+    expect(container.textContent).toMatch(/Working on the authorized stage/i);
+    expect(container.querySelector('[data-testid="indeterminate-progress"]')).not.toBeNull();
     expect(container.textContent).toContain("no live subphase, percentage, or polling feed");
     expect(container.textContent).not.toMatch(/\d+%/);
     expect(buttonByText(container, "Accept Change Set")).toBeUndefined();

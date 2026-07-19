@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import type { EvidenceRecord, InspectRequest } from "./evidence-types";
 import type { Presentation, ReviewReadiness } from "./presentation-state";
 
@@ -421,6 +422,167 @@ export type OperationStatusViewProps = {
   onReject?: () => void;
 };
 
+type ProgressStep = {
+  id: string;
+  label: string;
+  state: "done" | "active" | "queued";
+};
+
+function formatElapsed(seconds: number): string {
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  if (m <= 0) return `${s}s`;
+  return `${m}m ${s.toString().padStart(2, "0")}s`;
+}
+
+function progressStepsFor(
+  kind: Extract<
+    OperationStatusViewProps["kind"],
+    "authorize-pending" | "durable-generating" | "durable-validating" | "durable-repairing"
+  >,
+): readonly ProgressStep[] {
+  if (kind === "authorize-pending") {
+    // Single blocking request covers generation + validation; no live subphase feed.
+    return [
+      { id: "authorized", label: "Stage Plan authorized", state: "done" },
+      { id: "generate", label: "AI generating bounded Change Set", state: "active" },
+      { id: "validate", label: "Static Validation of proposal", state: "queued" },
+      { id: "review", label: "Open review when ready", state: "queued" },
+    ];
+  }
+  if (kind === "durable-generating") {
+    return [
+      { id: "authorized", label: "Stage Plan authorized", state: "done" },
+      { id: "generate", label: "AI generating bounded Change Set", state: "active" },
+      { id: "validate", label: "Static Validation of proposal", state: "queued" },
+      { id: "review", label: "Open review when ready", state: "queued" },
+    ];
+  }
+  if (kind === "durable-validating") {
+    return [
+      { id: "authorized", label: "Stage Plan authorized", state: "done" },
+      { id: "generate", label: "AI generating bounded Change Set", state: "done" },
+      { id: "validate", label: "Static Validation of proposal", state: "active" },
+      { id: "review", label: "Open review when ready", state: "queued" },
+    ];
+  }
+  return [
+    { id: "authorized", label: "Stage Plan authorized", state: "done" },
+    { id: "generate", label: "AI generating bounded Change Set", state: "done" },
+    { id: "validate", label: "First validation failed — one repair", state: "done" },
+    { id: "repair", label: "Repairing and re-validating", state: "active" },
+    { id: "review", label: "Open review when ready", state: "queued" },
+  ];
+}
+
+function ProgressActivityPanel({
+  kind,
+  currentStageTitle,
+}: {
+  kind: Extract<
+    OperationStatusViewProps["kind"],
+    "authorize-pending" | "durable-generating" | "durable-validating" | "durable-repairing"
+  >;
+  currentStageTitle?: string;
+}) {
+  const [elapsedSec, setElapsedSec] = useState(0);
+  const steps = progressStepsFor(kind);
+  const activeLabel = steps.find((step) => step.state === "active")?.label ?? "Working";
+
+  useEffect(() => {
+    setElapsedSec(0);
+    const id = window.setInterval(() => {
+      setElapsedSec((value) => value + 1);
+    }, 1000);
+    return () => window.clearInterval(id);
+  }, [kind]);
+
+  const detail =
+    kind === "authorize-pending"
+      ? "One request is in flight: generation and Static Validation run before the response returns. Acceptance stays locked until that finishes."
+      : kind === "durable-generating"
+        ? "Server phase is generating. No fabricated percentage is shown."
+        : kind === "durable-validating"
+          ? "Server phase is validating the proposed Change Set."
+          : "Server phase is repairing after a failed validation attempt.";
+
+  return (
+    <div
+      className="space-y-3 rounded-lg border border-accent-action/30 bg-accent-action/5 p-4"
+      data-testid={kind === "authorize-pending" ? "honest-authorize-pending" : "durable-operation-terminal"}
+      role="status"
+      aria-busy="true"
+      aria-label={activeLabel}
+    >
+      <div className="flex flex-wrap items-center gap-3">
+        <span className="tb-spinner" aria-hidden />
+        <div className="min-w-0 flex-1">
+          <p className="text-[13px] font-semibold text-text-primary">{activeLabel}</p>
+          <p className="mt-0.5 text-[12px] text-text-secondary">
+            {currentStageTitle ? (
+              <>
+                Stage: <span className="font-medium text-text-primary">{currentStageTitle}</span>
+                {" · "}
+              </>
+            ) : null}
+            Elapsed <span className="tb-mono text-text-primary">{formatElapsed(elapsedSec)}</span>
+          </p>
+        </div>
+        <span className="tb-chip tb-chip-accent" data-testid="progress-elapsed">
+          working · {formatElapsed(elapsedSec)}
+        </span>
+      </div>
+
+      <div
+        className="tb-progress-track"
+        data-testid="indeterminate-progress"
+        aria-hidden
+      >
+        <div className="tb-progress-indeterminate" />
+      </div>
+
+      <ol className="space-y-2" data-testid="authorize-progress-steps">
+        {steps.map((step) => (
+          <li key={step.id} className="flex items-start gap-2 text-[12px]" data-step-state={step.state}>
+            <span
+              className={
+                step.state === "done"
+                  ? "mt-0.5 inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-success/15 text-[10px] font-semibold text-success"
+                  : step.state === "active"
+                    ? "mt-0.5 inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-accent-action text-[10px] font-semibold text-accent-action-foreground"
+                    : "mt-0.5 inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full border border-border-subtle text-[10px] text-text-quiet"
+              }
+              aria-hidden
+            >
+              {step.state === "done" ? "✓" : step.state === "active" ? "…" : ""}
+            </span>
+            <span
+              className={
+                step.state === "active"
+                  ? "font-medium text-text-primary"
+                  : step.state === "done"
+                    ? "text-text-secondary"
+                    : "text-text-quiet"
+              }
+            >
+              {step.label}
+              {step.state === "active" ? (
+                <span className="sr-only"> (in progress)</span>
+              ) : null}
+            </span>
+          </li>
+        ))}
+      </ol>
+
+      <p className="text-[12px] leading-relaxed text-text-secondary">{detail}</p>
+      <p className="tb-mono text-[11px] text-text-quiet" data-testid="honest-progress-note">
+        status: generating_and_validating_authorized_stage · no live subphase, percentage, or polling
+        feed is available
+      </p>
+    </div>
+  );
+}
+
 export function OperationStatusView({
   kind,
   presentation,
@@ -455,7 +617,7 @@ export function OperationStatusView({
   const statusLabel = (() => {
     switch (kind) {
       case "authorize-pending":
-        return "request in flight";
+        return "working";
       case "durable-generating":
         return "generating";
       case "durable-validating":
@@ -501,30 +663,12 @@ export function OperationStatusView({
         <span className={toneChip}>{statusLabel}</span>
       </div>
 
-      {kind === "authorize-pending" ? (
-        <div className="tb-terminal overflow-hidden" data-testid="honest-authorize-pending">
-          <pre className="overflow-x-auto p-3 tb-mono text-[11px] leading-relaxed text-terminal-fg">
-            {`status: generating_and_validating_authorized_stage
-note: synchronous request in flight
-note: no live subphase, percentage, or polling feed is available
-stage: ${currentStageTitle ?? "(current)"}
-next: wait for the authorize response; acceptance is not offered yet`}
-          </pre>
-        </div>
+      {kind === "authorize-pending" ||
+      kind === "durable-generating" ||
+      kind === "durable-validating" ||
+      kind === "durable-repairing" ? (
+        <ProgressActivityPanel kind={kind} currentStageTitle={currentStageTitle} />
       ) : null}
-
-      {(kind === "durable-generating" ||
-        kind === "durable-validating" ||
-        kind === "durable-repairing") && (
-        <div className="tb-terminal overflow-hidden" data-testid="durable-operation-terminal">
-          <pre className="overflow-x-auto p-3 tb-mono text-[11px] leading-relaxed text-terminal-fg">
-            {`server_phase: ${statusLabel}
-note: durable server state returned by the API
-note: no fabricated progress percentage
-acceptance: unavailable until awaiting_acceptance with complete review data`}
-          </pre>
-        </div>
-      )}
 
       {kind === "validation-passed-review" || kind === "validation-failed" ? (
         <div className="space-y-3">
@@ -633,7 +777,8 @@ note: rejected or rolled-back output did not leak forward`}
 
       {isProgress ? (
         <p className="text-[12px] text-text-quiet" data-testid="no-fabricated-progress">
-          No percentage or internal subphase is claimed while this operation is unresolved.
+          No percentage is claimed while this operation is unresolved. The bar is indeterminate
+          activity only.
         </p>
       ) : null}
     </section>
