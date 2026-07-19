@@ -69,8 +69,8 @@ describe("product landing", () => {
     });
     expect(specimen).toHaveTextContent("Orders");
     expect(specimen).toHaveTextContent("exclusive write");
-    expect(specimen).toHaveTextContent("Static Validation only");
-    expect(specimen).toHaveTextContent("Change Acceptance required");
+    expect(specimen).toHaveTextContent(/authorize/i);
+    expect(specimen).toHaveTextContent(/Modernization Decision/i);
     expect(specimen.querySelector("pre")).not.toBeNull();
   });
 
@@ -143,6 +143,9 @@ describe("product landing", () => {
     ).toBeInTheDocument();
     expect(
       within(boundaries).getByRole("heading", { name: "Developer authorizes and accepts" }),
+    ).toBeInTheDocument();
+    expect(
+      within(boundaries).getByRole("heading", { name: "One repair, then stop" }),
     ).toBeInTheDocument();
     expect(boundaries).not.toHaveTextContent(/malware scan/i);
     expect(boundaries).not.toHaveTextContent(/microservice extraction/i);

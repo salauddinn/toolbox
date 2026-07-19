@@ -14,17 +14,17 @@ const WORKFLOW = [
   {
     step: "03",
     title: "Authorize Stage Plan",
-    body: "Inspect the scoped Stage Plan—purpose, path envelope, and validation contract—then authorize generation. AI does not run until you authorize that stage.",
+    body: "Inspect purpose, path envelope, and validation contract, then authorize. AI does not run until you authorize that stage.",
   },
   {
     step: "04",
     title: "Validate Change Set",
-    body: "ToolBox runs Static Validation on the proposed Change Set. Checks examine repository artifacts only; they are not Runtime Validation and do not execute the application.",
+    body: "Static Validation checks repository artifacts only. It is not Runtime Validation and does not execute the application.",
   },
   {
     step: "05",
     title: "Accept changes",
-    body: "Review the diff and Validation Report, then perform Change Acceptance. Only accepted Change Sets enter the current snapshot and the downloadable result ZIP.",
+    body: "Review the diff and Validation Report, then perform Change Acceptance. Only accepted Change Sets enter the snapshot and result ZIP.",
   },
 ] as const;
 
@@ -102,10 +102,6 @@ const BOUNDARIES = [
     body: "You authorize every Stage Plan and accept every validated Change Set. AI output is never applied without explicit Change Acceptance.",
   },
   {
-    title: "Support is not transform-ready",
-    body: "Meeting the assessment contract lets a repository enter Modernization Assessment. It does not mean every domain can enter generation.",
-  },
-  {
     title: "One repair, then stop",
     body: "A failed Change Set may receive one bounded repair. A second Static Validation failure rolls back and keeps the last accepted snapshot.",
   },
@@ -138,15 +134,7 @@ const SPECIMEN_LINES = [
   { tone: "accent", text: "decision       confirm ready candidate → Modernization Decision" },
   {
     tone: "accent",
-    text: "authorize      Stage Plan S2 · path envelope src/modules/orders/**",
-  },
-  {
-    tone: "muted",
-    text: "validate       Static Validation only · not Runtime Validation",
-  },
-  {
-    tone: "muted",
-    text: "accept         Change Acceptance required before snapshot update",
+    text: "authorize      Stage Plan · path envelope · then validate + accept",
   },
 ] as const;
 
@@ -170,7 +158,6 @@ function specimenClass(tone: (typeof SPECIMEN_LINES)[number]["tone"]): string {
 export function MarketingLanding() {
   return (
     <div className="space-y-10 pb-6 sm:space-y-12">
-      {/* 1–2. Editorial hero + terminal assessment specimen */}
       <section
         aria-labelledby="landing-hero-heading"
         className="grid items-start gap-6 lg:grid-cols-[1.05fr_0.95fr] lg:gap-8"
@@ -282,7 +269,6 @@ export function MarketingLanding() {
         </aside>
       </section>
 
-      {/* 3. Five-step modernization workflow */}
       <section
         id="how-it-works"
         aria-labelledby="workflow-heading"
@@ -314,7 +300,38 @@ export function MarketingLanding() {
         </ol>
       </section>
 
-      {/* 4. Deterministic vs AI responsibility ledger */}
+      <section
+        id="controls"
+        aria-labelledby="boundaries-heading"
+        className="tb-panel overflow-hidden"
+      >
+        <div className="tb-panel-head">
+          <div>
+            <h2 id="boundaries-heading" className="text-[13px] font-semibold text-text-primary">
+              Safety and non-goals
+            </h2>
+            <p className="mt-0.5 text-[12px] text-text-secondary">
+              Honest limits ToolBox will not blur.
+            </p>
+          </div>
+        </div>
+        <div className="grid sm:grid-cols-2">
+          {BOUNDARIES.map((item, index) => (
+            <article
+              key={item.title}
+              className={`min-w-0 px-4 py-3.5 ${
+                index < BOUNDARIES.length - 1 ? "border-b border-border-subtle" : ""
+              } ${index % 2 === 0 ? "sm:border-r sm:border-border-subtle" : ""} ${
+                index < 2 ? "sm:border-b sm:border-border-subtle" : "sm:border-b-0"
+              } ${index === BOUNDARIES.length - 1 ? "border-b-0" : ""}`}
+            >
+              <h3 className="text-[13px] font-medium text-text-primary">{item.title}</h3>
+              <p className="mt-1 text-[12px] leading-relaxed text-text-secondary">{item.body}</p>
+            </article>
+          ))}
+        </div>
+      </section>
+
       <section aria-labelledby="ledger-heading" className="overflow-hidden">
         <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
           <div>
@@ -361,95 +378,71 @@ export function MarketingLanding() {
         </div>
       </section>
 
-      {/* 5. Assessment vs transformation requirements */}
-      <section
-        id="contract"
-        aria-labelledby="contract-heading"
-        className="grid gap-4 lg:grid-cols-2"
-      >
-        <div className="tb-panel min-w-0 overflow-hidden">
-          <div className="tb-panel-head">
-            <h2 id="contract-heading" className="text-[13px] font-semibold text-text-primary">
-              Requirements for assessment
-            </h2>
-            <span className="tb-chip">enter assessment</span>
+      <section id="contract" aria-labelledby="contract-heading" className="tb-panel overflow-hidden">
+        <details className="group">
+          <summary className="tb-panel-head cursor-pointer list-none [&::-webkit-details-marker]:hidden">
+            <div className="min-w-0">
+              <h2 id="contract-heading" className="text-[13px] font-semibold text-text-primary">
+                Repository requirements
+              </h2>
+              <p className="mt-0.5 text-[12px] text-text-secondary">
+                Full assessment contract and extra rules before generation.
+              </p>
+            </div>
+            <span className="tb-chip group-open:tb-chip-accent">
+              <span className="group-open:hidden">show</span>
+              <span className="hidden group-open:inline">hide</span>
+            </span>
+          </summary>
+          <div className="grid gap-0 border-t border-border-subtle lg:grid-cols-2">
+            <div className="min-w-0 lg:border-r lg:border-border-subtle">
+              <div className="border-b border-border-subtle px-4 py-2.5">
+                <h3 className="text-[13px] font-semibold text-text-primary">
+                  Requirements for assessment
+                </h3>
+                <p className="mt-0.5 text-[11px] text-text-quiet">enter assessment</p>
+              </div>
+              <ul className="divide-y divide-border-subtle">
+                {ASSESSMENT_REQUIREMENTS.map((line, index) => (
+                  <li key={line} className="flex items-start gap-3 px-4 py-2.5 text-[13px]">
+                    <span className="tb-mono w-5 shrink-0 text-[10px] text-text-quiet">
+                      {String(index + 1).padStart(2, "0")}
+                    </span>
+                    <span className="text-text-primary/90">{line}</span>
+                  </li>
+                ))}
+              </ul>
+              <div className="border-t border-border-subtle bg-surface-inset/60 px-4 py-2.5 text-[12px] leading-relaxed text-text-secondary">
+                Support means the repository can enter Modernization Assessment. It does not mean
+                every domain is transform-ready.
+              </div>
+            </div>
+            <div className="min-w-0 border-t border-border-subtle lg:border-t-0">
+              <div className="border-b border-border-subtle px-4 py-2.5">
+                <h3 className="text-[13px] font-semibold text-text-primary">
+                  Additional requirements for transformation
+                </h3>
+                <p className="mt-0.5 text-[11px] text-text-quiet">enter generation</p>
+              </div>
+              <ul className="divide-y divide-border-subtle">
+                {TRANSFORMATION_REQUIREMENTS.map((line, index) => (
+                  <li key={line} className="flex items-start gap-3 px-4 py-2.5 text-[13px]">
+                    <span className="tb-mono w-5 shrink-0 text-[10px] text-text-quiet">
+                      {String(index + 1).padStart(2, "0")}
+                    </span>
+                    <span className="text-text-primary/90">{line}</span>
+                  </li>
+                ))}
+              </ul>
+              <div className="border-t border-border-subtle bg-surface-inset/60 px-4 py-2.5 text-[12px] leading-relaxed text-text-secondary">
+                Transformation Readiness is separate from repository eligibility. When no candidate
+                is ready, ToolBox returns the assessment and blocking evidence without calling AI.
+              </div>
+            </div>
           </div>
-          <ul className="divide-y divide-border-subtle">
-            {ASSESSMENT_REQUIREMENTS.map((line, index) => (
-              <li key={line} className="flex items-start gap-3 px-4 py-2.5 text-[13px]">
-                <span className="tb-mono w-5 shrink-0 text-[10px] text-text-quiet">
-                  {String(index + 1).padStart(2, "0")}
-                </span>
-                <span className="text-text-primary/90">{line}</span>
-              </li>
-            ))}
-          </ul>
-          <div className="border-t border-border-subtle bg-surface-inset/60 px-4 py-2.5 text-[12px] leading-relaxed text-text-secondary">
-            Support means the repository can enter Modernization Assessment. It does not mean every
-            domain is transform-ready.
-          </div>
-        </div>
-
-        <div className="tb-panel min-w-0 overflow-hidden">
-          <div className="tb-panel-head">
-            <h2 className="text-[13px] font-semibold text-text-primary">
-              Additional requirements for transformation
-            </h2>
-            <span className="tb-chip tb-chip-accent">enter generation</span>
-          </div>
-          <ul className="divide-y divide-border-subtle">
-            {TRANSFORMATION_REQUIREMENTS.map((line, index) => (
-              <li key={line} className="flex items-start gap-3 px-4 py-2.5 text-[13px]">
-                <span className="tb-mono w-5 shrink-0 text-[10px] text-text-quiet">
-                  {String(index + 1).padStart(2, "0")}
-                </span>
-                <span className="text-text-primary/90">{line}</span>
-              </li>
-            ))}
-          </ul>
-          <div className="border-t border-border-subtle bg-surface-inset/60 px-4 py-2.5 text-[12px] leading-relaxed text-text-secondary">
-            Transformation Readiness is separate from repository eligibility. When no candidate is
-            ready, ToolBox returns the assessment and blocking evidence without calling AI.
-          </div>
-        </div>
+        </details>
       </section>
 
-      {/* 6. Safety and non-goal boundaries */}
-      <section
-        id="controls"
-        aria-labelledby="boundaries-heading"
-        className="tb-panel overflow-hidden"
-      >
-        <div className="tb-panel-head">
-          <div>
-            <h2 id="boundaries-heading" className="text-[13px] font-semibold text-text-primary">
-              Safety and non-goals
-            </h2>
-            <p className="mt-0.5 text-[12px] text-text-secondary">
-              Honest limits ToolBox will not blur.
-            </p>
-          </div>
-        </div>
-        <div className="grid sm:grid-cols-2 lg:grid-cols-3">
-          {BOUNDARIES.map((item, index) => (
-            <article
-              key={item.title}
-              className={`min-w-0 px-4 py-3.5 ${index < 3 ? "border-b border-border-subtle" : ""} ${
-                index % 3 !== 2 ? "lg:border-r lg:border-border-subtle" : ""
-              } ${index % 2 === 0 ? "sm:border-r sm:border-border-subtle" : ""} ${
-                index < 4 ? "sm:border-b sm:border-border-subtle" : ""
-              } ${index >= 3 ? "border-b border-border-subtle sm:border-b-0" : ""} ${
-                index === 4 ? "lg:border-b-0" : ""
-              } ${index === 5 ? "border-b-0 sm:border-b-0" : ""}`}
-            >
-              <h3 className="text-[13px] font-medium text-text-primary">{item.title}</h3>
-              <p className="mt-1 text-[12px] leading-relaxed text-text-secondary">{item.body}</p>
-            </article>
-          ))}
-        </div>
-      </section>
-
-      {/* 7. Final work-console CTA */}
       <section
         aria-labelledby="cta-heading"
         className="flex flex-col items-start justify-between gap-4 rounded-md border border-border-subtle bg-surface-paper px-5 py-4 shadow-[var(--shadow-soft)] sm:flex-row sm:items-center"

@@ -14,13 +14,6 @@ export const SUPPORTED_CONTRACT = [
   "At most 150 analyzed source files and 2 MB analyzed source",
 ] as const;
 
-const CONCISE_CONSTRAINTS = [
-  "Public GitHub root repository only",
-  "Single-package CommonJS Express.js + Mongoose",
-  "Deterministic Safety Screening and eligibility before any AI call",
-  "≤150 analyzed source files and ≤2 MB analyzed source",
-] as const;
-
 type RepositoryStartProps = {
   url: string;
   onUrlChange: (url: string) => void;
@@ -69,50 +62,10 @@ export function RepositoryStart({
 
   return (
     <div className="min-w-0 space-y-4">
-      <section className="tb-panel overflow-hidden" aria-labelledby="start-overview-heading">
-        <div className="tb-panel-head">
-          <div className="min-w-0">
-            <p className="tb-mono text-[10px] uppercase tracking-wide text-text-quiet">
-              repository start
-            </p>
-            <h2 id="start-overview-heading" className="text-[13px] font-semibold text-text-primary">
-              Choose how to begin
-            </h2>
-          </div>
-          <span className="tb-chip">POST /api/runs</span>
-        </div>
-        <div className="space-y-3 p-4 sm:p-5">
-          <p className="max-w-3xl text-[13px] leading-relaxed text-text-secondary">
-            Deterministic Safety Screening and eligibility run before analysis. AI is not called at
-            start. Active runs stay in memory on this host and expire after 30 minutes of inactivity
-            — one active run per client.
-          </p>
-          <aside
-            className="rounded-md border border-accent-action/25 bg-accent-action/5 px-3 py-2.5"
-            aria-label="Recommended demo path"
-          >
-            <p className="tb-mono text-[10px] uppercase tracking-wide text-accent-action">
-              recommended · first safe cut
-            </p>
-            <p className="mt-1 text-[12px] leading-relaxed text-text-secondary">
-              For the hackathon demo, start with{" "}
-              <strong className="font-medium text-text-primary">Try controlled example</strong>
-              {" "}(Path A). It includes Orders, Payments, Users, and a known cycle so ranking,
-              evidence, authorize, accept, and ZIP download fit a short walkthrough.
-            </p>
-          </aside>
-          <ul className="grid gap-2 sm:grid-cols-2">
-            {CONCISE_CONSTRAINTS.map((item) => (
-              <li
-                key={item}
-                className="rounded-md border border-border-subtle bg-surface-inset/60 px-3 py-2 text-[12px] text-text-secondary"
-              >
-                {item}
-              </li>
-            ))}
-          </ul>
-        </div>
-      </section>
+      <p className="max-w-3xl text-[13px] leading-relaxed text-text-secondary">
+        Safety Screening and eligibility run before analysis. AI is not called at start. One active
+        in-memory run per client; runs expire after 30 minutes of inactivity.
+      </p>
 
       <div className="grid min-w-0 gap-4 lg:grid-cols-2">
         <section
@@ -135,8 +88,7 @@ export function RepositoryStart({
           </div>
           <div className="flex flex-1 flex-col gap-3 p-4 sm:p-5">
             <p className="text-[13px] leading-relaxed text-text-secondary">
-              Built-in sample and the reliable demo path. Full workflow (assess → evidence →
-              authorize → accept → ZIP) with no repository URL.
+              Built-in sample with Orders, Payments, Users, and a known cycle.
             </p>
             <div className="mt-auto">
               <button
@@ -344,7 +296,7 @@ export function RepositoryStart({
         </p>
       ) : null}
 
-      <SupportedContractDetails defaultOpen />
+      <SupportedContractDetails defaultOpen={false} />
     </div>
   );
 }
