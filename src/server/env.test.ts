@@ -1,5 +1,14 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { getServerEnv, resetServerEnvCache, SECRET_ENV_KEYS, validateServerEnv } from "./env";
+import {
+  DEFAULT_AI_INPUT_TOKEN_BUDGET,
+  DEFAULT_AI_OUTPUT_TOKEN_BUDGET,
+  MAX_AI_INPUT_TOKEN_BUDGET,
+  MAX_AI_OUTPUT_TOKEN_BUDGET,
+  getServerEnv,
+  resetServerEnvCache,
+  SECRET_ENV_KEYS,
+  validateServerEnv,
+} from "./env";
 
 const validEnv = {
   AI_BASE_URL: "https://api.openai.com/v1",
@@ -18,7 +27,52 @@ describe("validateServerEnv", () => {
     expect(result.ok).toBe(true);
     if (result.ok) {
       expect(result.env.AI_MODEL).toBe("gpt-4.1-mini");
+      expect(result.env.AI_INPUT_TOKEN_BUDGET).toBe(DEFAULT_AI_INPUT_TOKEN_BUDGET);
+      expect(result.env.AI_OUTPUT_TOKEN_BUDGET).toBe(DEFAULT_AI_OUTPUT_TOKEN_BUDGET);
       expect(result.env.GITHUB_TOKEN).toBeUndefined();
+    }
+  });
+
+  it("accepts configured positive token budgets", () => {
+    const result = validateServerEnv({
+      ...validEnv,
+      AI_INPUT_TOKEN_BUDGET: "1234",
+      AI_OUTPUT_TOKEN_BUDGET: "567",
+    });
+    expect(result).toEqual({
+      ok: true,
+      env: expect.objectContaining({
+        AI_INPUT_TOKEN_BUDGET: 1234,
+        AI_OUTPUT_TOKEN_BUDGET: 567,
+      }),
+    });
+  });
+
+  it("accepts token budgets at documented operational maxima", () => {
+    const result = validateServerEnv({
+      ...validEnv,
+      AI_INPUT_TOKEN_BUDGET: String(MAX_AI_INPUT_TOKEN_BUDGET),
+      AI_OUTPUT_TOKEN_BUDGET: String(MAX_AI_OUTPUT_TOKEN_BUDGET),
+    });
+    expect(result).toEqual({
+      ok: true,
+      env: expect.objectContaining({
+        AI_INPUT_TOKEN_BUDGET: MAX_AI_INPUT_TOKEN_BUDGET,
+        AI_OUTPUT_TOKEN_BUDGET: MAX_AI_OUTPUT_TOKEN_BUDGET,
+      }),
+    });
+  });
+
+  it("rejects invalid and over-maximum token budgets", () => {
+    const result = validateServerEnv({
+      ...validEnv,
+      AI_INPUT_TOKEN_BUDGET: String(MAX_AI_INPUT_TOKEN_BUDGET + 1),
+      AI_OUTPUT_TOKEN_BUDGET: String(MAX_AI_OUTPUT_TOKEN_BUDGET + 1),
+    });
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.issues.join(" ")).toContain("AI_INPUT_TOKEN_BUDGET");
+      expect(result.issues.join(" ")).toContain("AI_OUTPUT_TOKEN_BUDGET");
     }
   });
 

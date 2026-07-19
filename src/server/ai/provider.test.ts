@@ -3,6 +3,8 @@ import { assertNormalizedPath } from "@/core/paths";
 import { DEFAULT_STAGE_BUDGETS, type StagePlan } from "@/core/stages";
 import {
   buildSystemPrompt,
+  estimateChatRequestBytes,
+  estimateCompletionBytes,
   delimitUntrustedSource,
   OpenAiCompatibleProvider,
   validateOperationsAgainstStage,
@@ -42,6 +44,16 @@ describe("AI provider adapter", () => {
     );
     expect(prompt).not.toMatch(/"type":"create"\|"update"\|"delete"/);
     expect(prompt).toMatch(/Allowed type values[\s\S]*create[\s\S]*update[\s\S]*delete/);
+  });
+
+  it("uses a deterministic byte estimate with explicit chat framing reserve", () => {
+    expect(
+      estimateChatRequestBytes([
+        { role: "system", content: "é" },
+        { role: "user", content: "a" },
+      ]),
+    ).toBe(22);
+    expect(estimateCompletionBytes("é")).toBe(2);
   });
 
   it("rejects operations over budget", () => {
@@ -98,8 +110,10 @@ describe("AI provider adapter", () => {
 
   it("retries one transient transport failure then succeeds", async () => {
     const calls: string[] = [];
-    const fetchImpl = async () => {
+    let requestBody: unknown;
+    const fetchImpl = async (_url: string, init?: RequestInit) => {
       calls.push("call");
+      requestBody = JSON.parse(String(init?.body));
       if (calls.length === 1) {
         return new Response("rate limited", { status: 429 });
       }
@@ -138,7 +152,186 @@ describe("AI provider adapter", () => {
       instructions: "go",
     });
     expect(calls).toHaveLength(2);
+    expect(requestBody).toMatchObject({ max_tokens: 32 * 1024 });
     expect(result.ok).toBe(true);
+  });
+
+  it("accepts an under-budget request and response", async () => {
+    let calls = 0;
+    const fetchImpl = async () => {
+      calls += 1;
+      return new Response(
+        JSON.stringify({
+          choices: [
+            {
+              message: {
+                content: JSON.stringify({
+                  operations: [{ type: "create", path: "tests/a.test.js", content: "ok" }],
+                }),
+              },
+            },
+          ],
+          usage: { completion_tokens: 2 },
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      );
+    };
+    const provider = new OpenAiCompatibleProvider({
+      fetchImpl: fetchImpl as typeof fetch,
+      baseUrl: "https://example.test/v1",
+      apiKey: "test-key",
+      model: "test-model",
+      tokenBudgets: { input: 10_000, output: 1_000 },
+    });
+
+    const result = await provider.generate({
+      stage: stage(),
+      untrustedSourceBlock: delimitUntrustedSource("code"),
+      instructions: "go",
+    });
+
+    expect(calls).toBe(1);
+    expect(result.ok).toBe(true);
+  });
+
+  it("rejects an over-budget input before calling the provider without leaking source", async () => {
+    let calls = 0;
+    const secret = "repository-secret-must-not-appear-in-errors";
+    const provider = new OpenAiCompatibleProvider({
+      fetchImpl: (async () => {
+        calls += 1;
+        throw new Error("must not be called");
+      }) as typeof fetch,
+      baseUrl: "https://example.test/v1",
+      apiKey: "test-key",
+      model: "test-model",
+      tokenBudgets: { input: 1, output: 1_000 },
+    });
+
+    const result = await provider.generate({
+      stage: stage(),
+      untrustedSourceBlock: delimitUntrustedSource(secret),
+      instructions: "go",
+    });
+
+    expect(calls).toBe(0);
+    expect(result).toMatchObject({
+      ok: false,
+      code: "PROVIDER_BUDGET",
+      message: "Provider input exceeds the configured token budget",
+    });
+    expect(JSON.stringify(result)).not.toContain(secret);
+  });
+
+  it("rejects override budgets above operational maxima before calling the provider", async () => {
+    let calls = 0;
+    const provider = new OpenAiCompatibleProvider({
+      fetchImpl: (async () => {
+        calls += 1;
+        throw new Error("must not be called");
+      }) as typeof fetch,
+      baseUrl: "https://example.test/v1",
+      apiKey: "test-key",
+      model: "test-model",
+      tokenBudgets: { input: 1_000_001, output: 1 },
+    });
+
+    const result = await provider.generate({
+      stage: stage(),
+      untrustedSourceBlock: delimitUntrustedSource("code"),
+      instructions: "go",
+    });
+
+    expect(calls).toBe(0);
+    expect(result).toMatchObject({
+      ok: false,
+      code: "PROVIDER_BUDGET",
+      message: "Provider token budget configuration is invalid",
+    });
+  });
+
+  it("rejects over-budget output before parsing operations, including after a transport retry", async () => {
+    let calls = 0;
+    const fetchImpl = async () => {
+      calls += 1;
+      if (calls === 1) return new Response("retry", { status: 429 });
+      return new Response(
+        JSON.stringify({
+          choices: [
+            {
+              message: {
+                content: JSON.stringify({
+                  operations: [
+                    { type: "create", path: "tests/a.test.js", content: "this cannot be parsed" },
+                  ],
+                }),
+              },
+            },
+          ],
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      );
+    };
+    const provider = new OpenAiCompatibleProvider({
+      fetchImpl: fetchImpl as typeof fetch,
+      baseUrl: "https://example.test/v1",
+      apiKey: "test-key",
+      model: "test-model",
+      tokenBudgets: { input: 10_000, output: 1 },
+    });
+
+    const result = await provider.generate({
+      stage: stage(),
+      untrustedSourceBlock: delimitUntrustedSource("code"),
+      instructions: "go",
+    });
+
+    expect(calls).toBe(2);
+    expect(result).toMatchObject({
+      ok: false,
+      code: "PROVIDER_BUDGET",
+      message: "Provider output exceeds the configured token budget",
+    });
+    expect(result).not.toHaveProperty("rawText");
+  });
+
+  it("rejects malformed provider usage metadata without exposing response content", async () => {
+    const secret = "provider-output-secret";
+    const provider = new OpenAiCompatibleProvider({
+      fetchImpl: (async () =>
+        new Response(
+          JSON.stringify({
+            choices: [
+              {
+                message: {
+                  content: JSON.stringify({
+                    operations: [{ type: "create", path: "tests/a.test.js", content: secret }],
+                  }),
+                },
+              },
+            ],
+            usage: { completion_tokens: "not-a-number" },
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        )) as typeof fetch,
+      baseUrl: "https://example.test/v1",
+      apiKey: "test-key",
+      model: "test-model",
+      tokenBudgets: { input: 10_000, output: 10_000 },
+    });
+
+    const result = await provider.generate({
+      stage: stage(),
+      untrustedSourceBlock: delimitUntrustedSource("code"),
+      instructions: "go",
+    });
+
+    expect(result).toMatchObject({
+      ok: false,
+      code: "PROVIDER_BUDGET",
+      message: "Provider response usage metadata is invalid",
+    });
+    expect(JSON.stringify(result)).not.toContain(secret);
   });
 
   it("prefers object root when prose has brackets before the JSON object", async () => {
@@ -230,6 +423,80 @@ describe("AI provider adapter", () => {
         content: "ok",
       });
     }
+  });
+
+  it("accepts Cline usage nested alongside data choices", async () => {
+    const provider = new OpenAiCompatibleProvider({
+      fetchImpl: (async () =>
+        new Response(
+          JSON.stringify({
+            success: true,
+            data: {
+              choices: [
+                {
+                  message: {
+                    content: JSON.stringify({
+                      operations: [{ type: "create", path: "tests/a.test.js", content: "ok" }],
+                    }),
+                  },
+                },
+              ],
+              usage: { completion_tokens: 2 },
+            },
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        )) as typeof fetch,
+      baseUrl: "https://api.cline.bot/api/v1",
+      apiKey: "test-key",
+      model: "cline-pass/kimi-k2.7-code",
+    });
+
+    const result = await provider.generate({
+      stage: stage(),
+      untrustedSourceBlock: delimitUntrustedSource("code"),
+      instructions: "go",
+    });
+    expect(result.ok).toBe(true);
+  });
+
+  it("rejects malformed nested Cline usage without exposing response content", async () => {
+    const secret = "nested-provider-output-secret";
+    const provider = new OpenAiCompatibleProvider({
+      fetchImpl: (async () =>
+        new Response(
+          JSON.stringify({
+            success: true,
+            data: {
+              choices: [
+                {
+                  message: {
+                    content: JSON.stringify({
+                      operations: [{ type: "create", path: "tests/a.test.js", content: secret }],
+                    }),
+                  },
+                },
+              ],
+              usage: { completion_tokens: "bad" },
+            },
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        )) as typeof fetch,
+      baseUrl: "https://api.cline.bot/api/v1",
+      apiKey: "test-key",
+      model: "cline-pass/kimi-k2.7-code",
+    });
+
+    const result = await provider.generate({
+      stage: stage(),
+      untrustedSourceBlock: delimitUntrustedSource("code"),
+      instructions: "go",
+    });
+    expect(result).toMatchObject({
+      ok: false,
+      code: "PROVIDER_BUDGET",
+      message: "Provider response usage metadata is invalid",
+    });
+    expect(JSON.stringify(result)).not.toContain(secret);
   });
 
   it("unwraps Cline { success, data: { choices } } envelope", async () => {

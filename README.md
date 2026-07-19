@@ -1,6 +1,6 @@
 # ToolBox
 
-Turn one tangled Express domain into a verified module without rewriting the application.
+Turn one tangled Express domain into an accepted module without rewriting the application.
 
 ToolBox analyzes a Supported Repository, ranks technical Domain Candidates using clickable code evidence, and advances the developer-selected candidate through three or four bounded Change Sets. AI generates changes only after authorization; deterministic validation checks every proposal before the developer accepts it.
 
@@ -123,6 +123,11 @@ These URLs are runtime inputs, not hard-coded product outcomes. ToolBox reruns e
 npm install
 cp .env.example .env.local
 # Fill AI_BASE_URL, AI_API_KEY, and AI_MODEL.
+# Optional AI_INPUT_TOKEN_BUDGET (65536 default; 1000000 maximum) and
+# AI_OUTPUT_TOKEN_BUDGET (32768 default; 131072 maximum) are server-side provider request budgets.
+# They use deterministic UTF-8 byte estimates plus a chat framing safety reserve, not exact tokenizer counts.
+# The 32768 output budget is a stricter outer gate than Stage Plan operation/byte ceilings,
+# so a Stage Plan with larger byte ceilings can be unreachable in one provider response.
 # GITHUB_TOKEN is optional and used only for public-repository rate capacity.
 npm run dev
 ```
