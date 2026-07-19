@@ -35,6 +35,7 @@ function emptyAnalysis(): AnalysisResult {
     routes: [],
     models: [],
     modelAccess: [],
+    unsupportedSyntax: [],
     graph: {
       nodes: [],
       edges: [],

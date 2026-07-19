@@ -4,31 +4,33 @@ import path from "node:path";
 import {
   createRepositoryFile,
   createSourceSnapshot,
+  type PackageManagerEvidence,
   type RepositoryFile,
   type SourceSnapshot,
 } from "@/core/repository";
 import { assertNormalizedPath, type NormalizedPath } from "@/core/paths";
 import type { FileOperation } from "@/core/changes";
+import { isIgnoredPath, packageManagerForEvidencePath } from "@/server/github/ignore";
 
 const FIXTURES_ROOT = path.join(process.cwd(), "fixtures");
 
 const SKIP_DIR_NAMES = new Set(["node_modules", "coverage", ".git", "dist", "build", ".next"]);
-
-const SKIP_FILE_NAMES = new Set([
-  "package-lock.json",
-  "yarn.lock",
-  "pnpm-lock.yaml",
-  "npm-shrinkwrap.json",
-]);
 
 export type FixtureId =
   | "controlled-example"
   | "unsupported-esm"
   | "missing-mongoose"
   | "path-risk"
-  | "no-ready-candidate";
+  | "no-ready-candidate"
+  | "unsupported-syntax"
+  | "unsupported-package-manager"
+  | "ambiguous-package-manager";
 
-function walkFiles(dir: string, base: string): RepositoryFile[] {
+function walkFiles(
+  dir: string,
+  base: string,
+  packageManagerEvidence: PackageManagerEvidence[],
+): RepositoryFile[] {
   const entries = readdirSync(dir, { withFileTypes: true });
   const files: RepositoryFile[] = [];
 
@@ -38,18 +40,22 @@ function walkFiles(dir: string, base: string): RepositoryFile[] {
     }
     const full = path.join(dir, entry.name);
     if (entry.isDirectory()) {
-      files.push(...walkFiles(full, base));
+      files.push(...walkFiles(full, base, packageManagerEvidence));
       continue;
     }
     if (!entry.isFile()) {
       continue;
     }
-    if (SKIP_FILE_NAMES.has(entry.name)) {
+    const relative = path.relative(base, full).split(path.sep).join("/");
+    const normalized = assertNormalizedPath(relative);
+    const manager = packageManagerForEvidencePath(normalized);
+    if (manager) {
+      packageManagerEvidence.push({ path: normalized, manager });
+    }
+    if (isIgnoredPath(normalized)) {
       continue;
     }
-    const relative = path.relative(base, full).split(path.sep).join("/");
     const content = readFileSync(full, "utf8");
-    const normalized = assertNormalizedPath(relative);
     files.push(createRepositoryFile(normalized, content));
   }
 
@@ -76,12 +82,14 @@ export function loadFixtureSnapshot(fixtureId: FixtureId): SourceSnapshot {
   if (!existsSync(dir)) {
     throw new Error(`Unknown fixture: ${fixtureId}`);
   }
-  const files = walkFiles(dir, dir);
+  const packageManagerEvidence: PackageManagerEvidence[] = [];
+  const files = walkFiles(dir, dir, packageManagerEvidence);
   return createSourceSnapshot({
     snapshotId: `fixture:${fixtureId}`,
     sourceLabel: `fixture://${fixtureId}`,
     files,
     contentHash: hashFiles(files),
+    packageManagerEvidence,
     entryPath: files.some((f) => f.path === "app.js")
       ? assertNormalizedPath("app.js")
       : files.some((f) => f.path === "index.js")

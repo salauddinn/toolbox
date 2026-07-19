@@ -47,6 +47,221 @@ describe("ExpressAnalyzer.analyze", () => {
     );
   });
 
+  it("retains exact unsupported route, mount, handler, model, and CRUD syntax evidence", async () => {
+    const snapshot = loadFixtureSnapshot("unsupported-syntax");
+    const analysis = await new ExpressAnalyzer().analyze([...snapshot.files.values()]);
+
+    expect(analysis.unsupportedSyntax).toEqual([
+      {
+        kind: "mount",
+        reason: "computed_or_non_literal_mount_prefix",
+        file: "app.js",
+        line: 6,
+        snippet: "app.use(ordersPrefix, ordersRouter);",
+        relatedFiles: ["routes/orders.js"],
+      },
+      {
+        kind: "mount",
+        reason: "direct_require_mount_target",
+        file: "app.js",
+        line: 10,
+        snippet: 'app.use("/orders-direct", require("./routes/orders"));',
+        relatedFiles: ["routes/orders.js"],
+      },
+      {
+        kind: "mount",
+        reason: "middleware_before_router_mount",
+        file: "app.js",
+        line: 11,
+        snippet: 'app.use("/orders-secured", auth, ordersRouter);',
+        relatedFiles: ["routes/orders.js"],
+      },
+      {
+        kind: "model",
+        reason: "non_literal_model_name",
+        file: "models/Order.js",
+        line: 6,
+        snippet: "const Order = mongoose.model(modelName, orderSchema);",
+      },
+      {
+        kind: "route",
+        reason: "computed_or_non_literal_route_path",
+        file: "routes/orders.js",
+        line: 12,
+        snippet: "router.get(dynamicPath, function dynamic(_req, res) {",
+      },
+      {
+        kind: "handler",
+        reason: "unsupported_handler_shape",
+        file: "routes/orders.js",
+        line: 15,
+        snippet: 'router.get("/unsupported-handler", handlers[0]);',
+      },
+      {
+        kind: "crud",
+        reason: "unsupported_crud_method",
+        file: "routes/orders.js",
+        line: 21,
+        snippet: "  await Order.bulkWrite([]);",
+      },
+    ]);
+  });
+
+  it("limits Express syntax evidence to proven bindings and detects computed and chained registrations", async () => {
+    const files = [
+      createRepositoryFile(
+        assertNormalizedPath("package.json"),
+        JSON.stringify({
+          name: "x",
+          main: "app.js",
+          dependencies: { express: "4", mongoose: "8" },
+          devDependencies: { jest: "29", supertest: "7" },
+          scripts: { test: "jest" },
+        }),
+      ),
+      createRepositoryFile(
+        assertNormalizedPath("app.js"),
+        `
+const express = require('express');
+const config = { get() { return '/not-a-route'; } };
+const auth = (_req, _res, next) => next();
+const app = express();
+app.get('/health', (_req, res) => res.end());
+config.get('key');
+app.use('/orders', require('./routes/orders'));
+app.use('/secured-orders', auth, require('./routes/orders'));
+module.exports = app;`,
+      ),
+      createRepositoryFile(
+        assertNormalizedPath("routes/orders.js"),
+        `
+const express = require('express');
+const router = express.Router();
+const method = 'get';
+router[method]('/computed', (_req, res) => res.end());
+router.route('/chained').get((_req, res) => res.end());
+module.exports = router;`,
+      ),
+      createRepositoryFile(
+        assertNormalizedPath("models/Order.js"),
+        `
+const mongoose = require('mongoose');
+const schema = new mongoose.Schema({}, { collection: 'orders' });
+module.exports = mongoose.model('Order', schema);`,
+      ),
+      createRepositoryFile(
+        assertNormalizedPath("utils/PDF.js"),
+        `
+module.exports = { render() {} };`,
+      ),
+      createRepositoryFile(
+        assertNormalizedPath("service.js"),
+        `
+const PDF = require('./utils/PDF');
+PDF.render();`,
+      ),
+    ];
+    const analysis = await new ExpressAnalyzer().analyze(files);
+    expect(analysis.routes).toEqual([
+      expect.objectContaining({ method: "get", path: "/health", file: "app.js" }),
+    ]);
+    expect(analysis.unsupportedSyntax).toEqual([
+      {
+        kind: "mount",
+        reason: "direct_require_mount_target",
+        file: "app.js",
+        line: 8,
+        snippet: "app.use('/orders', require('./routes/orders'));",
+        relatedFiles: ["routes/orders.js"],
+      },
+      {
+        kind: "mount",
+        reason: "middleware_before_router_mount",
+        file: "app.js",
+        line: 9,
+        snippet: "app.use('/secured-orders', auth, require('./routes/orders'));",
+        relatedFiles: ["routes/orders.js"],
+      },
+      {
+        kind: "route",
+        reason: "computed_route_method",
+        file: "routes/orders.js",
+        line: 5,
+        snippet: "router[method]('/computed', (_req, res) => res.end());",
+      },
+      {
+        kind: "route",
+        reason: "chained_route_registration",
+        file: "routes/orders.js",
+        line: 6,
+        snippet: "router.route('/chained').get((_req, res) => res.end());",
+      },
+    ]);
+  });
+
+  it("preserves supported imported-router and public-module member mounts", async () => {
+    const files = [
+      createRepositoryFile(
+        assertNormalizedPath("package.json"),
+        JSON.stringify({
+          name: "x",
+          main: "app.js",
+          dependencies: { express: "4", mongoose: "8" },
+        }),
+      ),
+      createRepositoryFile(
+        assertNormalizedPath("app.js"),
+        `
+const express = require('express');
+const productsRouter = require('./routes/products');
+const ordersModule = require('./modules/orders');
+const app = express();
+app.use('/products', productsRouter);
+app.use('/orders', ordersModule.router);
+module.exports = app;`,
+      ),
+      createRepositoryFile(
+        assertNormalizedPath("routes/products.js"),
+        `
+const express = require('express');
+const router = express.Router();
+router.get('/list', (_req, res) => res.end());
+module.exports = router;`,
+      ),
+      createRepositoryFile(
+        assertNormalizedPath("modules/orders/index.js"),
+        `module.exports = { router: require('./orders.routes') };`,
+      ),
+      createRepositoryFile(
+        assertNormalizedPath("modules/orders/orders.routes.js"),
+        `
+const express = require('express');
+const router = express.Router();
+router.get('/list', (_req, res) => res.end());
+module.exports = router;`,
+      ),
+      createRepositoryFile(
+        assertNormalizedPath("models/Order.js"),
+        `
+const mongoose = require('mongoose');
+const schema = new mongoose.Schema({}, { collection: 'orders' });
+module.exports = mongoose.model('Order', schema);`,
+      ),
+    ];
+
+    const analysis = await new ExpressAnalyzer().analyze(files);
+    expect(analysis.routes).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ file: "routes/products.js", path: "/products/list" }),
+        expect.objectContaining({
+          file: "modules/orders/orders.routes.js",
+          path: "/orders/list",
+        }),
+      ]),
+    );
+    expect(analysis.unsupportedSyntax).toEqual([]);
+  });
+
   it("records unsupported non-literal route paths", async () => {
     const files = [
       createRepositoryFile(

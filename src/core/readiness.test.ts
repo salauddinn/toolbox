@@ -42,6 +42,7 @@ describe("buildTransformationReadiness", () => {
       pass("READINESS_NO_UNSUPPORTED_GLOBAL_WRITES"),
       pass("READINESS_WITHIN_GENERATION_LIMITS"),
       pass("READINESS_SUPPORTED_CYCLES_ONLY"),
+      pass("READINESS_SUPPORTED_TRANSFORMATION_SYNTAX"),
       pass("READINESS_NO_UNSUPPORTED_BLOCKER"),
     ]);
     expect(readiness.ready).toBe(true);
