@@ -279,6 +279,125 @@ export function MarketingLanding() {
       </section>
 
       <section
+        id="why-toolbox"
+        aria-labelledby="comparison-heading"
+        className="tb-panel overflow-hidden"
+      >
+        <div className="tb-panel-head">
+          <div>
+            <h2 id="comparison-heading" className="text-[13px] font-semibold text-text-primary">
+              From general-purpose AI to purpose-built modernization
+            </h2>
+            <p className="mt-0.5 text-[12px] text-text-secondary">
+              AI coding assistants are powerful. ToolBox adds the structure, evidence, and validation
+              gates that monolith modernization specifically needs.
+            </p>
+          </div>
+          <span className="tb-chip tb-chip-accent">compare</span>
+        </div>
+
+        <div className="grid border-t border-border-subtle lg:grid-cols-2">
+          <div className="min-w-0 border-b border-border-subtle lg:border-b-0 lg:border-r lg:border-border-subtle">
+            <div className="flex items-center gap-2 border-b border-border-subtle bg-surface-inset/60 px-4 py-2.5">
+              <span className="tb-chip">general</span>
+              <h3 className="text-[13px] font-semibold text-text-primary">
+                General-purpose AI assistant
+              </h3>
+            </div>
+            <ul className="divide-y divide-border-subtle">
+              {([
+                {
+                  label: "Discovery",
+                  detail: "Responds based on available context. You describe what to extract; AI suggests based on the files it can see.",
+                },
+                {
+                  label: "Evidence",
+                  detail: "Conversational explanation. No structured dependency graph or scored readiness ranking.",
+                },
+                {
+                  label: "Scope control",
+                  detail: "Broad flexibility — AI can touch any file in a single response, which is great for general tasks.",
+                },
+                {
+                  label: "Validation",
+                  detail: "You verify the output manually or run your own test suite after each change.",
+                },
+                {
+                  label: "Approval gate",
+                  detail: "Changes are presented as a diff or applied directly. Review happens after generation.",
+                },
+                {
+                  label: "Repair",
+                  detail: "If something breaks, you iterate with follow-up prompts until it works.",
+                },
+              ] as const).map((row) => (
+                <li key={row.label} className="px-4 py-2.5">
+                  <p className="tb-mono text-[10px] uppercase tracking-wide text-text-quiet">{row.label}</p>
+                  <p className="mt-1 text-[12px] leading-relaxed text-text-secondary">{row.detail}</p>
+                </li>
+              ))}
+            </ul>
+            <div className="border-t border-border-subtle bg-surface-inset/60 px-4 py-2.5 text-[12px] leading-relaxed text-text-secondary">
+              Excellent for general coding, debugging, and exploration. ToolBox builds on this
+              foundation for one specialized job.
+            </div>
+          </div>
+
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 border-b border-border-subtle bg-diff-add-bg px-4 py-2.5">
+              <span className="tb-chip tb-chip-ok">toolbox</span>
+              <h3 className="text-[13px] font-semibold text-text-primary">
+                With ToolBox
+              </h3>
+            </div>
+            <ul className="divide-y divide-border-subtle">
+              {([
+                {
+                  label: "Discovery",
+                  detail: "Deterministic AST analysis ranks Domain Candidates by coupling, routes, models, and cycles — before AI is called.",
+                },
+                {
+                  label: "Evidence",
+                  detail: "Clickable code evidence — imports, callers, database writes — with scored readiness and blocking signals.",
+                },
+                {
+                  label: "Scope control",
+                  detail: "Stage Plan defines a path envelope and budget. AI generation stays inside the authorized boundary.",
+                },
+                {
+                  label: "Validation",
+                  detail: "Static Validation checks syntax, path scope, route table, and schema fingerprints automatically after every change.",
+                },
+                {
+                  label: "Approval gate",
+                  detail: "Explicit Change Acceptance after reviewing the validated diff. AI cannot self-apply any output.",
+                },
+                {
+                  label: "Repair",
+                  detail: "One bounded repair attempt with automatic re-validation. Second failure rolls back to last accepted snapshot.",
+                },
+              ] as const).map((row) => (
+                <li key={row.label} className="px-4 py-2.5">
+                  <p className="tb-mono text-[10px] uppercase tracking-wide text-text-quiet">{row.label}</p>
+                  <p className="mt-1 text-[12px] leading-relaxed text-text-secondary">{row.detail}</p>
+                </li>
+              ))}
+            </ul>
+            <div className="border-t border-border-subtle bg-surface-inset/60 px-4 py-2.5 text-[12px] leading-relaxed text-text-secondary">
+              Purpose-built for monolith modernization. Every step is evidence-backed, bounded, and
+              validated.
+            </div>
+          </div>
+        </div>
+
+        <div className="border-t border-border-subtle bg-surface-inset/40 px-4 py-3 text-[12px] leading-relaxed text-text-secondary">
+          <strong className="font-medium text-text-primary">Built with Codex.</strong>{" "}
+          ToolBox itself was developed using OpenAI Codex for planning, code generation, and testing —
+          then adds deterministic analysis, validation, and approval gates on top.
+        </div>
+      </section>
+
+      <section
         id="how-it-works"
         aria-labelledby="workflow-heading"
         className="tb-panel overflow-hidden"
