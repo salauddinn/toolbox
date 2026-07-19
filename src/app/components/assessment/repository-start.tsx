@@ -97,8 +97,8 @@ export function RepositoryStart({
             <p className="mt-1 text-[12px] leading-relaxed text-text-secondary">
               For the hackathon demo, start with{" "}
               <strong className="font-medium text-text-primary">Try controlled example</strong>
-              (Path A). It includes Orders, Payments, Users, and a known cycle so ranking, evidence,
-              authorize, accept, and ZIP download fit a short walkthrough.
+              {" "}(Path A). It includes Orders, Payments, Users, and a known cycle so ranking,
+              evidence, authorize, accept, and ZIP download fit a short walkthrough.
             </p>
           </aside>
           <ul className="grid gap-2 sm:grid-cols-2">
@@ -116,13 +116,13 @@ export function RepositoryStart({
 
       <div className="grid min-w-0 gap-4 lg:grid-cols-2">
         <section
-          className="tb-panel flex min-w-0 flex-col overflow-hidden"
+          className="tb-panel flex min-w-0 flex-col overflow-hidden border-l-[3px] border-l-accent-action ring-1 ring-accent-action/20"
           aria-labelledby="controlled-example-heading"
         >
           <div className="tb-panel-head">
             <div className="min-w-0">
-              <p className="tb-mono text-[10px] uppercase tracking-wide text-text-quiet">
-                path a · fixture
+              <p className="tb-mono text-[10px] uppercase tracking-wide text-accent-action">
+                path a · recommended demo
               </p>
               <h2
                 id="controlled-example-heading"
@@ -135,8 +135,8 @@ export function RepositoryStart({
           </div>
           <div className="flex flex-1 flex-col gap-3 p-4 sm:p-5">
             <p className="text-[13px] leading-relaxed text-text-secondary">
-              Run the built-in supported sample—the reliable demo path. Learn the full workflow
-              (assess → evidence → authorize → accept → ZIP) without providing a repository URL.
+              Built-in sample and the reliable demo path. Full workflow (assess → evidence →
+              authorize → accept → ZIP) with no repository URL.
             </p>
             <div className="mt-auto">
               <button
@@ -146,7 +146,7 @@ export function RepositoryStart({
                   onConfirmingReplaceChange(false);
                   onStartFixture();
                 }}
-                className="tb-btn tb-btn-primary w-full sm:w-auto"
+                className="tb-btn tb-btn-primary h-10 w-full sm:w-auto sm:min-w-[12rem]"
               >
                 {busy && !showConflict ? "Starting…" : "Try controlled example"}
               </button>

@@ -43,11 +43,12 @@ describe("product landing", () => {
     });
     expect(hero).toHaveTextContent(/first safe cut/i);
     expect(hero).toHaveTextContent(/Input:/i);
-    expect(hero).toHaveTextContent(/public GitHub root repository/i);
+    expect(hero).toHaveTextContent(/public GitHub root/i);
+    expect(hero).toHaveTextContent(/controlled example/i);
     expect(hero).toHaveTextContent(/Outcome:/i);
     expect(hero).toHaveTextContent(/Domain Module/i);
-    expect(hero).toHaveTextContent(/authorize a Stage Plan/i);
-    expect(hero).toHaveTextContent(/Change Acceptance/i);
+    expect(hero).toHaveTextContent(/authorize and accept/i);
+    expect(hero).toHaveTextContent(/AI never self-applies/i);
     expect(hero).toHaveTextContent(/Static Validation is not Runtime Validation/i);
     expect(screen.getByRole("complementary", { name: "Hackathon demo path" })).toHaveTextContent(
       /Try controlled example/i,

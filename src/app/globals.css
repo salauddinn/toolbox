@@ -10,10 +10,10 @@
 */
 :root,
 html[data-theme="light"] {
-  /* Cool white surfaces */
-  --canvas-paper: #f4f5f7;
+  /* Cool white surfaces — near-white canvas, pure white cards */
+  --canvas-paper: #f7f8fa;
   --surface-paper: #ffffff;
-  --surface-inset: #eef1f5;
+  --surface-inset: #eef1f6;
 
   /* Text — AA on white surfaces */
   --text-primary: #0b1220;

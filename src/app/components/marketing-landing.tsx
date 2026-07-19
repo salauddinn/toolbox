@@ -195,18 +195,15 @@ export function MarketingLanding() {
               only what you authorize.
             </h1>
             <p className="max-w-xl text-[15px] leading-relaxed text-text-secondary sm:text-base">
-              ToolBox turns one tangled Express domain into an accepted Domain Module inside the
-              existing deployment boundary—without rewriting the application or inventing a
-              microservice split.
+              Turn one tangled Express domain into an accepted Domain Module inside the same deploy
+              boundary—no rewrite, no fake microservice split.
             </p>
             <p className="max-w-xl text-[15px] leading-relaxed text-text-secondary sm:text-base">
-              <strong className="font-medium text-text-primary">Input:</strong> a public GitHub root
-              repository that meets the assessment contract, or the controlled example.{" "}
-              <strong className="font-medium text-text-primary">Outcome:</strong> an evidence-backed
-              Modernization Assessment, then—when you choose—a sequence of bounded Change Sets that
-              extract one Domain Module. AI proposes source edits only after you authorize a Stage
-              Plan. Deterministic Static Validation checks every proposal. Nothing enters the
-              snapshot until your Change Acceptance. Static Validation is not Runtime Validation.
+              <strong className="font-medium text-text-primary">Input:</strong> public GitHub root or
+              controlled example.{" "}
+              <strong className="font-medium text-text-primary">Outcome:</strong> evidence-ranked
+              candidates, then bounded Change Sets you authorize and accept. AI never self-applies.
+              Static Validation is not Runtime Validation.
             </p>
           </div>
 
