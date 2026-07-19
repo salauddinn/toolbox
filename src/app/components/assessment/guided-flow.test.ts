@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { guidedStepStatuses, resolveGuidedStep } from "./guided-flow";
+import {
+  guidedStepEyebrow,
+  guidedStepStatuses,
+  guidedStepTitle,
+  resolveGuidedOutcome,
+  resolveGuidedStep,
+} from "./guided-flow";
 
 describe("guided flow mapping", () => {
   it("maps start and gate failures to step 1", () => {
@@ -21,6 +27,7 @@ describe("guided flow mapping", () => {
     expect(resolveGuidedStep({ phase: "generating" })).toBe(3);
     expect(resolveGuidedStep({ phase: "awaiting_acceptance" })).toBe(4);
     expect(resolveGuidedStep({ phase: "sequence_stopped" })).toBe(4);
+    expect(resolveGuidedStep({ phase: "stage_failed_rolled_back" })).toBe(4);
   });
 
   it("maps completion to step 5", () => {
@@ -35,5 +42,16 @@ describe("guided flow mapping", () => {
       4: "upcoming",
       5: "upcoming",
     });
+  });
+
+  it("labels stopped and rolled-back outcomes on step 4", () => {
+    expect(resolveGuidedOutcome("sequence_stopped")).toBe("stopped");
+    expect(resolveGuidedOutcome("stage_failed_rolled_back")).toBe("rolled_back");
+    expect(guidedStepStatuses(4, "stopped")[4]).toBe("stopped");
+    expect(guidedStepStatuses(4, "rolled_back")[4]).toBe("rolled_back");
+    expect(guidedStepTitle(4, "stopped")).toBe("Sequence stopped");
+    expect(guidedStepTitle(4, "rolled_back")).toBe("Stage rolled back");
+    expect(guidedStepEyebrow(4, "stopped")).toContain("Stopped");
+    expect(guidedStepEyebrow(4, "rolled_back")).toContain("Rolled back");
   });
 });

@@ -194,7 +194,7 @@ function EndRunControls({
                 onConfirmingEndChange(false);
                 onEndRun();
               }}
-              className="tb-btn tb-btn-primary"
+              className="tb-btn tb-btn-primary h-11 min-h-11 px-4 text-[13px] font-semibold"
               data-testid="outcome-end-confirm-submit"
             >
               {endError ? "Retry end run" : "Confirm end run"}
@@ -215,7 +215,7 @@ function EndRunControls({
           type="button"
           disabled={busy}
           onClick={() => onConfirmingEndChange(true)}
-          className="tb-btn tb-btn-secondary"
+          className="tb-btn tb-btn-primary h-11 min-h-11 px-4 text-[13px] font-semibold"
           data-testid="outcome-end-run-button"
         >
           {endError ? "Retry end run / Start over" : "End run / Start over"}

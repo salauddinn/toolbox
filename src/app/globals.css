@@ -270,6 +270,41 @@ body {
   padding: 0.625rem 0.875rem;
 }
 
+/*
+  Inside the guided main card, drop nested panel chrome so content is not
+  double-framed. Keep terminal surfaces intact for code/evidence.
+*/
+.guided-main .tb-panel {
+  border: none;
+  background: transparent;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.guided-main .tb-panel + .tb-panel {
+  border-top: 1px solid var(--border-subtle);
+  padding-top: 1rem;
+  margin-top: 0.25rem;
+}
+
+.guided-main .tb-panel-head {
+  background: transparent;
+  border-bottom-color: var(--border-subtle);
+  padding-left: 0;
+  padding-right: 0;
+}
+
+.guided-main .tb-panel > :not(.tb-panel-head):not(.tb-terminal) {
+  /* Keep body content readable without extra card padding stacking */
+}
+
+.guided-main .rounded-2xl.border,
+.guided-main .rounded-xl.border,
+.guided-main .rounded-lg.border {
+  /* Soften nested rounded cards that reintroduce double frames */
+  box-shadow: none;
+}
+
 .tb-terminal {
   border: 1px solid var(--terminal-border);
   background: var(--surface-terminal);

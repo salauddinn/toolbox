@@ -7,7 +7,7 @@ import { EvidenceInspector } from "./assessment/evidence-inspector";
 import type { EvidenceInspectorState, InspectRequest } from "./assessment/evidence-types";
 import { toInspectorState } from "./assessment/evidence-types";
 import { GateFailure } from "./assessment/gate-failure";
-import { resolveGuidedStep } from "./assessment/guided-flow";
+import { resolveGuidedOutcome, resolveGuidedStep } from "./assessment/guided-flow";
 import { GuidedShell } from "./assessment/guided-shell";
 import {
   DURABLE_RUN_PHASES,
@@ -259,12 +259,58 @@ export function AssessmentApp() {
       assessment.pendingState ?? (blockedStart ? "active-run-conflict" : !run ? "no-run" : null),
     unknownPhase,
   });
+  const guidedOutcome = resolveGuidedOutcome(run?.phase ?? null);
 
   const guidedSubtitle = !run
     ? "Choose how to begin. We’ll guide you one step at a time."
     : gatePhase
       ? "This run stopped before modernization. Review the reason, then start over."
-      : presentation.explanation;
+      : guidedOutcome === "rolled_back"
+        ? "This stage failed validation and was rolled back. End the run to start over."
+        : guidedOutcome === "stopped"
+          ? "The sequence stopped. End the run to return to start."
+          : presentation.explanation;
+
+  const outcomeFooter =
+    outcomePhase && can("end_run") ? (
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <p className="text-[13px] leading-relaxed text-muted">
+          {guidedOutcome === "rolled_back"
+            ? "Rolled-back output was not accepted. End the run to continue."
+            : "This run cannot continue. End it to return to repository start."}
+        </p>
+        {confirmingEnd ? (
+          <div className="flex flex-wrap gap-2" role="group" aria-label="Confirm end run">
+            <button
+              type="button"
+              disabled={busy}
+              onClick={performEndRun}
+              className="tb-btn tb-btn-primary h-11 min-h-11 px-4 text-[13px] font-semibold"
+            >
+              Confirm end run
+            </button>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => setConfirmingEnd(false)}
+              className="tb-btn tb-btn-ghost h-11 min-h-11 px-4 text-[13px]"
+            >
+              Cancel
+            </button>
+          </div>
+        ) : (
+          <button
+            type="button"
+            disabled={busy}
+            onClick={requestEndRun}
+            className="tb-btn tb-btn-primary h-11 min-h-11 px-4 text-[13px] font-semibold"
+            data-testid="guided-outcome-end-run"
+          >
+            End run / Start over
+          </button>
+        )}
+      </div>
+    ) : null;
 
   const headerActions = (
     <>
@@ -323,9 +369,11 @@ export function AssessmentApp() {
       <div inert={inspector ? true : undefined} className="min-w-0">
         <GuidedShell
           currentStep={currentStep}
+          outcome={guidedOutcome}
           title={unknownPhase ? presentation.heading : undefined}
           subtitle={guidedSubtitle}
           actions={headerActions}
+          footer={outcomeFooter}
         >
           {!run ? (
             <RepositoryStart

@@ -12,7 +12,9 @@ export const GUIDED_STEPS = [
 export type GuidedStepId = (typeof GUIDED_STEPS)[number]["id"];
 export type GuidedStepKey = (typeof GUIDED_STEPS)[number]["key"];
 
-export type GuidedStepStatus = "complete" | "current" | "upcoming" | "blocked";
+export type GuidedStepStatus = "complete" | "current" | "upcoming" | "stopped" | "rolled_back";
+
+export type GuidedOutcome = "none" | "stopped" | "rolled_back";
 
 /**
  * Map durable run phases / local start states onto the 5-step guided flow.
@@ -23,19 +25,7 @@ export function resolveGuidedStep(input: {
   localState?: LocalPresentationState | null;
   unknownPhase?: boolean;
 }): GuidedStepId {
-  if (input.unknownPhase) return 1;
-  if (!input.phase) {
-    if (
-      input.localState === "start-request-pending" ||
-      input.localState === "active-run-conflict" ||
-      input.localState === "replace-run-request-pending" ||
-      input.localState === "no-run" ||
-      !input.localState
-    ) {
-      return 1;
-    }
-    return 1;
-  }
+  if (input.unknownPhase || !input.phase) return 1;
 
   switch (input.phase) {
     case "created":
@@ -57,24 +47,43 @@ export function resolveGuidedStep(input: {
       return 5;
     case "stage_failed_rolled_back":
     case "sequence_stopped":
-      // Terminal outcomes still belong to the sequence path; show Review context.
+      // Terminal sequence outcomes stay on the review/outcome step.
       return 4;
     default:
       return 1;
   }
 }
 
-export function guidedStepStatuses(current: GuidedStepId): Record<GuidedStepId, GuidedStepStatus> {
-  return {
+export function resolveGuidedOutcome(phase?: PublicRunView["phase"] | null): GuidedOutcome {
+  if (phase === "stage_failed_rolled_back") return "rolled_back";
+  if (phase === "sequence_stopped") return "stopped";
+  return "none";
+}
+
+export function guidedStepStatuses(
+  current: GuidedStepId,
+  outcome: GuidedOutcome = "none",
+): Record<GuidedStepId, GuidedStepStatus> {
+  const base: Record<GuidedStepId, GuidedStepStatus> = {
     1: current > 1 ? "complete" : "current",
     2: current > 2 ? "complete" : current === 2 ? "current" : "upcoming",
     3: current > 3 ? "complete" : current === 3 ? "current" : "upcoming",
     4: current > 4 ? "complete" : current === 4 ? "current" : "upcoming",
     5: current === 5 ? "current" : "upcoming",
   };
+
+  if (current === 4 && outcome === "stopped") {
+    base[4] = "stopped";
+  }
+  if (current === 4 && outcome === "rolled_back") {
+    base[4] = "rolled_back";
+  }
+  return base;
 }
 
-export function guidedStepTitle(step: GuidedStepId): string {
+export function guidedStepTitle(step: GuidedStepId, outcome: GuidedOutcome = "none"): string {
+  if (step === 4 && outcome === "stopped") return "Sequence stopped";
+  if (step === 4 && outcome === "rolled_back") return "Stage rolled back";
   switch (step) {
     case 1:
       return "Start with a repository";
@@ -89,7 +98,24 @@ export function guidedStepTitle(step: GuidedStepId): string {
   }
 }
 
-export function guidedStepEyebrow(step: GuidedStepId): string {
+export function guidedStepEyebrow(step: GuidedStepId, outcome: GuidedOutcome = "none"): string {
+  if (step === 4 && outcome === "stopped") return "Step 4 of 5 · Stopped";
+  if (step === 4 && outcome === "rolled_back") return "Step 4 of 5 · Rolled back";
   const meta = GUIDED_STEPS[step - 1]!;
   return `Step ${meta.id} of 5 · ${meta.label}`;
+}
+
+export function guidedStepStatusLabel(status: GuidedStepStatus): string {
+  switch (status) {
+    case "complete":
+      return "Done";
+    case "current":
+      return "Current";
+    case "upcoming":
+      return "Up next";
+    case "stopped":
+      return "Stopped";
+    case "rolled_back":
+      return "Rolled back";
+  }
 }
