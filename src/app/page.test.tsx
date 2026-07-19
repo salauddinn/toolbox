@@ -29,7 +29,7 @@ describe("product landing", () => {
     expect(
       screen.getByRole("heading", {
         level: 1,
-        name: "From a Supported Repository to one accepted Domain Module.",
+        name: /Find a domain you can modularize safely/i,
       }),
     ).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Open work console" })).toHaveAttribute("href", "/app");
@@ -39,8 +39,9 @@ describe("product landing", () => {
     );
 
     const hero = screen.getByRole("region", {
-      name: "From a Supported Repository to one accepted Domain Module.",
+      name: /Find a domain you can modularize safely/i,
     });
+    expect(hero).toHaveTextContent(/first safe cut/i);
     expect(hero).toHaveTextContent(/Input:/i);
     expect(hero).toHaveTextContent(/public GitHub root repository/i);
     expect(hero).toHaveTextContent(/Outcome:/i);
@@ -48,9 +49,15 @@ describe("product landing", () => {
     expect(hero).toHaveTextContent(/authorize a Stage Plan/i);
     expect(hero).toHaveTextContent(/Change Acceptance/i);
     expect(hero).toHaveTextContent(/Static Validation is not Runtime Validation/i);
+    expect(screen.getByRole("complementary", { name: "Hackathon demo path" })).toHaveTextContent(
+      /Try controlled example/i,
+    );
     expect(screen.getByText("Bounded generation")).toBeInTheDocument();
     expect(screen.getByText("Per Stage Plan")).toBeInTheDocument();
     expect(screen.getByText("Developer only")).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Ready for the first safe cut?" }),
+    ).toBeInTheDocument();
   });
 
   it("shows a selectable terminal assessment specimen with meaningful evidence text", () => {

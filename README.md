@@ -10,6 +10,10 @@ ToolBox keeps the application inside its existing deployment boundary. It does n
 
 Built for the OpenAI x NamasteDev Codex Hackathon, 15-19 July 2026.
 
+**Pitch:** Find a domain you can modularize safely. Prove it with code evidence. Let AI change only what you authorize.
+
+Judges and reviewers: use **Try controlled example** in the work console for the reliable ~3-minute path. Full narration and cut list: [`docs/DEMO-SCRIPT.md`](docs/DEMO-SCRIPT.md).
+
 The project demonstrates an evidence-first use of AI for a high-risk engineering workflow. AI is not trusted to decide repository eligibility, invent architectural facts, waive blockers, or apply its own output. It generates code inside a deterministic Stage Plan, receives structured validation errors for at most one repair attempt, and remains subject to explicit developer acceptance.
 
 ## Why it matters

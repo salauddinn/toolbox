@@ -183,6 +183,7 @@ export function MarketingLanding() {
             </span>
             <span className="tb-chip">express · mongoose · commonjs</span>
             <span className="tb-chip">same deploy boundary</span>
+            <span className="tb-chip tb-chip-accent">first safe cut</span>
           </div>
 
           <div className="space-y-4">
@@ -190,22 +191,39 @@ export function MarketingLanding() {
               id="landing-hero-heading"
               className="tb-serif max-w-2xl text-[2rem] font-semibold leading-[1.15] tracking-tight text-text-primary sm:text-[2.55rem]"
             >
-              From a Supported Repository to one accepted Domain Module.
+              Find a domain you can modularize safely. Prove it with code evidence. Let AI change
+              only what you authorize.
             </h1>
+            <p className="max-w-xl text-[15px] leading-relaxed text-text-secondary sm:text-base">
+              ToolBox turns one tangled Express domain into an accepted Domain Module inside the
+              existing deployment boundary—without rewriting the application or inventing a
+              microservice split.
+            </p>
             <p className="max-w-xl text-[15px] leading-relaxed text-text-secondary sm:text-base">
               <strong className="font-medium text-text-primary">Input:</strong> a public GitHub root
               repository that meets the assessment contract, or the controlled example.{" "}
               <strong className="font-medium text-text-primary">Outcome:</strong> an evidence-backed
               Modernization Assessment, then—when you choose—a sequence of bounded Change Sets that
-              extract one Domain Module inside the existing deployment boundary.
-            </p>
-            <p className="max-w-xl text-[15px] leading-relaxed text-text-secondary sm:text-base">
-              AI proposes source edits only after you authorize a Stage Plan. Deterministic Static
-              Validation checks every proposal. Nothing enters the snapshot until your Change
-              Acceptance. Static Validation is not Runtime Validation and does not prove behavioural
-              equivalence.
+              extract one Domain Module. AI proposes source edits only after you authorize a Stage
+              Plan. Deterministic Static Validation checks every proposal. Nothing enters the
+              snapshot until your Change Acceptance. Static Validation is not Runtime Validation.
             </p>
           </div>
+
+          <aside
+            className="max-w-xl rounded-md border border-accent-action/25 bg-accent-action/5 px-3.5 py-3"
+            aria-label="Hackathon demo path"
+          >
+            <p className="tb-mono text-[10px] uppercase tracking-wide text-accent-action">
+              hackathon judges · ~3 minutes
+            </p>
+            <p className="mt-1 text-[13px] leading-relaxed text-text-secondary">
+              Open the work console and use{" "}
+              <strong className="font-medium text-text-primary">Try controlled example</strong>.
+              Ranked candidates → click evidence → authorize one Stage Plan → accept the Change Set
+              → download the result ZIP. Prefer the fixture path over a random public repository.
+            </p>
+          </aside>
 
           <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center">
             <Link href="/app" className="tb-btn tb-btn-primary h-11 px-5 text-sm">
@@ -441,10 +459,12 @@ export function MarketingLanding() {
       >
         <div className="min-w-0">
           <h2 id="cta-heading" className="text-[14px] font-medium text-text-primary">
-            Ready to run an assessment?
+            Ready for the first safe cut?
           </h2>
           <p className="mt-0.5 text-[12px] text-text-secondary">
-            Open the work console to try the controlled example or paste a public GitHub URL.
+            Judges and first-time visitors: open the work console and run{" "}
+            <strong className="font-medium text-text-primary">Try controlled example</strong>. Or
+            paste a public GitHub root that matches the supported contract.
           </p>
         </div>
         <Link href="/app" className="tb-btn tb-btn-primary h-10 shrink-0 px-4">
