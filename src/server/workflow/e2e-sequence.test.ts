@@ -7,6 +7,7 @@ import { startAssessment } from "./assess";
 import { selectDomainCandidate } from "./select";
 import { acceptCurrentChangeSet, authorizeAndGenerate } from "./stage-runner";
 import { buildDownloadArtifact } from "./download";
+import { toPublicRunView, type PublicRunView } from "./public-view";
 
 async function selectReady(store: RunStore, clientKeyHash: string) {
   const assessed = await startAssessment({
@@ -168,4 +169,55 @@ describe("controlled-example end-to-end sequence", () => {
     });
     expect(blocked.ok).toBe(false);
   });
+
+  it("blocks the result ZIP and marks the run partial when a known blocker is recorded", async () => {
+    const store = new RunStore();
+    const client = "blocker-client";
+    let run = await selectReady(store, client);
+    const runId = run.runId as RunId;
+
+    for (let i = 0; i < 4; i += 1) {
+      const current = store.get(runId);
+      if (!current || current.phase === "completed") break;
+      const generated = await authorizeAndGenerate({
+        runId,
+        clientKeyHash: client,
+        store,
+        forceDeterministic: true,
+      });
+      if (!generated.ok) throw new Error(`${generated.code}: ${generated.message}`);
+      const accepted = acceptCurrentChangeSet({ runId, clientKeyHash: client, store });
+      if (!accepted.ok) throw new Error(accepted.message);
+      run = accepted.run;
+    }
+    expect(run.phase).toBe("completed");
+    if (run.phase !== "completed") return;
+
+    // Simulate a recorded known blocker on an otherwise completed run.
+    const blockedRun = {
+      ...run,
+      knownBlockers: [
+        {
+          stageId: "stage-cycle-repair",
+          stageKind: "cycle_repair" as const,
+          title: "Resolve circular dependency",
+          reason: "validation_rollback" as const,
+        },
+      ],
+    };
+    store.set(blockedRun);
+
+    const download = buildDownloadArtifact({ runId, clientKeyHash: client, store });
+    expect(download.ok).toBe(false);
+    if (download.ok) return;
+    expect(download.code).toBe("ARTIFACT_BLOCKED_BY_KNOWN_BLOCKER");
+    expect(download.status).toBe(409);
+
+    const view = toPublicRunView(blockedRun) as PublicRunView;
+    if (view.phase !== "completed") return;
+    expect(view.knownBlockers).toHaveLength(1);
+    expect(view.completionStatus).toBe("completed_with_known_blocker");
+    expect(view.downloadAvailable).toBe(false);
+    expect(view.downloadPath).toBeUndefined();
+  }, 60_000);
 });

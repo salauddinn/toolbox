@@ -126,6 +126,15 @@ function publicSequence(sequence: ModernizationSequencePlan) {
   };
 }
 
+function publicKnownBlockers(state: RunState) {
+  return (state.knownBlockers ?? []).map((blocker) => ({
+    stageId: blocker.stageId,
+    stageKind: blocker.stageKind,
+    title: blocker.title,
+    reason: blocker.reason,
+  }));
+}
+
 function readinessRecord(
   map: ReadonlyMap<string, TransformationReadiness>,
 ): Record<string, ReturnType<typeof publicReadiness>> {
@@ -218,6 +227,7 @@ export function toPublicRunView(state: RunState) {
         stageIndex: state.stageIndex,
         currentStage: publicStage(state.currentStage),
         acceptedChangeSetCount: state.acceptedChangeSets.length,
+        knownBlockers: publicKnownBlockers(state),
         validationReport:
           state.phase === "stage_failed_rolled_back" ? state.validationReport : undefined,
       };
@@ -231,6 +241,7 @@ export function toPublicRunView(state: RunState) {
         stageIndex: state.stageIndex,
         currentStage: publicStage(state.currentStage),
         acceptedChangeSetCount: state.acceptedChangeSets.length,
+        knownBlockers: publicKnownBlockers(state),
         changeSet: {
           id: state.changeSet.id,
           stageId: state.changeSet.stageId,
@@ -268,8 +279,16 @@ export function toPublicRunView(state: RunState) {
         selectedCandidate: publicCandidate(state.selectedCandidate),
         sequence: publicSequence(state.sequence),
         acceptedChangeSetCount: state.acceptedChangeSets.length,
-        downloadAvailable: true,
-        downloadPath: `/api/runs/${state.runId}/download`,
+        knownBlockers: publicKnownBlockers(state),
+        completionStatus:
+          state.knownBlockers && state.knownBlockers.length > 0
+            ? ("completed_with_known_blocker" as const)
+            : ("fully_validated" as const),
+        downloadAvailable: !state.knownBlockers || state.knownBlockers.length === 0,
+        downloadPath:
+          state.knownBlockers && state.knownBlockers.length > 0
+            ? undefined
+            : `/api/runs/${state.runId}/download`,
         validationReports: state.validationReports.map((r) => ({
           stageId: r.stageId,
           changeSetId: r.changeSetId,

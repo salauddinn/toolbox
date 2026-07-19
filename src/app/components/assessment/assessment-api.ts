@@ -83,6 +83,14 @@ export function retryRolledBackStage(runId: string): Promise<ApiResult<Authorize
   return requestJson<AuthorizeResponse>(`/api/runs/${runId}/retry`, "POST", {});
 }
 
+export function recheckRolledBackStage(runId: string): Promise<ApiResult<RunResponse>> {
+  return requestJson<RunResponse>(`/api/runs/${runId}/recheck`, "POST", {});
+}
+
+export function continueWithKnownBlocker(runId: string): Promise<ApiResult<RunResponse>> {
+  return requestJson<RunResponse>(`/api/runs/${runId}/continue`, "POST", {});
+}
+
 export function acceptChangeSet(runId: string): Promise<ApiResult<RunResponse>> {
   return requestJson<RunResponse>(`/api/runs/${runId}/accept`, "POST", {});
 }

@@ -6,7 +6,9 @@ import {
   deleteRun,
   getRun,
   rejectChangeSet,
+  recheckRolledBackStage,
   retryRolledBackStage,
+  continueWithKnownBlocker,
   selectCandidate,
   startAssessment,
   type ApiFailure,
@@ -249,7 +251,12 @@ export function useAssessmentRun(options: { demo?: boolean } = {}) {
       pending: PendingState,
       operation: Extract<
         PresentationOperation,
-        "authorize-stage" | "accept-change-set" | "reject-change-set" | "retry-stage"
+        | "authorize-stage"
+        | "accept-change-set"
+        | "reject-change-set"
+        | "retry-stage"
+        | "recheck-stage"
+        | "continue-with-known-blocker"
       >,
       request: (runId: string) => ReturnType<typeof authorizeStage>,
     ) => {
@@ -291,6 +298,19 @@ export function useAssessmentRun(options: { demo?: boolean } = {}) {
     () => mutateStage("authorize-request-pending", "retry-stage", retryRolledBackStage),
     [mutateStage],
   );
+  const recheckStage = useCallback(
+    () => mutateStage("recheck-request-pending", "recheck-stage", recheckRolledBackStage),
+    [mutateStage],
+  );
+  const continuePastKnownBlocker = useCallback(
+    () =>
+      mutateStage(
+        "continue-request-pending",
+        "continue-with-known-blocker",
+        continueWithKnownBlocker,
+      ),
+    [mutateStage],
+  );
 
   const refresh = useCallback(async () => {
     if (!run) return;
@@ -322,6 +342,8 @@ export function useAssessmentRun(options: { demo?: boolean } = {}) {
     accept,
     reject,
     retryStage,
+    recheckStage,
+    continuePastKnownBlocker,
     refresh,
   };
 }

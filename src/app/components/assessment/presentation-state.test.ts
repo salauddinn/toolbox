@@ -50,6 +50,8 @@ const localStates = [
   "reject-request-pending",
   "end-run-request-pending",
   "replace-run-request-pending",
+  "recheck-request-pending",
+  "continue-request-pending",
   "active-run-conflict",
 ] as const satisfies readonly LocalPresentationState[];
 
@@ -238,5 +240,12 @@ describe("presentation state", () => {
       actions: ["start_fixture", "start_github"],
       recoveryAction: "start_fixture",
     });
+  });
+
+  it("offers deterministic re-check and continue-with-known-blocker on a rolled-back stage", () => {
+    const actions = presentationFor({ kind: "run", phase: "stage_failed_rolled_back" }).actions;
+    expect(actions).toContain("recheck_stage");
+    expect(actions).toContain("continue_with_known_blocker");
+    expect(actions).toContain("end_run");
   });
 });

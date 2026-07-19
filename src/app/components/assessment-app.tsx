@@ -101,6 +101,7 @@ export function AssessmentApp({ demo = false }: { demo?: boolean }) {
   const [inspector, setInspector] = useState<EvidenceInspectorState | null>(null);
   const inspectorTriggerRef = useRef<HTMLElement | null>(null);
   const [confirmingEnd, setConfirmingEnd] = useState(false);
+  const [confirmingContinue, setConfirmingContinue] = useState(false);
   const [confirmingReplace, setConfirmingReplace] = useState(false);
   const [refreshingReview, setRefreshingReview] = useState(false);
   const assessment = useAssessmentRun({ demo });
@@ -731,6 +732,58 @@ export function AssessmentApp({ demo = false }: { demo?: boolean }) {
                         >
                           Retry failed stage ({2 - run.manualRepairRetries} remaining)
                         </button>
+                      ) : null}
+                      {run.currentStage.kind === "cycle_repair" && run.currentStage.conditional ? (
+                        <>
+                          <button
+                            type="button"
+                            disabled={busy}
+                            onClick={() => void assessment.recheckStage()}
+                            className="tb-btn tb-btn-secondary"
+                          >
+                            Re-check dependency
+                          </button>
+                          {confirmingContinue ? (
+                            <div className="space-y-3 rounded-md border border-danger/40 bg-surface-inset/70 p-3">
+                              <p className="text-[13px] leading-relaxed text-text-secondary">
+                                Continue only with a recorded unresolved blocker? The remaining
+                                stages can still be reviewed and accepted, but this sequence will be
+                                marked partial and will never offer a result ZIP as a fully
+                                validated modernization.
+                              </p>
+                              <div className="flex flex-wrap gap-2">
+                                <button
+                                  type="button"
+                                  disabled={busy}
+                                  onClick={() => {
+                                    setConfirmingContinue(false);
+                                    void assessment.continuePastKnownBlocker();
+                                  }}
+                                  className="tb-btn tb-btn-secondary"
+                                >
+                                  Confirm continue with blocker
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={busy}
+                                  onClick={() => setConfirmingContinue(false)}
+                                  className="tb-btn tb-btn-ghost"
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <button
+                              type="button"
+                              disabled={busy}
+                              onClick={() => setConfirmingContinue(true)}
+                              className="tb-btn tb-btn-ghost text-danger"
+                            >
+                              Continue with known blocker
+                            </button>
+                          )}
+                        </>
                       ) : null}
                     </div>
                   ) : null}

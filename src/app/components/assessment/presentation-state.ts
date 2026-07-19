@@ -35,6 +35,8 @@ export type PresentationAction =
   | "authorize_stage"
   | "accept_change_set"
   | "reject_change_set"
+  | "recheck_stage"
+  | "continue_with_known_blocker"
   | "download_artifact";
 
 export type RunPhase = PublicRunView["phase"];
@@ -47,6 +49,8 @@ export type PresentationOperation =
   | "accept-change-set"
   | "reject-change-set"
   | "retry-stage"
+  | "recheck-stage"
+  | "continue-with-known-blocker"
   | "end-run"
   | "replace-run";
 
@@ -72,6 +76,8 @@ export type LocalPresentationState =
   | "reject-request-pending"
   | "end-run-request-pending"
   | "replace-run-request-pending"
+  | "recheck-request-pending"
+  | "continue-request-pending"
   | "active-run-conflict";
 
 export type PresentationState =
@@ -211,8 +217,8 @@ const presentationByPhase = {
     screen: "sequence-outcome",
     tone: "danger",
     busy: false,
-    actions: ["end_run"],
-    recoveryAction: "end_run",
+    actions: ["recheck_stage", "continue_with_known_blocker", "end_run"],
+    recoveryAction: "recheck_stage",
   },
   sequence_stopped: {
     step: "sequence",
@@ -319,6 +325,27 @@ const localPresentation = {
     operation: "reject-change-set",
     actions: [],
   },
+  "recheck-request-pending": {
+    step: "sequence",
+    heading: "Re-checking the dependency",
+    explanation:
+      "ToolBox is deterministically re-analyzing the accepted snapshot. No AI generation is used.",
+    screen: "sequence-progress",
+    tone: "info",
+    busy: true,
+    operation: "recheck-stage",
+    actions: [],
+  },
+  "continue-request-pending": {
+    step: "sequence",
+    heading: "Recording the known blocker",
+    explanation: "ToolBox is recording the unresolved blocker and moving to the next Stage Plan.",
+    screen: "sequence-progress",
+    tone: "info",
+    busy: true,
+    operation: "continue-with-known-blocker",
+    actions: [],
+  },
   "end-run-request-pending": {
     step: "repository",
     heading: "Ending the current run",
@@ -378,6 +405,14 @@ const operationErrorCopy: Readonly<
     heading: "Retrying failed stage",
     explanation:
       "ToolBox is applying the recorded Static Validation failures within the same Stage Plan.",
+  },
+  "recheck-stage": {
+    heading: "The dependency re-check did not complete",
+    explanation: "The rolled-back stage and the accepted snapshot were preserved.",
+  },
+  "continue-with-known-blocker": {
+    heading: "The continuation was not recorded",
+    explanation: "The run remains at the failed stage with the accepted snapshot preserved.",
   },
   "end-run": {
     heading: "The current run could not be ended",

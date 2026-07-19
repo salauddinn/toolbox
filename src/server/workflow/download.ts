@@ -36,6 +36,15 @@ export function buildDownloadArtifact(input: {
       status: 409,
     };
   }
+  if (run.knownBlockers && run.knownBlockers.length > 0) {
+    return {
+      ok: false,
+      code: "ARTIFACT_BLOCKED_BY_KNOWN_BLOCKER",
+      message:
+        "Result ZIP is unavailable because the sequence continued with an unresolved blocker",
+      status: 409,
+    };
+  }
 
   return {
     ok: true,

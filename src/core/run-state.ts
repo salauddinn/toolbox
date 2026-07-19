@@ -34,12 +34,22 @@ export type RunPhase =
   | "completed"
   | "expired";
 
+/** A developer-recorded blocker retained when a conditional stage is consciously bypassed. */
+export type KnownBlocker = Readonly<{
+  stageId: string;
+  stageKind: "cycle_repair";
+  title: string;
+  reason: "validation_rollback";
+}>;
+
 type RunBase = {
   runId: RunId;
   createdAt: string;
   lastActiveAt: string;
   clientKeyHash: string;
   manualRepairRetries?: number;
+  /** Prevents a run with an explicit bypass from being presented as fully validated. */
+  knownBlockers?: readonly KnownBlocker[];
 };
 
 type SelectedContext = {
@@ -176,6 +186,7 @@ function baseOf(state: RunState): RunBase {
     runId: state.runId,
     clientKeyHash: state.clientKeyHash,
     manualRepairRetries: state.manualRepairRetries,
+    knownBlockers: state.knownBlockers,
     createdAt: state.createdAt,
     lastActiveAt: nowIso(),
   };
@@ -631,6 +642,106 @@ export function retryRolledBackStage(state: RunState): TransitionResult {
       validationReports: state.validationReports,
       failedChangeSet,
       validationReport: state.validationReport,
+    },
+  };
+}
+
+/**
+ * Continue only after a failed conditional cycle-repair stage, while recording
+ * an explicit unresolved blocker. The resulting sequence can never expose a
+ * fully validated/downloadable completion artifact.
+ */
+export function continueWithKnownBlocker(state: RunState): TransitionResult {
+  if (state.phase !== "stage_failed_rolled_back") {
+    return invalid(
+      state.phase,
+      "continueWithKnownBlocker",
+      "Continuation requires a rolled-back conditional stage",
+    );
+  }
+  if (state.currentStage.kind !== "cycle_repair" || !state.currentStage.conditional) {
+    return invalid(
+      state.phase,
+      "continueWithKnownBlocker",
+      "Only a failed conditional cycle-repair stage can be continued with a known blocker",
+    );
+  }
+  const nextIndex = state.stageIndex + 1;
+  const nextStage = orderedStages(state.sequence)[nextIndex];
+  if (!nextStage) {
+    return invalid(
+      state.phase,
+      "continueWithKnownBlocker",
+      "The failed conditional stage has no following Stage Plan",
+    );
+  }
+  const blocker: KnownBlocker = {
+    stageId: state.currentStage.id,
+    stageKind: "cycle_repair",
+    title: state.currentStage.title,
+    reason: "validation_rollback",
+  };
+  return {
+    ok: true,
+    state: {
+      ...baseOf(state),
+      knownBlockers: [...(state.knownBlockers ?? []), blocker],
+      phase: "awaiting_authorization",
+      snapshot: state.snapshot,
+      initialSnapshot: state.initialSnapshot,
+      analysis: state.analysis,
+      selectedCandidate: state.selectedCandidate,
+      sequence: state.sequence,
+      stageIndex: nextIndex,
+      currentStage: nextStage,
+      acceptedChangeSets: state.acceptedChangeSets,
+      validationReports: state.validationReports,
+    },
+  };
+}
+
+/** Advance only when a deterministic dependency re-check proves the conditional stage is gone. */
+export function skipResolvedConditionalStage(
+  state: RunState,
+  sequence: ModernizationSequencePlan,
+): TransitionResult {
+  if (state.phase !== "stage_failed_rolled_back") {
+    return invalid(
+      state.phase,
+      "skipResolvedConditionalStage",
+      "Dependency re-check requires a rolled-back conditional stage",
+    );
+  }
+  if (state.currentStage.kind !== "cycle_repair" || sequence.conditionalStage) {
+    return invalid(
+      state.phase,
+      "skipResolvedConditionalStage",
+      "The conditional cycle-repair stage is still required",
+    );
+  }
+  // Removing the conditional stage shifts integration into the current index.
+  const nextStage = orderedStages(sequence)[state.stageIndex];
+  if (!nextStage) {
+    return invalid(
+      state.phase,
+      "skipResolvedConditionalStage",
+      "Dependency re-check did not expose a following Stage Plan",
+    );
+  }
+  return {
+    ok: true,
+    state: {
+      ...baseOf(state),
+      phase: "awaiting_authorization",
+      snapshot: state.snapshot,
+      initialSnapshot: state.initialSnapshot,
+      analysis: state.analysis,
+      selectedCandidate: state.selectedCandidate,
+      sequence,
+      stageIndex: state.stageIndex,
+      currentStage: nextStage,
+      acceptedChangeSets: state.acceptedChangeSets,
+      validationReports: state.validationReports,
     },
   };
 }

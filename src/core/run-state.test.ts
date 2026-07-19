@@ -12,6 +12,7 @@ import {
   beginRepair,
   beginValidation,
   createRun,
+  continueWithKnownBlocker,
   markAssessed,
   markEligibilityFailed,
   markValidated,
@@ -19,6 +20,7 @@ import {
   rejectChangeSet,
   retryRolledBackStage,
   rollbackStage,
+  skipResolvedConditionalStage,
   selectCandidate,
   type RunId,
   type RunState,
@@ -107,6 +109,16 @@ function sequence(): ModernizationSequencePlan {
       stage("domain_module", "s2") as StagePlan & { kind: "domain_module" },
       stage("integration_cleanup", "s3") as StagePlan & { kind: "integration_cleanup" },
     ],
+  };
+}
+
+function conditionalSequence(): ModernizationSequencePlan {
+  return {
+    ...sequence(),
+    conditionalStage: stage("cycle_repair", "s3_cycle") as StagePlan & {
+      kind: "cycle_repair";
+      conditional: true;
+    },
   };
 }
 
@@ -335,5 +347,114 @@ describe("run state machine", () => {
       }),
     ).state;
     expect(failed.phase).toBe("eligibility_failed");
+  });
+
+  function reachFailedConditionalStage(): RunState {
+    let state: RunState = createRun({ runId, clientKeyHash: "client" });
+    state = mustOk(beginLoading(state, "example")).state;
+    const ready = readyRules();
+    state = mustOk(
+      markAssessed(state, {
+        snapshot: snapshot("base"),
+        analysis: emptyAnalysis(),
+        ranking: { candidates: [candidate()], safestTechnicalCandidateId: "orders" },
+        readinessByCandidateId: new Map([["orders", ready]]),
+      }),
+    ).state;
+    state = mustOk(selectCandidate(state, { candidate: candidate(), readiness: ready })).state;
+    state = mustOk(planSequence(state, conditionalSequence())).state;
+
+    // Accept behavior_capture (index 0) and domain_module (index 1) to land on
+    // the conditional cycle_repair stage (index 2).
+    for (const attempt of [1, 2] as const) {
+      if (state.phase !== "awaiting_authorization") throw new Error("expected authorization");
+      const stageId = state.currentStage.id;
+      const stageKind = state.currentStage.kind;
+      state = mustOk(authorizeGeneration(state)).state;
+      state = mustOk(
+        beginValidation(state, {
+          candidateSnapshot: snapshot(`c${attempt}`),
+          changeSet: { ...changeSet(attempt), stageId, stageKind },
+        }),
+      ).state;
+      state = mustOk(
+        markValidated(state, {
+          changeSet: { ...changeSet(attempt), status: "validated", stageId, stageKind },
+          validationReport: { ...report("passed"), stageId },
+        }),
+      ).state;
+      state = mustOk(acceptChangeSet(state)).state;
+    }
+
+    // Now at index 2 (conditional cycle_repair). Authorize, validate, then roll back.
+    if (state.phase !== "awaiting_authorization") throw new Error("expected conditional stage");
+    const cycleStageId = state.currentStage.id;
+    const cycleStageKind = state.currentStage.kind;
+    state = mustOk(authorizeGeneration(state)).state;
+    state = mustOk(
+      beginValidation(state, {
+        candidateSnapshot: snapshot("c_cycle"),
+        changeSet: { ...changeSet(1), stageId: cycleStageId, stageKind: cycleStageKind },
+      }),
+    ).state;
+    return mustOk(rollbackStage(state, { ...report("failed_rolled_back"), stageId: cycleStageId }))
+      .state;
+  }
+
+  it("records a known blocker when continuing past a failed conditional cycle-repair stage", () => {
+    const failed = reachFailedConditionalStage();
+    expect(failed.phase).toBe("stage_failed_rolled_back");
+    if (failed.phase !== "stage_failed_rolled_back") return;
+    expect(failed.currentStage.kind).toBe("cycle_repair");
+    expect(failed.currentStage.conditional).toBe(true);
+
+    const continued = mustOk(continueWithKnownBlocker(failed)).state;
+    expect(continued.phase).toBe("awaiting_authorization");
+    if (continued.phase !== "awaiting_authorization") return;
+    expect(continued.stageIndex).toBe(3);
+    expect(continued.currentStage.kind).toBe("integration_cleanup");
+    expect(continued.acceptedChangeSets).toHaveLength(2);
+    expect(continued.knownBlockers).toHaveLength(1);
+    if (continued.knownBlockers) {
+      const blocker = continued.knownBlockers[0];
+      expect(blocker?.stageKind).toBe("cycle_repair");
+      expect(blocker?.reason).toBe("validation_rollback");
+    }
+  });
+
+  it("refuses to continue with a known blocker from a non-conditional failed stage", () => {
+    const failed = reachFailedConditionalStage();
+    // Simulate a non-conditional stage failure by treating stage 0 as current.
+    const nonConditional = {
+      ...failed,
+      stageIndex: 0,
+      currentStage: conditionalSequence().requiredStages[0],
+    } as RunState;
+    const denied = continueWithKnownBlocker(nonConditional);
+    expect(denied.ok).toBe(false);
+  });
+
+  it("refuses to continue with a known blocker unless the stage is rolled back", () => {
+    const failed = reachFailedConditionalStage();
+    const notRolled = { ...failed, phase: "awaiting_authorization" } as RunState;
+    const denied = continueWithKnownBlocker(notRolled);
+    expect(denied.ok).toBe(false);
+  });
+
+  it("skips a resolved conditional stage only when the cycle is gone", () => {
+    const failed = reachFailedConditionalStage();
+    // Sequence still has the conditional stage: re-check must not advance.
+    const stillRequired = skipResolvedConditionalStage(failed, conditionalSequence());
+    expect(stillRequired.ok).toBe(false);
+
+    // A sequence whose conditional stage has been resolved (no conditionalStage)
+    // lets the run advance to integration_cleanup at the same index.
+    const resolved = skipResolvedConditionalStage(failed, sequence());
+    const advanced = mustOk(resolved).state;
+    expect(advanced.phase).toBe("awaiting_authorization");
+    if (advanced.phase !== "awaiting_authorization") return;
+    expect(advanced.stageIndex).toBe(2);
+    expect(advanced.currentStage.kind).toBe("integration_cleanup");
+    expect(advanced.acceptedChangeSets).toHaveLength(2);
   });
 });

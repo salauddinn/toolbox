@@ -6,10 +6,12 @@ import {
   authorizeGeneration,
   beginRepair,
   beginValidation,
+  continueWithKnownBlocker,
   markValidated,
   rejectChangeSet,
   retryRolledBackStage,
   rollbackStage,
+  skipResolvedConditionalStage,
 } from "@/core/run-state";
 import { assertNormalizedPath } from "@/core/paths";
 import type { ValidationReport } from "@/core/validation";
@@ -262,6 +264,83 @@ export async function retryRolledBackStageGeneration(input: {
     deterministic,
     priorReport,
   });
+}
+
+/**
+ * Recalculate the conditional dependency stage without asking a model. A run
+ * can advance only if the accepted snapshot no longer contains that cycle.
+ */
+export function recheckRolledBackConditionalStage(input: {
+  runId: RunId;
+  clientKeyHash: string;
+  store?: RunStore;
+}): StageActionResult {
+  const store = input.store ?? globalRunStore;
+  const bound = getBoundRun(store, input.runId, input.clientKeyHash);
+  if (!bound.ok) return bound;
+  if (bound.run.phase !== "stage_failed_rolled_back") {
+    return {
+      ok: false,
+      code: "INVALID_PHASE",
+      message: `Cannot re-check dependency from phase ${bound.run.phase}`,
+      status: 409,
+      run: bound.run,
+    };
+  }
+
+  const resolved = resolveConditionalStage({
+    candidate: bound.run.selectedCandidate,
+    analysis: bound.run.analysis,
+    files: [...bound.run.snapshot.files.values()],
+    sequence: bound.run.sequence,
+    entryPath: bound.run.analysis.entryPath,
+  });
+  if (resolved.conditionalStage) {
+    return {
+      ok: false,
+      code: "CONDITIONAL_STAGE_STILL_REQUIRED",
+      message:
+        "The accepted snapshot still contains the detected circular dependency. Retry repair, continue with the recorded blocker, or end this run.",
+      status: 409,
+      run: bound.run,
+    };
+  }
+
+  const advanced = skipResolvedConditionalStage(bound.run, resolved);
+  if (!advanced.ok) {
+    return {
+      ok: false,
+      code: advanced.error.code,
+      message: advanced.error.message,
+      status: 409,
+      run: bound.run,
+    };
+  }
+  store.set(advanced.state);
+  return { ok: true, run: advanced.state };
+}
+
+/** Continue past a failed conditional cycle stage with an explicit, durable blocker. */
+export function continueRolledBackStageWithKnownBlocker(input: {
+  runId: RunId;
+  clientKeyHash: string;
+  store?: RunStore;
+}): StageActionResult {
+  const store = input.store ?? globalRunStore;
+  const bound = getBoundRun(store, input.runId, input.clientKeyHash);
+  if (!bound.ok) return bound;
+  const continued = continueWithKnownBlocker(bound.run);
+  if (!continued.ok) {
+    return {
+      ok: false,
+      code: continued.error.code,
+      message: continued.error.message,
+      status: 409,
+      run: bound.run,
+    };
+  }
+  store.set(continued.state);
+  return { ok: true, run: continued.state };
 }
 
 async function runGenerateValidateLoop(input: {
